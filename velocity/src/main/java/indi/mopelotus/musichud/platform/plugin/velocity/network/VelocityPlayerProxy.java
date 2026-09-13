@@ -33,8 +33,11 @@ public final class VelocityPlayerProxy implements IPlayerClient {
         return ClientType.REMOTE;
     }
 
-    public static void disconnect(Player player) { DISCONNECTED.put(player, true); }
-    @Override public boolean isConnected() { return DISCONNECTED.getIfPresent(player) == null && player.isActive() && VelocityNetworkManager.getInstance().isOpen(); }
+    public static void disconnect(Player player) { disconnectOnce(player); }
+    public static boolean disconnectOnce(Player player) {
+        return DISCONNECTED.asMap().putIfAbsent(player, true) == null;
+    }
+    @Override public boolean isConnected() { return DISCONNECTED.getIfPresent(player) == null && VelocityNetworkManager.getInstance().isCurrentConnection(player); }
     @Override public Object connectionIdentity() { return player; }
 
     @Override

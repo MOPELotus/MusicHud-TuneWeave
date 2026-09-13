@@ -8,7 +8,7 @@ allprojects {
 }
 
 subprojects {
-    if (name in ['paper', 'velocity']) {
+    if (name in ['paper', 'velocity', 'bungeecord']) {
         plugins.withId('com.gradleup.shadow') {
             def verifyProtocol = tasks.register('verifyProtocolJar') {
                 dependsOn tasks.named('shadowJar')
@@ -32,7 +32,33 @@ subprojects {
                     }
                 }
             }
-            tasks.named('build').configure { dependsOn verifyProtocol }
+            def verifyJava21 = tasks.register('verifyJava21Jar') {
+                dependsOn tasks.named('shadowJar')
+                inputs.file(tasks.named('shadowJar').flatMap { it.archiveFile })
+                doLast {
+                    new java.util.zip.ZipFile(tasks.named('shadowJar').get().archiveFile.get().asFile).withCloseable { zip ->
+                        zip.entries().each { entry ->
+                            if (!entry.directory && entry.name.endsWith('.class')) {
+                                try {
+                                    new DataInputStream(zip.getInputStream(entry)).withCloseable { input ->
+                                        if (Integer.toUnsignedLong(input.readInt()) != 0xCAFEBABEL) {
+                                            throw new GradleException("Invalid class header in ${entry.name}")
+                                        }
+                                        input.readUnsignedShort()
+                                        int major = input.readUnsignedShort()
+                                        if (major > 65) {
+                                            throw new GradleException("${entry.name} requires class version ${major}; plugin artifacts must target Java 21 (65) or earlier")
+                                        }
+                                    }
+                                } catch (EOFException exception) {
+                                    throw new GradleException("Truncated class header in ${entry.name}", exception)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            tasks.named('build').configure { dependsOn verifyProtocol, verifyJava21 }
         }
     }
 }

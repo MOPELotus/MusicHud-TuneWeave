@@ -29,6 +29,10 @@ public final class VelocityNetworkManager implements INetworkRegister, IServerNe
     private final Map<String, ChannelIdentifier> channels = new ConcurrentHashMap<>();
     private volatile ProxyServer proxy;
     public boolean isOpen() { return proxy != null; }
+    public boolean isCurrentConnection(Player player) {
+        ProxyServer owner = proxy;
+        return owner != null && owner.getPlayer(player.getUniqueId()).orElse(null) == player && player.isActive();
+    }
 
     private VelocityNetworkManager() {
     }
@@ -39,6 +43,7 @@ public final class VelocityNetworkManager implements INetworkRegister, IServerNe
 
     public void initialize(ProxyServer proxy) {
         this.proxy = proxy;
+        registerChannel(indi.mopelotus.musichud.network.ProxyDeploymentProbe.CHANNEL);
     }
 
     @Override
@@ -118,6 +123,19 @@ public final class VelocityNetworkManager implements INetworkRegister, IServerNe
         if (!player.sendPluginMessage(identifier, bytes)) {
             logger.debug("Velocity did not accept plugin message {} for {}", channel, player.getUsername());
         }
+    }
+
+    public void probeBackend(Player player) {
+        ProxyServer owner = proxy;
+        if (owner == null || owner.getPlayer(player.getUniqueId()).orElse(null) != player
+                || !VelocityPlayerProxy.of(player).isConnected()) return;
+        player.getCurrentServer().ifPresent(backend -> backend.sendPluginMessage(
+                registerChannel(indi.mopelotus.musichud.network.ProxyDeploymentProbe.CHANNEL),
+                indi.mopelotus.musichud.network.ProxyDeploymentProbe.request()));
+    }
+
+    public boolean isServerChannel(String channel) {
+        return s2cCodecs.containsKey(channel);
     }
 
     public boolean handles(String channel) {

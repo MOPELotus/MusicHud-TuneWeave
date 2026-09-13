@@ -25,7 +25,7 @@ import java.nio.file.Path;
 @Plugin(
         id = "musichud_tuneweave",
         name = "MusicHud TuneWeave",
-        version = "1.2.15",
+        version = PluginVersion.VERSION,
         description = "TuneWeave public playback coordination for Velocity",
         authors = {"Etern", "MOPELotus"}
 )
@@ -76,6 +76,15 @@ public final class VelocityInitializer {
         var route = indi.mopelotus.musichud.network.ProxyMessagePolicy.route(channel, event.getSource() instanceof Player);
         if (route == indi.mopelotus.musichud.network.ProxyMessagePolicy.Route.FORWARD) return;
         event.setResult(PluginMessageEvent.ForwardResult.handled());
+        if (route == indi.mopelotus.musichud.network.ProxyMessagePolicy.Route.DROP_BACKEND
+                && event.getSource() instanceof com.velocitypowered.api.proxy.ServerConnection backend) {
+            indi.mopelotus.musichud.platform.plugin.velocity.deployment.VelocityDeploymentGuard.rejectBackendAuthority(
+                    proxy, networkManager, backend, channel, event.getData(),
+                    (server, payload) -> logger.error("MusicHud TuneWeave double installation detected on backend {} "
+                            + "(channel {}). Disconnected the affected player and closed its playback membership. "
+                            + "Remove MusicHud TuneWeave from ALL backend servers; keep it only on the proxy.", server, payload));
+            return;
+        }
         if (route != indi.mopelotus.musichud.network.ProxyMessagePolicy.Route.HANDLE_CLIENT
                 || !(event.getSource() instanceof Player player) || !networkManager.handles(channel)) return;
         networkManager.handle(player, channel, event.getData());
@@ -83,7 +92,9 @@ public final class VelocityInitializer {
 
     @Subscribe public void onServerChanged(com.velocitypowered.api.event.player.ServerPostConnectEvent event) {
         Player player = event.getPlayer();
-        if (networkManager == null || !indi.mopelotus.musichud.server.ServerPlayerRegistry.getInstance().contains(player.getUniqueId())) return;
+        if (networkManager == null) return;
+        networkManager.probeBackend(player);
+        if (!indi.mopelotus.musichud.server.ServerPlayerRegistry.getInstance().contains(player.getUniqueId())) return;
         var service = indi.mopelotus.musichud.server.api.MusicPlayerServerService.getInstance();
         var client = indi.mopelotus.musichud.platform.plugin.velocity.network.VelocityPlayerProxy.of(player);
         networkManager.sendToPlayer(client, new indi.mopelotus.musichud.network.payloads.pushMessages.s2c.SyncCurrentPlayingMessage(

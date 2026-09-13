@@ -1,0 +1,5 @@
+name: MusicHud-TuneWeave
+main: indi.mopelotus.musichud.bungeecord.BungeeInitializer
+version: '${version}'
+author: MOPELotus
+description: TuneWeave public playback coordination for BungeeCord

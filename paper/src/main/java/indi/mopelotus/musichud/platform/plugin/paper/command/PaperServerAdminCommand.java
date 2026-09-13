@@ -1,60 +1,44 @@
 package indi.mopelotus.musichud.platform.plugin.paper.command;
 
-import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.Version;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
 import indi.mopelotus.musichud.beans.music.PlaybackSession;
 import indi.mopelotus.musichud.server.api.MusicPlayerServerService;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.TabCompleter;
-import org.bukkit.command.PluginCommand;
+import org.bukkit.permissions.Permission;
+import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.util.List;
-import java.util.Collection;
 import java.util.Locale;
-import java.lang.reflect.Method;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 
 /** Styled Paper admin command for the TuneWeave public playback server. */
-public final class PaperServerAdminCommand implements CommandExecutor, TabCompleter {
+public final class PaperServerAdminCommand implements BasicCommand {
     private static final String PREFIX = ChatColor.DARK_GRAY + "[" + ChatColor.GOLD + "MusicHud TuneWeave" + ChatColor.DARK_GRAY + "] ";
     private static final List<String> ROOT = List.of("help", "status", "player", "api", "playback");
 
+    private String pluginVersion;
+
     public void register(org.bukkit.plugin.java.JavaPlugin plugin) {
-        try {
-            Method register = java.util.Arrays.stream(org.bukkit.plugin.java.JavaPlugin.class.getDeclaredMethods())
-                    .filter(method -> method.getName().equals("registerCommand") && method.getParameterCount() == 4)
-                    .findFirst().orElseThrow(NoSuchMethodException::new);
-            register.setAccessible(true);
-            BasicCommand bridge = new BasicCommand() {
-                @Override public void execute(CommandSourceStack stack, String[] args) {
-                    handleCommand(stack.getSender(), "musichud", args);
-                }
-                @Override public Collection<String> suggest(CommandSourceStack stack, String[] args) {
-                    return onTabComplete(stack.getSender(), null, "musichud", args);
-                }
-            };
-            register.invoke(plugin, "musichud", "MusicHud TuneWeave administration", List.of("musichud-tuneweave", "mt"), bridge);
-            return;
-        } catch (ReflectiveOperationException ignored) {
-            // Legacy Paper exposes YAML commands instead of registerCommand.
+        pluginVersion = plugin.getPluginMeta().getVersion();
+        if (Bukkit.getPluginManager().getPermission("musichud.admin") == null) {
+            Bukkit.getPluginManager().addPermission(new Permission("musichud.admin", "MusicHud TuneWeave administrator commands", PermissionDefault.OP));
         }
-        PluginCommand command = plugin.getCommand("musichud");
-        if (command == null) throw new IllegalStateException("musichud command is unavailable on this Paper version");
-        command.setExecutor(this); command.setTabCompleter(this);
+        plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
+                event.registrar().register("musichud", "MusicHud TuneWeave administration",
+                        List.of("musichud-tuneweave", "mt"), this));
     }
 
-    @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        return handleCommand(sender, label, args);
+    @Override public void execute(CommandSourceStack stack, String[] args) {
+        handleCommand(stack.getSender(), "musichud", args);
     }
 
-    private boolean handleCommand(CommandSender sender, String label, String[] args) {
+    private void handleCommand(CommandSender sender, String label, String[] args) {
         String sub = args.length == 0 ? "help" : args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
             case "help", "?" -> help(sender, label);
@@ -64,17 +48,16 @@ public final class PaperServerAdminCommand implements CommandExecutor, TabComple
             case "playback" -> playback(sender, args);
             default -> { error(sender, "未知子命令: " + args[0]); hint(sender, "使用 /" + label + " help 查看帮助。"); }
         }
-        return true;
     }
 
     private void help(CommandSender sender, String label) {
         raw(sender, ChatColor.GOLD + "━━━━━━━━ MusicHud TuneWeave ━━━━━━━━");
         raw(sender, ChatColor.AQUA + "基础");
         raw(sender, ChatColor.WHITE + "/" + label + " status" + ChatColor.GRAY + "  查看服务端、公共播放和队列状态");
-        raw(sender, ChatColor.WHITE + "/" + label + " api status" + ChatColor.GRAY + "  查看内置 TuneWeave API");
+        raw(sender, ChatColor.WHITE + "/" + label + " api status" + ChatColor.GRAY + "  查看 TuneWeave API 客户端分布式模式");
         raw(sender, ChatColor.WHITE + "/" + label + " playback skip" + ChatColor.GRAY + "  管理员强制切歌");
         raw(sender, ChatColor.GRAY + "音乐平台账号与凭据由客户端持有；服务端不会显示 Cookie 或 token。");
-        raw(sender, ChatColor.DARK_GRAY + "别名: /musichud /musichud-tuneweave");
+        raw(sender, ChatColor.DARK_GRAY + "别名: /mt /musichud /musichud-tuneweave");
     }
 
     private void status(CommandSender sender) {
@@ -82,7 +65,8 @@ public final class PaperServerAdminCommand implements CommandExecutor, TabComple
         PlaybackSession session = service.getCurrentPlaybackSession();
         MusicDetail detail = session == null ? MusicDetail.NONE : session.musicDetail();
         header(sender, "服务端状态");
-        field(sender, "版本", Version.CURRENT);
+        field(sender, "版本", pluginVersion);
+        field(sender, "协议版本", Version.CURRENT);
         field(sender, "API 状态", "服务端不托管（客户端分布式）");
         field(sender, "在线公共会话", session != null && session.isActive() ? "运行中" : "空闲");
         field(sender, "当前播放", detail == null || detail == MusicDetail.NONE ? "无" : detail.getName());
@@ -133,7 +117,7 @@ public final class PaperServerAdminCommand implements CommandExecutor, TabComple
         return false;
     }
 
-    @Override public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    @Override public List<String> suggest(CommandSourceStack stack, String[] args) {
         if (args.length == 1) return ROOT.stream().filter(v -> v.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
         if (args.length == 2 && args[0].equalsIgnoreCase("api")) return List.of("status");
         if (args.length == 2 && args[0].equalsIgnoreCase("playback")) return List.of("skip");

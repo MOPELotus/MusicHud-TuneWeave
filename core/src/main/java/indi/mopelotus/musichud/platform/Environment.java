@@ -74,7 +74,13 @@ public class Environment {
                 null,
                 null,
                 null,
-                null);
+                null),
+        BUNGEECORD(
+                () -> load("indi.mopelotus.musichud.platform.plugin.bungeecord.config.BungeeServerConfig", ServerConfig.class),
+                () -> load("indi.mopelotus.musichud.platform.plugin.bungeecord.network.BungeeNetworkManager", INetworkRegister.class),
+                () -> load("indi.mopelotus.musichud.platform.plugin.bungeecord.network.BungeeNetworkManager", IServerNetworkService.class),
+                () -> load("indi.mopelotus.musichud.platform.plugin.bungeecord.event.BungeeEventService", ICommonEventService.class),
+                null, null, null, null, null, null, null, null);
 
         private final Supplier<ServerConfig> serverConfigSupplier;
         private final Supplier<INetworkRegister> networkRegisterSupplier;

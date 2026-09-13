@@ -1,21 +1,27 @@
-# MusicHud-TuneWeave — Paper / Velocity
+# MusicHud-TuneWeave — Paper / Velocity / BungeeCord
 
-Independent LGPL fork of [MusicHud](https://github.com/Etern-34520/MusicHud), derived also from the former MusicHud-Paper work. This is not an official upstream release.
+MusicHud TuneWeave 是由 [TuneWeave](https://github.com/MOPELotus/TuneWeave) 驱动的 Minecraft 音乐播放与同步项目，支持点歌、队列、歌词、HUD 和多人同步。
 
-This dedicated branch provides server/proxy coordination for current MusicHud-TuneWeave clients. Music providers, authentication and credentials remain on clients. Plugins do not require a server-side TuneWeave process.
+MusicHud TuneWeave is an independent LGPL fork of [MusicHud](https://github.com/Etern-34520/MusicHud), also derived from the former MusicHud-Paper implementation. It is not an official MusicHud release and does not guarantee API or protocol compatibility with upstream MusicHud.
 
-## Build
+## 支持与部署
 
-Java 25 is required. Paper currently compiles against the existing 1.21.1 API baseline; runtime testing on target servers is still required.
+本分支构建 Paper、Velocity、BungeeCord 三种服务端/代理插件，客户端模组由对应 Minecraft 版本分支提供。音乐服务和账号凭据由客户端持有，服务器与代理只协调公共播放。
 
-    .\gradlew.bat core:test paper:build velocity:build --rerun-tasks
+群组服只在代理端安装对应插件，所有后端均不安装；独立 Paper 单服直接安装 Paper 插件。客户端仍需匹配的模组。详见[部署说明](docs/deployment.md)。
 
-Deploy `paper/build/libs/musichud-tuneweave-paper-<version>.jar` or `velocity/build/libs/musichud-tuneweave-velocity-<version>.jar`. Do not deploy `-plain` or `-sources` artifacts.
+## 构建
 
-## Configuration and ownership
+使用 JDK 25；所有插件模块以 Java 21 为字节码目标。服务器或代理自身可能要求更高版本的 Java。
 
-Paper stores its configuration under the new `MusicHud-TuneWeave` plugin directory; Velocity uses its injected `musichud_tuneweave` directory. Old MusicHud directories are neither moved nor deleted. Reapply the public vote-policy setting if needed; do not migrate server-side music credentials. The configurable policy is `pusherVoteAdditionalRate` (0 through 1).
+```bash
+./gradlew core:test paper:build velocity:build bungeecord:build --rerun-tasks
+```
 
-The protocol namespace is `musichud_tuneweave`, with the same core codecs/capabilities as the 26.2 client branch. The proxy owns public playback across backend switches and suppresses backend messages in this namespace to prevent duplicate authority. Actual disconnect removes membership. Large packets use bounded shared fragmentation.
+Windows 使用 gradlew.bat。部署各模块 build/libs 中的 `musichud-tuneweave-paper-<version>.jar`、`musichud-tuneweave-velocity-<version>.jar` 或 `musichud-tuneweave-bungeecord-<version>.jar`，不使用 -plain/-sources 包。
 
-Unit and adapter tests are deterministic and offline-safe when dependencies are cached. Builds and contract tests do not replace LAN, real Paper, proxy switching or client playback acceptance tests.
+Paper 配置位于 MusicHud-TuneWeave 目录；代理使用对应平台的插件数据目录。不要迁入旧版服务器端音乐凭据。跳过投票的 pusherVoteAdditionalRate 配置范围为 0 到 1。
+
+## 许可证与致谢
+
+本项目遵循 [LGPL-3.0](license)，保留上游作者及贡献者归属。Java 包名为 indi.mopelotus.musichud。

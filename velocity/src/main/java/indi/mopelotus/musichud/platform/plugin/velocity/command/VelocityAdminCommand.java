@@ -1,7 +1,8 @@
 package indi.mopelotus.musichud.platform.plugin.velocity.command;
 
 import com.velocitypowered.api.command.SimpleCommand;
-import indi.mopelotus.musichud.MusicHud;
+import indi.mopelotus.musichud.Version;
+import indi.mopelotus.musichud.velocity.PluginVersion;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
 import indi.mopelotus.musichud.beans.music.PlaybackSession;
 import indi.mopelotus.musichud.server.api.MusicPlayerServerService;
@@ -30,7 +31,7 @@ public final class VelocityAdminCommand implements SimpleCommand {
         send(invocation, Component.text("━━━━━━━━ MusicHud TuneWeave ━━━━━━━━", NamedTextColor.GOLD));
         send(invocation, Component.text("基础", NamedTextColor.AQUA));
         send(invocation, Component.text("/mt status", NamedTextColor.WHITE).append(Component.text("  查看代理、公共播放和队列状态", NamedTextColor.GRAY)));
-        send(invocation, Component.text("/mt api status", NamedTextColor.WHITE).append(Component.text("  查看 API 托管模式", NamedTextColor.GRAY)));
+        send(invocation, Component.text("/mt api status", NamedTextColor.WHITE).append(Component.text("  查看 TuneWeave API 客户端分布式模式", NamedTextColor.GRAY)));
         send(invocation, Component.text("/mt playback skip", NamedTextColor.WHITE).append(Component.text("  管理员强制切歌", NamedTextColor.GRAY)));
         send(invocation, Component.text("别名: /mt /musichud /musichud-tuneweave /tuneweave", NamedTextColor.DARK_GRAY));
     }
@@ -40,6 +41,8 @@ public final class VelocityAdminCommand implements SimpleCommand {
         PlaybackSession session = service.getCurrentPlaybackSession();
         MusicDetail detail = session == null ? MusicDetail.NONE : session.musicDetail();
         send(invocation, Component.text("━━━━━━━━ 服务端状态 ━━━━━━━━", NamedTextColor.GOLD));
+        field(invocation, "版本", PluginVersion.VERSION);
+        field(invocation, "协议版本", Version.CURRENT.toString());
         field(invocation, "公共会话", session != null && session.isActive() ? "运行中" : "空闲");
         field(invocation, "当前播放", detail == null || detail == MusicDetail.NONE ? "无" : detail.getName());
         field(invocation, "队列数量", String.valueOf(service.getMusicQueue().size()));

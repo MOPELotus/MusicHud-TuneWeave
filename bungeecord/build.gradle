@@ -1,0 +1,107 @@
+plugins {
+    id 'java-library'
+    id 'com.gradleup.shadow'
+}
+
+base {
+    archivesName = "$rootProject.archives_name-bungeecord"
+}
+
+configurations {
+    core {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    shadowBundle {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    compileClasspath.extendsFrom core
+    runtimeClasspath.extendsFrom core
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = 'https://libraries.minecraft.net/'
+        content { includeGroup 'com.mojang' }
+    }
+    maven { url = 'https://central.sonatype.com/repository/maven-snapshots/' }
+}
+
+dependencies {
+    core(project(path: ':core'))
+    shadowBundle(project(path: ':core')) { transitive = false }
+
+    compileOnly "net.md-5:bungeecord-api:$rootProject.bungeecord_api_version"
+    compileOnly "io.netty:netty-buffer:$rootProject.netty_version"
+    compileOnly "io.netty:netty-codec:$rootProject.netty_version"
+
+    implementation "org.apache.logging.log4j:log4j-api:2.24.1"
+    implementation "org.apache.logging.log4j:log4j-core:2.24.1"
+    shadowBundle "org.apache.logging.log4j:log4j-api:2.24.1"
+    shadowBundle "org.apache.logging.log4j:log4j-core:2.24.1"
+
+    compileOnly "org.projectlombok:lombok:$rootProject.lombok_version"
+    annotationProcessor "org.projectlombok:lombok:$rootProject.lombok_version"
+    compileOnly project(':processor')
+    annotationProcessor project(':processor')
+    testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
+    testImplementation project(':core')
+    testImplementation "net.md-5:bungeecord-api:$rootProject.bungeecord_api_version"
+    testImplementation "io.netty:netty-buffer:$rootProject.netty_version"
+    testImplementation "io.netty:netty-codec:$rootProject.netty_version"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Amusichud.module=bungeecord']
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+tasks.shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = ''
+}
+
+def generatePluginVersion = tasks.register('generatePluginVersion') {
+    def generatedDirectory = layout.buildDirectory.dir('generated/sources/pluginVersion/java')
+    inputs.property('version', project.version.toString())
+    outputs.dir(generatedDirectory)
+    doLast {
+        def source = generatedDirectory.get().file('indi/mopelotus/musichud/bungeecord/PluginVersion.java').asFile
+        source.parentFile.mkdirs()
+        source.setText("""package indi.mopelotus.musichud.bungeecord;
+
+/** Product version generated from Gradle; independent of the network protocol version. */
+public final class PluginVersion {
+    public static final String VERSION = ${groovy.json.JsonOutput.toJson(project.version.toString())};
+    private PluginVersion() {}
+}
+""", 'UTF-8')
+    }
+}
+
+sourceSets.main.java.srcDir(generatePluginVersion)
+
+tasks.jar { archiveClassifier = 'plain' }
+
+tasks.assemble {
+    dependsOn tasks.shadowJar
+}
+
+tasks.processResources {
+    inputs.property('version', project.version)
+    filesMatching('bungee.yml') { expand(version: project.version) }
+}

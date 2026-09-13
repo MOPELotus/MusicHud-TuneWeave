@@ -9,6 +9,25 @@ import indi.mopelotus.musichud.throwable.ApiException;
 import java.util.function.BiConsumer;
 
 public class ServerDataPacketVThreadExecutor {
+    private static final ServerConnectionControlQueue CONTROL = new ServerConnectionControlQueue(MusicHud.EXECUTOR);
+
+    public static <T extends IPayload> NetworkReceiver<T> executeControl(BiConsumer<T, IPlayerClient> consumer) {
+        return controlReceiver(CONTROL, consumer);
+    }
+
+    /** Shared by the real Connect/Disconnect registrations and deterministic ordering tests. */
+    public static <T extends IPayload> NetworkReceiver<T> controlReceiver(
+            ServerConnectionControlQueue queue, BiConsumer<T, IPlayerClient> consumer) {
+        return (payload, player) -> {
+            if (!player.isConnected()) return;
+            queue.execute(player.controlConnectionIdentity(), () -> {
+                if (!player.isConnected()) return;
+                try { consumer.accept(payload, player); }
+                catch (Exception e) { MusicHud.getLogger(payload.getClass()).error(e); }
+            });
+        };
+    }
+
     public static <T extends IPayload> NetworkReceiver<T> execute(
             BiConsumer<T, IPlayerClient> consumer
     ) {

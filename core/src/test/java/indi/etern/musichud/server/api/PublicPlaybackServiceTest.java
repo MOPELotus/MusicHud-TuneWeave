@@ -119,11 +119,39 @@ class PublicPlaybackServiceTest {
         }
     }
 
+    @Test
+    void lateJoinAndResyncPreserveCurrentTimelineWithoutNewResolution() throws Exception {
+        try (Harness h = new Harness()) {
+            PlaybackSession started = h.start();
+            assertSame(started, h.listenerSessions.poll(2, TimeUnit.SECONDS));
+            var late = new Player(UUID.randomUUID(), "late joiner");
+            ServerPlayerRegistry.getInstance().join(late);
+            try {
+                assertSame(started, h.service.buildInitialStateFor(late).getPlaybackSession());
+                h.service.sendSyncPlayingStatusToPlayer(late);
+                PlaybackSession firstSync = h.syncSessions.poll(2, TimeUnit.SECONDS);
+                assertSame(started, firstSync);
+                h.service.sendSyncPlayingStatusToPlayer(late);
+                PlaybackSession repeatSync = h.syncSessions.poll(2, TimeUnit.SECONDS);
+                assertSame(firstSync, repeatSync, "resync must not restart or replace the public timeline");
+                assertEquals(List.of(h.owner.uuid()), h.resolvers,
+                        "late join and resync must reuse the owner-resolved public resource");
+                h.service.reset();
+                PlaybackSession stopped = h.service.buildInitialStateFor(late).getPlaybackSession();
+                assertFalse(stopped.isActive());
+                assertTrue(stopped.sequence() > started.sequence());
+                h.service.sendSyncPlayingStatusToPlayer(late);
+                assertTrue(h.syncSessions.isEmpty(), "stopped playback must not be replayed to a late peer");
+            } finally { ServerPlayerRegistry.getInstance().leave(late); }
+        }
+    }
+
     private static final class Harness implements AutoCloseable, IServerNetworkService {
         final Player owner = new Player(UUID.randomUUID(), "owner");
         final Player listener = new Player(UUID.randomUUID(), "listener");
         final BlockingQueue<Runnable> tasks = new LinkedBlockingQueue<>();
         final BlockingQueue<PlaybackSession> sessions = new LinkedBlockingQueue<>();
+        final BlockingQueue<PlaybackSession> syncSessions = new LinkedBlockingQueue<>();
         final BlockingQueue<PlaybackSession> listenerSessions = new LinkedBlockingQueue<>();
         final List<UUID> resolvers = new CopyOnWriteArrayList<>();
         final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
@@ -175,6 +203,8 @@ class PublicPlaybackServiceTest {
                     service.acceptPlaybackResolution(player, ResolvePlaybackResultMessage.success(
                             request.requestId(), request.revision(), new PlaybackResolution(track, resource)));
                 }
+            } else if (payload instanceof indi.mopelotus.musichud.network.payloads.pushMessages.s2c.SyncCurrentPlayingMessage sync) {
+                syncSessions.add(sync.playbackSession());
             } else if (payload instanceof SwitchMusicMessage update) {
                 if (player.getUUID().equals(owner.uuid())) sessions.add(update.playbackSession());
                 if (player.getUUID().equals(listener.uuid())) listenerSessions.add(update.playbackSession());

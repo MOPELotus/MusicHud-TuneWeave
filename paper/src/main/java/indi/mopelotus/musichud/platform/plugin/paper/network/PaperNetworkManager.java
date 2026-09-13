@@ -50,7 +50,20 @@ public final class PaperNetworkManager implements INetworkRegister, IServerNetwo
             return;
         }
         this.plugin = plugin;
-        lifecycle.incrementAndGet();
+        long generation = lifecycle.incrementAndGet();
+        String channel = ProxyDeploymentProbe.CHANNEL;
+        incomingChannels.add(channel);
+        ensureOutgoingChannelRegistered(channel);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, channel, (received, player, bytes) -> {
+            if (!channel.equals(received) || !ProxyDeploymentProbe.isRequest(bytes)) return;
+            // This is public presence information, never permission to disable a standalone server.
+            player.getScheduler().run(plugin, task -> new DeferredPluginSend(
+                    () -> this.plugin == plugin && lifecycle.get() == generation && plugin.isEnabled() && player.isOnline(),
+                    () -> player.getListeningPluginChannels().contains(channel),
+                    () -> player.sendPluginMessage(plugin, channel, ProxyDeploymentProbe.present()),
+                    later -> player.getScheduler().runDelayed(plugin, ignored -> later.run(), null, 1L),
+                    MAX_PLUGIN_MESSAGE_RETRY_TICKS).run(), null);
+        });
     }
 
     @Override

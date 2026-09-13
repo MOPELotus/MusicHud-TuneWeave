@@ -53,12 +53,12 @@ dependencies {
 
 java {
     withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.release = 25
+    options.release = 21
     options.encoding = 'UTF-8'
     options.compilerArgs += ['-Amusichud.module=velocity']
 }
@@ -71,6 +71,26 @@ tasks.shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = ''
 }
+
+def generatePluginVersion = tasks.register('generatePluginVersion') {
+    def generatedDirectory = layout.buildDirectory.dir('generated/sources/pluginVersion/java')
+    inputs.property('version', project.version.toString())
+    outputs.dir(generatedDirectory)
+    doLast {
+        def source = generatedDirectory.get().file('indi/mopelotus/musichud/velocity/PluginVersion.java').asFile
+        source.parentFile.mkdirs()
+        source.setText("""package indi.mopelotus.musichud.velocity;
+
+/** Product version generated from Gradle; independent of the network protocol version. */
+public final class PluginVersion {
+    public static final String VERSION = ${groovy.json.JsonOutput.toJson(project.version.toString())};
+    private PluginVersion() {}
+}
+""", 'UTF-8')
+    }
+}
+
+sourceSets.main.java.srcDir(generatePluginVersion)
 
 tasks.jar { archiveClassifier = 'plain' }
 
