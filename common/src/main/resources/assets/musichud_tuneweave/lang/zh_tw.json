@@ -392,5 +392,18 @@
   "musichud_tuneweave.text.rotateNextFailed": "下一首重抽失敗，請稍後重試",
   "musichud_tuneweave.text.rotateNextNotOwned": "只有下一首的提供者才能重抽",
   "musichud_tuneweave.text.rotateNextStale": "播放狀態或佇列已變化，請重試",
-  "musichud_tuneweave.text.rotateNextNoAlternative": "你的閒置播放來源中沒有其他歌曲"
+  "musichud_tuneweave.text.rotateNextNoAlternative": "你的閒置播放來源中沒有其他歌曲",
+  "musichud_tuneweave.text.history.title": "最近播放",
+  "musichud_tuneweave.text.history.tracks": "歌曲",
+  "musichud_tuneweave.text.history.albums": "專輯",
+  "musichud_tuneweave.text.history.playlists": "歌單",
+  "musichud_tuneweave.text.history.loading": "正在載入最近記錄…",
+  "musichud_tuneweave.text.history.empty": "暫無這類最近播放記錄。",
+  "musichud_tuneweave.text.history.count": "顯示最近 {} 筆記錄。",
+  "musichud_tuneweave.text.history.unknownTime": "時間未知",
+  "musichud_tuneweave.text.history.loginRequired": "請登入此音樂平台後查看最近記錄。",
+  "musichud_tuneweave.text.history.unsupported": "目前平台或 TuneWeave 版本不支援這類最近記錄，可更新 TuneWeave 後重試。",
+  "musichud_tuneweave.text.history.permissionDenied": "目前帳號沒有查看這些記錄的權限。",
+  "musichud_tuneweave.text.history.rateLimited": "請求過於頻繁，請稍後重試。",
+  "musichud_tuneweave.text.history.failed": "最近記錄載入失敗，請檢查 TuneWeave 後重試。"
 }
