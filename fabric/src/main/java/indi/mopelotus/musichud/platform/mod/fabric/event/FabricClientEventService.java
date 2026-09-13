@@ -1,0 +1,60 @@
+package indi.mopelotus.musichud.platform.mod.fabric.event;
+
+import indi.mopelotus.musichud.client.interfaces.IClientEventService;
+import indi.mopelotus.musichud.interfaces.Unregister;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.minecraft.world.entity.player.Player;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Consumer;
+
+@SuppressWarnings("unused")
+public class FabricClientEventService implements IClientEventService {
+    private static volatile FabricClientEventService instance;
+    private final Set<Consumer<Player>> joinListeners = new HashSet<>();
+    private final Set<Consumer<Player>> quitListeners = new HashSet<>();
+    private final Set<Runnable> tickPostListeners = new HashSet<>();
+
+    private FabricClientEventService() {
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            joinListeners.forEach(l -> l.accept(client.player));
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            if (client.player != null) {
+                quitListeners.forEach(q -> q.accept(client.player));
+            }
+        });
+        ClientTickEvents.END_CLIENT_TICK.register(client -> tickPostListeners.forEach(Runnable::run));
+    }
+
+    public static FabricClientEventService getInstance() {
+        if (instance == null) {
+            synchronized (FabricClientEventService.class) {
+                if (instance == null) {
+                    instance = new FabricClientEventService();
+                }
+            }
+        }
+        return instance;
+    }
+
+    @Override
+    public Unregister registerClientPlayerJoin(Consumer<Player> listener) {
+        joinListeners.add(listener);
+        return () -> joinListeners.remove(listener);
+    }
+
+    @Override
+    public Unregister registerClientPlayerQuit(Consumer<Player> listener) {
+        quitListeners.add(listener);
+        return () -> quitListeners.remove(listener);
+    }
+
+    @Override
+    public Unregister registerClientTickPost(Runnable listener) {
+        tickPostListeners.add(listener);
+        return () -> tickPostListeners.remove(listener);
+    }
+}

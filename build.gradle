@@ -1,11 +1,8 @@
 plugins {
-    id 'dev.architectury.loom' version '1.17.487' apply false
-    id 'architectury-plugin' version '3.5.169'
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.12' apply false
+    id 'net.neoforged.moddev' version '2.0.141' apply false
     id 'com.gradleup.shadow' version '9.2.2' apply false
-}
-
-architectury {
-    minecraft = project.minecraft_version
+    id 'io.papermc.paperweight.userdev' version '2.0.0-beta.21' apply false
 }
 
 allprojects {
@@ -13,96 +10,47 @@ allprojects {
     version = rootProject.mod_version + "+" + rootProject.minecraft_version_range
 }
 
-configure(subprojects.findAll { it.name != 'core' }) {
-    apply plugin: 'dev.architectury.loom'
-    apply plugin: 'architectury-plugin'
-    apply plugin: 'com.gradleup.shadow'
-    apply plugin: 'maven-publish'
-
-    base {
-        // Set up a suffixed format for the mod jar names, e.g. `example-fabric`.
-        archivesName = "$rootProject.archives_name-$project.name"
+subprojects {
+    tasks.withType(JavaCompile).configureEach { options.release = 21 }
+    tasks.withType(Test).configureEach {
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     }
-
-    repositories {
-        mavenLocal()
-        maven {
-            name = "Fuzs Mod Resources"
-            url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
-        }
-        maven {
-            name = "Terraformers"
-            url = "https://maven.terraformersmc.com/"
-        }
-        maven {
-            name "IzzelAliz Maven"
-            url "https://maven.izzel.io/releases/"
-        }
-        maven {
-            name "ParchmentMC"
-            url "https://maven.parchmentmc.org/"
-        }
-        maven {
-            name "JitPack"
-            url 'https://jitpack.io'
-        }
-        flatDir{// You need to put ModernUI-mVus fork into this dir
-            dir "$projectDir/libs"
-        }
-    }
-
-    loom {
-        silentMojangMappingsLicense()
-    }
-
-    dependencies {
-        minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
-        mappings loom.officialMojangMappings()
-        compileOnly "org.projectlombok:lombok:$rootProject.lombok_version" // Add Lombok for compilation
-        annotationProcessor "org.projectlombok:lombok:$rootProject.lombok_version" // Enable annotation processing
-        testCompileOnly "org.projectlombok:lombok:$rootProject.lombok_version" // For test sources
-        testAnnotationProcessor "org.projectlombok:lombok:$rootProject.lombok_version"
-        testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
-        testRuntimeOnly "org.junit.platform:junit-platform-launcher"
-        implementation "icyllis.modernui:ModernUI-Core:$rootProject.modernui_version"
-        implementation("icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version") {
-//            exclude group: "icyllis.modernui", module: "ModernUI-Core"
-        }
-    }
-
-    java {
-        // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-        // if it is present.
-        // If you remove this line, sources will not be generated.
-        withSourcesJar()
-
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-
-    tasks.withType(JavaCompile).configureEach {
-        it.options.release = 21
-    }
-
-    tasks.withType(JavaExec).configureEach {
-        jvmArgs("--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED")
-    }
-
-    // Configure Maven publishing.
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                artifactId = base.archivesName.get()
-                from components.java
+    if (name in ['fabric', 'neoforge']) {
+        plugins.withId('java') {
+            def verifyIdentity = tasks.register('verifyIdentityJar') {
+                dependsOn tasks.named('jar')
+                inputs.file(tasks.named('jar').flatMap { it.archiveFile })
+                doLast {
+                    def artifact = tasks.named('jar').get().archiveFile.get().asFile
+                    new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                        if (zip.getEntry('assets/musichud_tuneweave/icon.png') == null
+                                || zip.getEntry('musichud_tuneweave.mixins.json') == null) {
+                            throw new GradleException("Missing fork identity resources in ${artifact.name}")
+                        }
+                        for (path in ['META-INF/licenses/nayuki-flac/NOTICE.txt',
+                                      'META-INF/licenses/nayuki-flac/COPYING.txt',
+                                      'META-INF/licenses/nayuki-flac/COPYING.LESSER.txt',
+                                      'indi/mopelotus/musichud/client/audio/decoder/flac/decode/FrameDecoder.class']) {
+                            if (zip.getEntry(path) == null) throw new GradleException("Missing FLAC decoder/license ${path}")
+                        }
+                        if (zip.entries().toList().any { it.name.startsWith('assets/music_hud/') || it.name == 'music_hud.mixins.json' }) {
+                            throw new GradleException("Legacy identity resources remain in ${artifact.name}")
+                        }
+                        if (project.name == 'fabric') {
+                            def entry = zip.getEntry('fabric.mod.json')
+                            def metadata = new groovy.json.JsonSlurper().parse(zip.getInputStream(entry))
+                            if (metadata.id != 'musichud_tuneweave') throw new GradleException('Incorrect Fabric mod ID')
+                        } else {
+                            def entry = zip.getEntry('META-INF/neoforge.mods.toml')
+                            def metadata = zip.getInputStream(entry).getText('UTF-8')
+                            if (!(metadata =~ /(?s)\[\[mods\]\]\s*modId\s*=\s*"musichud_tuneweave"/).find()) {
+                                throw new GradleException('Incorrect NeoForge mod ID')
+                            }
+                        }
+                    }
+                }
             }
-        }
-
-        // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-        repositories {
-            // Add repositories to publish to here.
-            // Notice: This block does NOT have the same function as the block in the top level.
-            // The repositories here will be used for publishing your artifact, not for
-            // retrieving dependencies.
+            tasks.named('build').configure { dependsOn verifyIdentity }
         }
     }
 }

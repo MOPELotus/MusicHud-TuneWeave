@@ -1,37 +1,38 @@
 modLoader = "javafml"
 loaderVersion = "[9,)"
-issueTrackerURL = "https://github.com/Etern-34520/MusicHud/issues"
+issueTrackerURL = "https://github.com/MOPELotus/MusicHud-TuneWeave/issues"
 license = "LGPL-3.0"
 
 [[mods]]
-modId = "music_hud"
+modId = "musichud_tuneweave"
 version = "${version}"
-displayName = "Music HUD"
-authors = "Etern"
-description = "Enjoy music in all situations powered by Netease Cloud Music (NCM) | 基于网易云的全场景音乐模组"
-displayURL = "https://github.com/Etern-34520/MusicHud"
-logoFile = "assets/music_hud/icon.png"
+displayName = "MusicHud TuneWeave"
+authors = "Etern, MOPELotus"
+description = "Client music playback and synchronization powered by TuneWeave | 由 TuneWeave 驱动的客户端音乐播放与同步项目"
+displayURL = "https://github.com/MOPELotus/MusicHud-TuneWeave"
+logoFile = "assets/musichud_tuneweave/icon.png"
 
-[[dependencies.music_hud]]
+[[dependencies.musichud_tuneweave]]
 modId = "neoforge"
 type = "required"
-versionRange = "[21.9,21.10]"
+versionRange = "[21.9.16-beta,21.11)"
 ordering = "NONE"
 side = "BOTH"
 
-[[dependencies.music_hud]]
+[[dependencies.musichud_tuneweave]]
 modId = "minecraft"
 type = "required"
-versionRange = "[1.21.9,1.21.10]"
+versionRange = "[1.21.9,1.21.11)"
 ordering = "NONE"
 side = "BOTH"
 
-[[dependencies.music_hud]]
+[[dependencies.musichud_tuneweave]]
 modId = "modernui"
 type = "required"
-versionRange = "[3.12.0.5,)"
+versionRange = "[3.12.0.5-build.4,)"
 ordering = "AFTER"
 side = "CLIENT"
 
+
 [[mixins]]
-config = "music_hud.mixins.json"
+config = "musichud_tuneweave.mixins.json"
