@@ -61,4 +61,29 @@ class ScopedViewTasksTest {
         f.worker.removeFirst().run(); f.drain();
         assertEquals(List.of("ready", "new popup"), f.rendered);
     }
+
+    @Test void rapidHistoryTabChangesDropQueuedReadsLateSuccessAndLateFailure() {
+        var f = new Fixture();
+        f.tasks.<String>load(progress -> "tracks", f.rendered::add, error -> fail());
+        f.worker.removeFirst().run(); // Completed request, UI delivery is still queued.
+        f.tasks.<String>load(progress -> { throw new IllegalStateException("old albums failed"); }, f.rendered::add, error -> fail());
+        f.worker.removeFirst().run();
+        f.tasks.<String>load(progress -> fail("Superseded history request must not run"), f.rendered::add, error -> fail());
+        f.tasks.<String>load(progress -> "playlists", f.rendered::add, error -> fail());
+        f.worker.removeFirst().run(); f.worker.removeFirst().run(); f.drain();
+        assertEquals(List.of("playlists"), f.rendered);
+        assertTrue(f.tasks.canMutate());
+    }
+
+    @Test void historyAccountChangeOrLateDetachCannotPublishIntoAnotherLifetime() {
+        var f = new Fixture();
+        f.tasks.<String>load(progress -> "private account A", f.rendered::add, error -> fail());
+        f.worker.removeFirst().run(); f.account.set(new Object()); f.drain();
+        assertTrue(f.rendered.isEmpty());
+        f.tasks.attach();
+        f.tasks.<String>load(progress -> "private account B", f.rendered::add, error -> fail());
+        f.worker.removeFirst().run(); f.tasks.detach(); f.tasks.attach(); f.drain();
+        assertTrue(f.rendered.isEmpty());
+        f.ready(); assertEquals(List.of("ready"), f.rendered);
+    }
 }
