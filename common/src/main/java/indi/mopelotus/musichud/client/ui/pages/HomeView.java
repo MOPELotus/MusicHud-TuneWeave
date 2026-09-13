@@ -68,6 +68,8 @@ public class HomeView extends LinearLayout {
     private MusicListItem nextToPlayItem;
     private indi.mopelotus.musichud.client.ui.components.PlaybackSourceLink currentSourceLink;
     private TextView nextToPlayTitle;
+    private ImageButton rotateNextButton;
+    private LinearLayout nextToPlayHeader;
     private TextView queueTitle;
     private LinearLayout playQueueListView;
     private LinearLayout clientIdlePlaySourceView;
@@ -247,13 +249,27 @@ public class HomeView extends LinearLayout {
             transition1.enableTransitionType(LayoutTransition.CHANGING);
             scrollViewContainer.setLayoutTransition(transition1);
 
+            nextToPlayHeader = new LinearLayout(context);
+            nextToPlayHeader.setGravity(Gravity.CENTER_VERTICAL);
+            nextToPlayHeader.setVisibility(GONE);
             nextToPlayTitle = new TextView(context);
             nextToPlayTitle.setVisibility(GONE);
             nextToPlayTitle.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
             nextToPlayTitle.setText(I18n.get(MusicHud.MOD_ID + ".text.nextToPlay"));
             LayoutParams nextToPlayTitleParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
             nextToPlayTitleParams.setMargins(0, dp(32), 0, dp(16));
-            scrollViewContainer.addView(nextToPlayTitle, nextToPlayTitleParams);
+            nextToPlayHeader.addView(nextToPlayTitle, new LayoutParams(0, WRAP_CONTENT, 1));
+            rotateNextButton = new ImageButton(context);
+            rotateNextButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            rotateNextButton.setImageDrawable(new ScaledImageDrawable(context.getResources(),
+                    ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/rotate_cw.png"), dp(16), dp(16)));
+            rotateNextButton.setContentDescription(I18n.get(MusicHud.MOD_ID + ".button.rotateNextToPlay"));
+            rotateNextButton.setTooltipText(I18n.get(MusicHud.MOD_ID + ".button.rotateNextToPlay"));
+            rotateNextButton.setBackground(ButtonInsetBackgroundFactory.builder().inset(dp(2)).cornerRadius(dp(4)).build().newBackgroundDrawable());
+            rotateNextButton.setOnClickListener(view -> rotateNextToPlay());
+            nextToPlayHeader.addView(rotateNextButton, new LayoutParams(dp(40), dp(40)));
+            nextToPlayTitleParams.width = MATCH_PARENT;
+            scrollViewContainer.addView(nextToPlayHeader, nextToPlayTitleParams);
 
             nextToPlayItem = new MusicListItem(context);
             nextToPlayItem.setVisibility(GONE);
@@ -453,13 +469,31 @@ public class HomeView extends LinearLayout {
         boolean hasIdlePlaySources = !musicService.getIdlePlaySourceState().local().getSources().isEmpty() || !musicService.getIdlePlaySourceState().external().getSources().isEmpty();
         MusicDetail next = hasIdlePlaySources ? nextIdle : null;
         if (musicQueue.isEmpty() && next != null && !next.equals(MusicDetail.NONE)) {
+            nextToPlayHeader.setVisibility(VISIBLE);
             nextToPlayTitle.setVisibility(VISIBLE);
+            LocalPlayer player = Minecraft.getInstance().player;
+            rotateNextButton.setVisibility(player != null && player.getUUID().equals(next.getPusherInfo().getPlayerUUID()) ? VISIBLE : GONE);
             nextToPlayItem.setVisibility(VISIBLE);
             nextToPlayItem.bindData(next);
         } else {
+            nextToPlayHeader.setVisibility(GONE);
             nextToPlayTitle.setVisibility(GONE);
             nextToPlayItem.setVisibility(GONE);
         }
+    }
+
+    private void rotateNextToPlay() {
+        ImageButton button = rotateNextButton;
+        long ticket = notificationGeneration;
+        button.setEnabled(false);
+        musicService.rotateNextToPlay().thenAccept(result -> callbackGeneration.post(MuiModApi::postToUiThread, ticket, () -> {
+            if (!ACTIVE_INSTANCE.isCurrent(this) || button != rotateNextButton) return;
+            button.setEnabled(true);
+            if (!Boolean.TRUE.equals(result.extraData())) {
+                indi.mopelotus.musichud.client.ui.ToastUtil.show(Toast.makeText(getContext(),
+                        I18n.get(result.message()), Toast.LENGTH_SHORT));
+            }
+        }));
     }
 
     private void addMusicQueueItem(QueueItem item, LinearLayout playQueueView) {
@@ -591,6 +625,7 @@ public class HomeView extends LinearLayout {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         ACTIVE_INSTANCE.attach(this);
+        if (rotateNextButton != null) rotateNextButton.setEnabled(true);
         subscribePlaybackState();
         applyPlaybackSnapshot(NowPlayingInfo.getInstance().snapshot());
     }
