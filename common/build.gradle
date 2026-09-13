@@ -1,5 +1,12 @@
-architectury {
-    common rootProject.architectury_enabled_platforms.split(',')
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.12'
+    id 'com.gradleup.shadow'
+}
+
+base {
+    archivesName = "$rootProject.archives_name-$project.name"
 }
 
 repositories {
@@ -8,9 +15,93 @@ repositories {
         url = 'https://maven.neoforged.net/releases'
     }
     maven {
+        name = "Fuzs Mod Resources"
+        url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
+    }
+    maven {
+        name = "Terraformers"
+        url = "https://maven.terraformersmc.com/"
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+    maven {
+        name "IzzelAliz Maven"
+        url "https://maven.izzel.io/releases/"
+    }
+    maven {
+        name "ParchmentMC"
+        url "https://maven.parchmentmc.org/"
+    }
+    maven {
+        name "JitPack"
+        url 'https://jitpack.io'
+    }
+    flatDir {
+        dir rootProject.file('libs')
+    }
+    maven {
         name = 'dv8tion'
         url = 'https://m2.dv8tion.net/releases'
     }
+}
+
+configurations {
+    common {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+}
+
+dependencies {
+    api project(':core')
+
+    minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
+    mappings loom.officialMojangMappings()
+
+    modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+    implementation "net.neoforged:mergetool:2.0.0"
+
+    compileOnly "org.projectlombok:lombok:$rootProject.lombok_version"
+    compileOnly project(':processor')
+    annotationProcessor "org.projectlombok:lombok:$rootProject.lombok_version"
+    annotationProcessor project(':processor')
+    testCompileOnly "org.projectlombok:lombok:$rootProject.lombok_version"
+    testAnnotationProcessor "org.projectlombok:lombok:$rootProject.lombok_version"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+
+    api "dev.icyllis:modernui-core:$rootProject.modernui_version"
+    api "icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version"
+    compileOnly "maven.modrinth:modern-ui:$rootProject.modernui_neoforge_version"
+
+    implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
+    implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
+    implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
+    implementation "com.google.zxing:core:3.5.4"
+    implementation "org.apache.xmlgraphics:batik-transcoder:1.17"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Amusichud.module=' + project.name]
 }
 
 processResources {
@@ -24,30 +115,34 @@ processResources {
     }
 }
 
-dependencies {
-    api project(':core')
+loom {
+    runs {}
+}
 
-    // We depend on Fabric Loader here to use the Fabric @Environment annotations,
-    // which get remapped to the correct annotations on each platform.
-    // Do NOT use other classes from Fabric Loader.
-    modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
-    // Use Neoforge to avoid "Type net/neoforged/api/distmarker/Dist not present"
-    modImplementation "net.neoforged:mergetool:2.0.0"
+tasks.named('runClient') { enabled = false }
+tasks.named('runServer') { enabled = false }
 
-    testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
-    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
-    compileOnly "icyllis.modernui:ModernUI-NeoForge:1.21.8-$rootProject.modernui_version.+"
-
-    implementation "com.sedmelluq:lavaplayer:$rootProject.lavaplayer_version"
-    implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
-    implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+    it.options.compilerArgs += ['-Amusichud.module=' + project.name]
 }
 
 test {
-    useJUnitPlatform()
-    enabled = false
+    useJUnitPlatform {
+        if (!project.hasProperty('integrationTests')) {
+            excludeTags 'integration'
+        }
+    }
 }
 
 shadowJar {
     enabled = false
+}
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = base.archivesName.get()
+            from components.java
+        }
+    }
 }

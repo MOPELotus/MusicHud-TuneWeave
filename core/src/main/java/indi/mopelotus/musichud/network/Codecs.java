@@ -1,0 +1,329 @@
+package indi.mopelotus.musichud.network;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.handler.codec.DecoderException;
+import lombok.NonNull;
+
+import java.nio.charset.StandardCharsets;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+public class Codecs {
+    public static final ByteBufCodec<Void> VOID = new ByteBufCodec<Void>() {
+        @Override
+        public void encode(ByteBuf byteBuf, Void value) {
+        }
+
+        @Override
+        public Void decode(ByteBuf byteBuf) {
+            return null;
+        }
+    };
+    public static final ByteBufCodec<Boolean> BOOL = new ByteBufCodec<>() {
+        public Boolean decode(ByteBuf byteBuf) {
+            return byteBuf.readBoolean();
+        }
+
+        public void encode(ByteBuf byteBuf, Boolean boolean_) {
+            byteBuf.writeBoolean(boolean_);
+        }
+    };
+    public static final ByteBufCodec<Byte> BYTE = new ByteBufCodec<>() {
+        public Byte decode(ByteBuf byteBuf) {
+            return byteBuf.readByte();
+        }
+
+        public void encode(ByteBuf byteBuf, Byte byte_) {
+            byteBuf.writeByte(byte_);
+        }
+    };
+    public static final ByteBufCodec<Short> SHORT = new ByteBufCodec<>() {
+        public Short decode(ByteBuf byteBuf) {
+            return byteBuf.readShort();
+        }
+
+        public void encode(ByteBuf byteBuf, Short short_) {
+            byteBuf.writeShort(short_);
+        }
+    };
+    public static final ByteBufCodec<Integer> UNSIGNED_SHORT = new ByteBufCodec<>() {
+        public Integer decode(ByteBuf byteBuf) {
+            return byteBuf.readUnsignedShort();
+        }
+
+        public void encode(ByteBuf byteBuf, Integer integer) {
+            byteBuf.writeShort(integer);
+        }
+    };
+    public static final ByteBufCodec<Integer> INT = new ByteBufCodec<>() {
+        public Integer decode(ByteBuf byteBuf) {
+            return byteBuf.readInt();
+        }
+
+        public void encode(ByteBuf byteBuf, Integer integer) {
+            byteBuf.writeInt(integer);
+        }
+    };
+    public static final ByteBufCodec<Integer> VAR_INT = new ByteBufCodec<>() {
+        public Integer decode(ByteBuf byteBuf) {
+            return VanillaVarInt.read(byteBuf);
+        }
+
+        public void encode(ByteBuf byteBuf, Integer integer) {
+            VanillaVarInt.write(byteBuf, integer);
+        }
+    };
+    public static final ByteBufCodec<Long> LONG = new ByteBufCodec<>() {
+        public @NonNull Long decode(ByteBuf byteBuf) {
+            return byteBuf.readLong();
+        }
+
+        public void encode(ByteBuf byteBuf, Long long_) {
+            byteBuf.writeLong(long_);
+        }
+    };
+    public static final ByteBufCodec<Long> VAR_LONG = new ByteBufCodec<Long>() {
+        @Override
+        public void encode(ByteBuf byteBuf, Long value) {
+            VanillaVarLong.write(byteBuf, value);
+        }
+
+        @Override
+        public Long decode(ByteBuf byteBuf) {
+            return VanillaVarLong.read(byteBuf);
+        }
+    };
+    public static final ByteBufCodec<Long[]> LONG_ARRAY = new ByteBufCodec<>() {
+        @Override
+        public void encode(ByteBuf byteBuf, Long[] value) {
+            VanillaVarInt.write(byteBuf, value.length);
+            for (long l : value) {
+                byteBuf.writeLong(l);
+            }
+        }
+
+        @Override
+        public Long[] decode(ByteBuf byteBuf) {
+            int i = VanillaVarInt.read(byteBuf);
+            int j = byteBuf.readableBytes() / 8;
+            if (i > j) {
+                throw new DecoderException("LongArray with size " + i + " is bigger than allowed " + j);
+            } else {
+                Long[] ls = new Long[i];
+                for (int i1 = 0; i1 < ls.length; ++i1) {
+                    ls[i1] = byteBuf.readLong();
+                }
+                return ls;
+            }
+        }
+    };
+    public static final ByteBufCodec<Float> FLOAT = new ByteBufCodec<>() {
+        public Float decode(ByteBuf byteBuf) {
+            return byteBuf.readFloat();
+        }
+
+        public void encode(ByteBuf byteBuf, Float float_) {
+            byteBuf.writeFloat(float_);
+        }
+    };
+    public static final ByteBufCodec<Double> DOUBLE = new ByteBufCodec<>() {
+        public Double decode(ByteBuf byteBuf) {
+            return byteBuf.readDouble();
+        }
+
+        public void encode(ByteBuf byteBuf, Double double_) {
+            byteBuf.writeDouble(double_);
+        }
+    };
+    public static final ByteBufCodec<String> STRING_UTF8 = new ByteBufCodec<>() {
+        public String decode(ByteBuf byteBuf) {
+            return VanillaUtf8String.read(byteBuf, 32767);
+        }
+
+        public void encode(ByteBuf byteBuf, String string) {
+            VanillaUtf8String.write(byteBuf, string, 32767);
+        }
+    };
+
+    /** JSON and API responses can contain paged catalog data. */
+    public static final ByteBufCodec<String> LARGE_STRING_UTF8 = new ByteBufCodec<>() {
+        private static final int MAX_LENGTH = 4 * 1024 * 1024;
+
+        @Override
+        public String decode(ByteBuf byteBuf) {
+            return VanillaUtf8String.read(byteBuf, MAX_LENGTH);
+        }
+
+        @Override
+        public void encode(ByteBuf byteBuf, String value) {
+            VanillaUtf8String.write(byteBuf, value == null ? "" : value, MAX_LENGTH);
+        }
+    };
+
+    public static final ByteBufCodec<ZonedDateTime> ZONED_DATE_TIME =
+            new ByteBufCodec<>() {
+                @Override
+                @NonNull
+                public ZonedDateTime decode(ByteBuf byteBuf) {
+                    int year = byteBuf.readInt();
+                    int month = byteBuf.readInt();
+                    int dayOfMonth = byteBuf.readInt();
+                    int hour = byteBuf.readInt();
+                    int minute = byteBuf.readInt();
+                    int second = byteBuf.readInt();
+                    int zoneIdLength = byteBuf.readInt();
+                    return ZonedDateTime.of(
+                            year,
+                            month,
+                            dayOfMonth,
+                            hour,
+                            minute,
+                            second,
+                            0,
+                            ZoneId.of(byteBuf.readCharSequence(zoneIdLength, StandardCharsets.UTF_8).toString())
+                    );
+                }
+
+                @Override
+                public void encode(ByteBuf byteBuf, ZonedDateTime zonedDateTime) {
+                    byteBuf.writeInt(zonedDateTime.getYear());
+                    byteBuf.writeInt(zonedDateTime.getMonthValue());
+                    byteBuf.writeInt(zonedDateTime.getDayOfMonth());
+                    byteBuf.writeInt(zonedDateTime.getHour());
+                    byteBuf.writeInt(zonedDateTime.getMinute());
+                    byteBuf.writeInt(zonedDateTime.getSecond());
+                    String zoneId = zonedDateTime.getZone().getId();
+                    byteBuf.writeInt(zoneId.length());
+                    byteBuf.writeCharSequence(zoneId, StandardCharsets.UTF_8);
+                }
+            };
+
+    public static final ByteBufCodec<UUID> UUID = new ByteBufCodec<>() {
+        @Override
+        @NonNull
+        public UUID decode(@NonNull ByteBuf byteBuf) {
+            return new UUID(byteBuf.readLong(), byteBuf.readLong());
+        }
+
+        @Override
+        public void encode(@NonNull ByteBuf byteBuf, @NonNull UUID uuid) {
+            byteBuf.writeLong(uuid.getMostSignificantBits());
+            byteBuf.writeLong(uuid.getLeastSignificantBits());
+        }
+    };
+    public static final ByteBufCodec<Class<?>> CLASS =
+            new ByteBufCodec<>() {
+                @Override
+                public @NonNull Class<?> decode(@NonNull ByteBuf buf) {
+                    String name = VanillaUtf8String.read(buf, STRING_SIZE);
+                    if (name.equals(indi.mopelotus.musichud.beans.music.Playlist.class.getName())) return indi.mopelotus.musichud.beans.music.Playlist.class;
+                    if (name.equals(indi.mopelotus.musichud.beans.music.Album.class.getName())) return indi.mopelotus.musichud.beans.music.Album.class;
+                    throw new DecoderException("Unsupported collection type");
+                }
+
+                @Override
+                public void encode(@NonNull ByteBuf buf, Class<?> clazz) {
+                    if (clazz != indi.mopelotus.musichud.beans.music.Playlist.class && clazz != indi.mopelotus.musichud.beans.music.Album.class) {
+                        throw new IllegalArgumentException("Unsupported collection type");
+                    }
+                    VanillaUtf8String.write(buf, clazz.getName(), STRING_SIZE);
+                }
+            };
+    private static final int STRING_SIZE = 32767;
+
+
+    public static  <T> ByteBufCodec<List<T>> ofList(Supplier<ByteBufCodec<T>> codecSupplier) {
+        return ofCollection(ArrayList::new, codecSupplier);
+    }
+
+    public static  <T> ByteBufCodec<Set<T>> ofSet(Supplier<ByteBufCodec<T>> codecSupplier) {
+        return ofCollection(LinkedHashSet::new, codecSupplier);
+    }
+
+    public static <T> ByteBufCodec<Queue<T>> ofQueue(Supplier<ByteBufCodec<T>> codecSupplier) {
+        return ofCollection(ArrayDeque::new, codecSupplier);
+    }
+
+    public static <T, S extends Collection<T>> ByteBufCodec<S>
+            ofCollection(Function<Integer, S> collectionSupplier, Supplier<ByteBufCodec<T>> codecSupplier) {
+        return new ByteBufCodec<>() {
+            @Override
+            @NonNull
+            public S decode(@NonNull ByteBuf buf) {
+                int length = buf.readInt();
+                if (length < 0 || length > 100_000 || length > buf.readableBytes()) {
+                    throw new DecoderException("Collection size is invalid: " + length);
+                }
+                S ts = collectionSupplier.apply(length);
+                ByteBufCodec<T> codec = codecSupplier.get();
+                for (int i = 0; i < length; i++) {
+                    ts.add(codec.decode(buf));
+                }
+                return ts;
+            }
+
+            @Override
+            public void encode(@NonNull ByteBuf buf, @NonNull S s) {
+                List<T> snapshot = s.stream().filter(Objects::nonNull).toList();
+                if (snapshot.size() > 100_000) throw new IllegalArgumentException("Collection size exceeds protocol limit");
+                buf.writeInt(snapshot.size());
+                ByteBufCodec<T> codec = codecSupplier.get();
+                for (T t : snapshot) {
+                    codec.encode(buf, t);
+                }
+            }
+        };
+    }
+
+    public static ByteBufCodec<Map<String, String>> ofStringMap() {
+        return new ByteBufCodec<>() {
+            @Override
+            public Map<String, String> decode(ByteBuf buf) {
+                int size = buf.readInt();
+                if (size < 0 || size > 1024) {
+                    throw new DecoderException("String map size is out of bounds: " + size);
+                }
+                Map<String, String> result = new LinkedHashMap<>();
+                for (int i = 0; i < size; i++) {
+                    result.put(STRING_UTF8.decode(buf), STRING_UTF8.decode(buf));
+                }
+                return result;
+            }
+
+            @Override
+            public void encode(ByteBuf buf, Map<String, String> value) {
+                Map<String, String> map = value == null ? Map.of() : value;
+                if (map.size() > 1024) throw new IllegalArgumentException("String map exceeds protocol limit");
+                buf.writeInt(map.size());
+                map.forEach((key, entry) -> {
+                    STRING_UTF8.encode(buf, key == null ? "" : key);
+                    STRING_UTF8.encode(buf, entry == null ? "" : entry);
+                });
+            }
+        };
+    }
+
+    public static <T extends Enum<T>> ByteBufCodec<T> ofEnum(Class<T> enumClass) {
+        return new ByteBufCodec<>() {
+            @Override
+            @NonNull
+            public T decode(@NonNull ByteBuf buf) {
+                int ordinal = VanillaVarInt.read(buf);
+                T[] constants = enumClass.getEnumConstants();
+                if (ordinal < 0 || ordinal >= constants.length) {
+                    throw new DecoderException("Invalid " + enumClass.getSimpleName()
+                            + " ordinal: " + ordinal);
+                }
+                return constants[ordinal];
+            }
+
+            @Override
+            public void encode(@NonNull ByteBuf buf, @NonNull T enumInstance) {
+                VanillaVarInt.write(buf, enumInstance.ordinal());
+            }
+        };
+    }
+}

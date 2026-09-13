@@ -1,10 +1,68 @@
 plugins {
-    id "com.gradleup.shadow"
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'com.gradleup.shadow'
 }
 
-architectury {
-    platformSetupLoomIde()
-    neoForge()
+base {
+    archivesName = "$rootProject.archives_name-$project.name"
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir project(':common').file('src/main/java')
+        }
+        resources {
+            srcDir project(':common').file('src/main/resources')
+        }
+    }
+}
+
+repositories {
+    maven {
+        name = 'Fabric'
+        url = 'https://maven.fabricmc.net/'
+    }
+    maven {
+        name = 'NeoForged'
+        url = 'https://maven.neoforged.net/releases'
+    }
+    maven {
+        name = "Fuzs Mod Resources"
+        url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
+    }
+    maven {
+        name = "Terraformers"
+        url = "https://maven.terraformersmc.com/"
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+    maven {
+        name "JitPack"
+        url 'https://jitpack.io'
+    }
+    maven {
+        name "IzzelAliz Maven"
+        url "https://maven.izzel.io/releases/"
+    }
+    flatDir {
+        dir rootProject.file('libs')
+    }
+    maven {
+        name = 'dv8tion'
+        url = 'https://m2.dv8tion.net/releases'
+    }
 }
 
 configurations {
@@ -18,41 +76,47 @@ configurations {
     }
     compileClasspath.extendsFrom common, coreLib
     runtimeClasspath.extendsFrom common, coreLib
-    developmentNeoForge.extendsFrom common
 
-    // Files in this configuration will be bundled into your mod using the Shadow plugin.
-    // Don't use the `shadow` configuration from the plugin itself as it's meant for excluding files.
     shadowBundle {
         canBeResolved = true
         canBeConsumed = false
     }
 }
 
-repositories {
-    maven {
-        name = 'NeoForged'
-        url = 'https://maven.neoforged.net/releases'
+neoForge {
+    version = rootProject.neoforge_version
+    addModdingDependenciesTo(sourceSets.test)
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+        }
     }
-    maven {
-        name = 'dv8tion'
-        url = 'https://m2.dv8tion.net/releases'
+
+    mods {
+        "$rootProject.archives_name" {
+            sourceSet sourceSets.main
+            // FML 9 does not discover registration resources from the plain common dependency JAR.
+            sourceSet project(':common').sourceSets.main
+            sourceSet project(':core').sourceSets.main
+        }
     }
 }
 
 dependencies {
-    neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
-
     common(project(path: ':common', configuration: 'namedElements')) { transitive = false }
     coreLib(project(path: ':core')) { transitive = false }
-    shadowBundle(project(path: ':common', configuration: 'transformProductionNeoForge')) { transitive = false }
+    shadowBundle(project(path: ':common', configuration: 'namedElements')) { transitive = false }
     shadowBundle(project(path: ':core')) { transitive = false }
 
-    implementation("net.neoforged.fancymodloader:bootstraplauncher:${rootProject.fancymodloader_version}")
-    implementation("net.neoforged.fancymodloader:earlydisplay:${rootProject.fancymodloader_version}")
-    implementation("net.neoforged.fancymodloader:securejarhandler:${rootProject.fancymodloader_version}")
+    compileOnly "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+    compileOnly(project(path: ":processor"))
 
-    implementation("icyllis.modernui:ModernUI-NeoForge:1.21.8-${rootProject.modernui_version}.+")
-    modImplementation("dev.icyllis:modernui-core:${modernui_version}") {
+    compileOnly "maven.modrinth:modern-ui:$rootProject.modernui_neoforge_version"
+    implementation("dev.icyllis:modernui-core:$rootProject.modernui_version") {
         exclude group: "org.slf4j", module: "slf4j-api"
         exclude group: "org.apache.logging.log4j", module: "log4j-core"
         exclude group: "org.apache.logging.log4j", module: "log4j-api"
@@ -60,11 +124,8 @@ dependencies {
         exclude group: "org.jetbrains", module: "annotations"
         exclude group: "com.ibm.icu", module: "icu4j"
         exclude group: "it.unimi.dsi", module: "fastutil"
-//        exclude group: "org.commonmark"
     }
-
-    modImplementation("icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version") {
-//        exclude group: "icyllis.modernui", module: "ModernUI-Core"
+    implementation("icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version") {
         exclude group: "org.slf4j", module: "slf4j-api"
         exclude group: "org.apache.logging.log4j", module: "log4j-core"
         exclude group: "org.apache.logging.log4j", module: "log4j-api"
@@ -75,21 +136,62 @@ dependencies {
         exclude group: "org.commonmark"
     }
 
-    implementation "com.sedmelluq:lavaplayer:$rootProject.lavaplayer_version"
-    shadowBundle "com.sedmelluq:lavaplayer:$rootProject.lavaplayer_version"
-    forgeRuntimeLibrary "com.sedmelluq:lavaplayer:$rootProject.lavaplayer_version"
+    // NeoForge 1.21.8 and below require plain Java libraries on the legacy game classpath.
+    additionalRuntimeClasspath(implementation("dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version") {
+        // Minecraft owns the host Jackson version; keep it separate from the shadow bundle.
+        exclude group: "com.fasterxml.jackson.core"
+    })
+    shadowBundle "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
+
+    compileOnly "org.projectlombok:lombok:$rootProject.lombok_version"
+    compileOnly project(':processor')
+    annotationProcessor "org.projectlombok:lombok:$rootProject.lombok_version"
+    annotationProcessor project(':processor')
+    testCompileOnly "org.projectlombok:lombok:$rootProject.lombok_version"
+    testAnnotationProcessor "org.projectlombok:lombok:$rootProject.lombok_version"
+    testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 
 //    implementation "io.github.selemba1000:JavaMediaTransportControls:$rootProject.jmtc_version"
 //    shadowBundle "io.github.selemba1000:JavaMediaTransportControls:$rootProject.jmtc_version"
-//    forgeRuntimeLibrary "io.github.selemba1000:JavaMediaTransportControls:$rootProject.jmtc_version"
-    implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
+    additionalRuntimeClasspath(implementation("com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version") {
+        exclude group: "org.slf4j", module: "slf4j-api"
+    })
     shadowBundle "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
-    forgeRuntimeLibrary "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
+    additionalRuntimeClasspath(implementation("com.google.zxing:core:3.5.4"))
+    shadowBundle "com.google.zxing:core:3.5.4"
 
-    implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
+    additionalRuntimeClasspath(implementation("com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version") {
+        exclude group: "org.slf4j", module: "slf4j-api"
+    })
     shadowBundle "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
-    forgeRuntimeLibrary "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
+    additionalRuntimeClasspath(implementation("org.apache.xmlgraphics:batik-transcoder:1.17") {
+        // Java 21 provides the XML APIs from java.xml. Bundling xml-apis
+        // creates duplicate org.w3c.dom/javax.xml classes in the loader.
+        exclude group: "xml-apis", module: "xml-apis"
+    })
+    shadowBundle("org.apache.xmlgraphics:batik-transcoder:1.17") {
+        exclude group: "xml-apis", module: "xml-apis"
+    }
+    additionalRuntimeClasspath(implementation("org.apache.xmlgraphics:batik-codec:1.17") {
+        exclude group: "xml-apis", module: "xml-apis"
+    })
+    shadowBundle("org.apache.xmlgraphics:batik-codec:1.17") {
+        exclude group: "xml-apis", module: "xml-apis"
+    }
 }
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Amusichud.module=' + project.name]
+}
+
 processResources {
     inputs.property 'version', project.version
 
@@ -101,30 +203,42 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
+    relocate 'com.fasterxml.jackson', 'indi.mopelotus.musichud.shaded.jackson'
+    mergeServiceFiles { setIncludes(['META-INF/services/com.fasterxml.jackson.*']) }
     exclude 'org/slf4j/**'
-    append 'META-INF/musichud-registries.properties'
 }
 
-remapJar {
-    inputFile.set shadowJar.archiveFile
+jar {
     dependsOn shadowJar
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(zipTree(shadowJar.archiveFile))
 }
 
-loom {
-    runs {
-        client {
-            setRunDirectory file("run/client")
-            jvmArguments.addAll(
-                "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
-                    "-Dmusichud.log.level=DEBUG"
-            )
-        }
-        server {
-            setRunDirectory file("run/server")
-            jvmArguments.addAll(
-                "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
-                    "-Dmusichud.log.level=DEBUG"
-            )
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = base.archivesName.get()
+            from components.java
         }
     }
 }
+
+// Verify the processed loader metadata with the same parser and version rules as FML.
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    dependsOn tasks.named('processResources')
+    systemProperty 'musichud.test.neoMetadata', layout.buildDirectory.file('resources/main/META-INF/neoforge.mods.toml').get().asFile.absolutePath
+    systemProperty 'musichud.test.neoforgeVersion', rootProject.neoforge_version
+    systemProperty 'musichud.test.minecraftVersion', rootProject.minecraft_version
+}
+
+// NeoForm recompiles Minecraft with --release 21 and needs a complete compiler JDK.
+// The installed Java 21 runtime alone does not provide ct.sym.
+tasks.named('createMinecraftArtifacts') {
+    javaExecutable = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }.map { it.executablePath.asFile.absolutePath }
+}
+
+apply from: rootProject.file('gradle/verify-shaded-jackson.gradle')
