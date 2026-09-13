@@ -392,5 +392,18 @@
   "musichud_tuneweave.text.rotateNextFailed": "Could not change the next track. Please try again.",
   "musichud_tuneweave.text.rotateNextNotOwned": "Only the owner of the next track can change it.",
   "musichud_tuneweave.text.rotateNextStale": "Playback or the queue has changed. Please try again.",
-  "musichud_tuneweave.text.rotateNextNoAlternative": "Your idle sources have no other track."
+  "musichud_tuneweave.text.rotateNextNoAlternative": "Your idle sources have no other track.",
+  "musichud_tuneweave.text.history.title": "Recently played",
+  "musichud_tuneweave.text.history.tracks": "Tracks",
+  "musichud_tuneweave.text.history.albums": "Albums",
+  "musichud_tuneweave.text.history.playlists": "Playlists",
+  "musichud_tuneweave.text.history.loading": "Loading recent records…",
+  "musichud_tuneweave.text.history.empty": "No recent records for this category.",
+  "musichud_tuneweave.text.history.count": "Showing {} recent records.",
+  "musichud_tuneweave.text.history.unknownTime": "Time unknown",
+  "musichud_tuneweave.text.history.loginRequired": "Sign in to this music platform to view recent records.",
+  "musichud_tuneweave.text.history.unsupported": "This platform or TuneWeave version does not support these recent records. You can update TuneWeave and retry.",
+  "musichud_tuneweave.text.history.permissionDenied": "Your account does not have permission to view these records.",
+  "musichud_tuneweave.text.history.rateLimited": "Too many requests. Please try again later.",
+  "musichud_tuneweave.text.history.failed": "Could not load recent records. Check TuneWeave and try again."
 }
