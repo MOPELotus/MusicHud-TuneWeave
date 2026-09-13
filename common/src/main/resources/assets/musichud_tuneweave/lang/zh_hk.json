@@ -387,5 +387,10 @@
   "musichud_tuneweave.command.playtest.requested": "已請求本機播放測試，不改變公共佇列或其他玩家的播放。",
   "musichud_tuneweave.command.playtest.stopped": "已停止本機播放測試。",
   "musichud_tuneweave.command.playtest.failed": "本機播放測試失敗，請檢查音訊檔案或連結。",
-  "musichud_tuneweave.command.playtest.invalidSource": "音訊來源無效。請輸入檔案路徑或連結，含空格的路徑可以使用雙引號。"
+  "musichud_tuneweave.command.playtest.invalidSource": "音訊來源無效。請輸入檔案路徑或連結，含空格的路徑可以使用雙引號。",
+  "musichud_tuneweave.button.rotateNextToPlay": "重抽下一首",
+  "musichud_tuneweave.text.rotateNextFailed": "下一首重抽失敗，請稍後再試",
+  "musichud_tuneweave.text.rotateNextNotOwned": "只有下一首的提供者才能重抽",
+  "musichud_tuneweave.text.rotateNextStale": "播放狀態或佇列已變更，請再試",
+  "musichud_tuneweave.text.rotateNextNoAlternative": "你的閒置播放來源中沒有其他歌曲"
 }

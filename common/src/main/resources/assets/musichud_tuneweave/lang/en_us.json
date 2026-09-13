@@ -387,5 +387,10 @@
   "musichud_tuneweave.command.playtest.requested": "Local playback test requested. The shared queue and other players are unchanged.",
   "musichud_tuneweave.command.playtest.stopped": "Local playback test stopped.",
   "musichud_tuneweave.command.playtest.failed": "Local playback test failed. Check the source file or URL.",
-  "musichud_tuneweave.command.playtest.invalidSource": "Invalid audio source. Use a file path or URL; paths with spaces may be enclosed in double quotes."
+  "musichud_tuneweave.command.playtest.invalidSource": "Invalid audio source. Use a file path or URL; paths with spaces may be enclosed in double quotes.",
+  "musichud_tuneweave.button.rotateNextToPlay": "Re-roll next track",
+  "musichud_tuneweave.text.rotateNextFailed": "Could not change the next track. Please try again.",
+  "musichud_tuneweave.text.rotateNextNotOwned": "Only the owner of the next track can change it.",
+  "musichud_tuneweave.text.rotateNextStale": "Playback or the queue has changed. Please try again.",
+  "musichud_tuneweave.text.rotateNextNoAlternative": "Your idle sources have no other track."
 }
