@@ -31,6 +31,8 @@ public final class TuneWeaveClientService {
     private final TuneWeaveAccountRequests accountRequests = new TuneWeaveAccountRequests(gateway, entities, authentication);
     private final TuneWeaveAccountService account =
             new TuneWeaveAccountService(gateway, authentication, entities);
+    private final TuneWeaveRecentHistoryService recentHistory =
+            new TuneWeaveRecentHistoryService(gateway, entities, accountRequests);
     private final TuneWeaveCloudService cloud =
             new TuneWeaveCloudService(gateway, authentication, entities);
     private final TuneWeaveProgramService programs = new TuneWeaveProgramService(gateway, entities);
@@ -227,6 +229,10 @@ public final class TuneWeaveClientService {
 
     public LinkedHashSet<Artist> loadAccountArtists(TuneWeavePlatform platform) {
         return accountRequests.prepare(platform, () -> account.loadArtists(platform)).get();
+    }
+
+    public TuneWeaveRecentHistory loadRecentHistory(TuneWeavePlatform platform, TuneWeaveRecentHistory.Kind kind) {
+        return recentHistory.load(platform, kind);
     }
 
     public TuneWeaveCloudLibrary loadCloudLibrary() {
