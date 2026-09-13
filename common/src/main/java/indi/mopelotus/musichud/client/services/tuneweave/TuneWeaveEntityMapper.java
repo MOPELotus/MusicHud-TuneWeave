@@ -184,6 +184,10 @@ final class TuneWeaveEntityMapper {
     }
 
     Playlist toPlaylist(TuneWeavePlatform platform, JsonObject object) {
+        return toPlaylist(platform, object, true);
+    }
+
+    Playlist toPlaylist(TuneWeavePlatform platform, JsonObject object, boolean inferCurrentOwner) {
         String reference = string(object, "ref");
         if (reference == null || reference.isBlank()) reference = string(object, "reference");
         if (reference == null || reference.isBlank()) return Playlist.EMPTY;
@@ -193,11 +197,11 @@ final class TuneWeaveEntityMapper {
         String creatorRef = string(creatorObject, "ref");
         TuneWeaveSession session = session(platform);
         String creatorUserId = TuneWeaveIdentity.userIdFromReference(platform, creatorRef);
-        boolean currentUser = session != null && (creatorObject.isEmpty()
+        boolean currentUser = session != null && (inferCurrentOwner && creatorObject.isEmpty()
                 || creatorUserId.equals(TuneWeaveIdentity.userIdFromReference(platform, session.userId())));
         Profile creator = currentUser
                 ? session.toMusicHudProfile()
-                : new Profile(string(creatorObject, "name", ""), "",
+                : creatorObject.isEmpty() ? Profile.ANONYMOUS : new Profile(string(creatorObject, "name", ""), "",
                 stableId(platform, creatorUserId), VipType.NORMAL);
         String cover = imageUrl(object, "cover_url", "pic_url", "cover");
         Playlist playlist = Playlist.fromTuneWeave(

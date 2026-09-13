@@ -54,6 +54,7 @@ public class AccountView extends LinearLayout {
     private final TuneWeaveClientService tuneWeave = TuneWeaveClientService.getInstance();
     private TuneWeavePlatform selectedPlatform = tuneWeave.defaultPlatform();
     private boolean showingUniPlaylists;
+    private boolean showingRecentHistory;
     private final CallbackGeneration callbacks = new CallbackGeneration();
     private final Map<ElementKey, View> elementMap = new HashMap<>();
     private FlexWrapLayout myPlaylistCards;
@@ -326,6 +327,18 @@ public class AccountView extends LinearLayout {
             buttonsLayout.addView(programsButton, programsParams);
         }
 
+        Button historyButton = new Button(context);
+        historyButton.setText(I18n.get(MusicHud.MOD_ID + ".text.history.title"));
+        historyButton.setTextColor(Theme.PRIMARY_COLOR);
+        historyButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
+        historyButton.setBackground(backgroundFactory.newBackgroundDrawable());
+        historyButton.setOnClickListener(view -> {
+            if (!callbacks.isCurrent(generation)) return;
+            showingRecentHistory = true;
+            refresh(false);
+        });
+        infoLayout.addView(historyButton, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+
         Button logoutButton = new Button(context);
         logoutButton.setText(I18n.get(MusicHud.MOD_ID + ".button.logout"));
         logoutButton.setTextColor(Theme.PRIMARY_COLOR);
@@ -340,6 +353,14 @@ public class AccountView extends LinearLayout {
         LayoutParams topPanelLayoutParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
         topPanelLayoutParams.setMargins(0, dp(32), 0, dp(32));
         addView(topPanel, topPanelLayoutParams);
+        if (showingRecentHistory) {
+            addView(new RecentHistoryView(context, selectedPlatform, () -> {
+                if (!callbacks.isCurrent(generation)) return;
+                showingRecentHistory = false;
+                refresh(false);
+            }), new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+            return;
+        }
 
         LinearLayout content = new LinearLayout(context);
         content.setOrientation(VERTICAL);
