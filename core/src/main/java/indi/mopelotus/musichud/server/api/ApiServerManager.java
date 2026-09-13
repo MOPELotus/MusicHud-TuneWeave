@@ -9,6 +9,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
@@ -18,6 +20,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutionException;
@@ -41,6 +44,7 @@ public class ApiServerManager implements ServerRegister {
     private final ShutdownRegistrar shutdownRegistration;
     private final Sleeper sleeper;
     private final Logger apiLogger = LogManager.getLogger(MusicHud.LOGGER_BASE_NAME + "/API");
+    private final Map<PrintWriter, Path> activeLogs = new ConcurrentHashMap<>();
     @Getter private final List<Consumer<BinaryApiServerStatus>> apiStatusListeners = new CopyOnWriteArrayList<>();
     @Getter private volatile BinaryApiServerStatus binaryApiServerStatus = BinaryApiServerStatus.STOPPED;
 
@@ -65,7 +69,7 @@ public class ApiServerManager implements ServerRegister {
         this.executor = Objects.requireNonNull(executor);
         this.available = Objects.requireNonNull(available);
         this.launcher = launcher == null ? this::launchProcess : launcher;
-        this.cleanup = cleanup == null ? this::cleanupManagedBinaries : cleanup;
+        this.cleanup = cleanup == null ? ApiBinaryMaintenance::afterStartup : cleanup;
         this.shutdownRegistration = Objects.requireNonNull(shutdownRegistration);
         this.sleeper = Objects.requireNonNull(sleeper);
     }
@@ -389,6 +393,9 @@ public class ApiServerManager implements ServerRegister {
 
     private Path executablePath() throws IOException {
         String configured = serverConfig.getServerApiBinaryExecutablePath();
+        if (configured == null || configured.isBlank()) {
+            throw new IOException("Select a local TuneWeave executable before starting it");
+        }
         Path binary = Paths.get(configured);
         Path windowsBinary = Paths.get(configured + ".exe");
         boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
@@ -409,11 +416,17 @@ public class ApiServerManager implements ServerRegister {
         return builder.start();
     }
 
-    private PrintWriter openLog() {
+    private synchronized PrintWriter openLog() {
         try {
             Files.createDirectories(getLogDir());
             Path file = getLogDir().resolve("api-server-" + LocalDateTime.now().format(LOG_TIMESTAMP) + ".log");
-            return new PrintWriter(new FileWriter(file.toFile(), true), true);
+            PrintWriter writer = new PrintWriter(new FileWriter(file.toFile(), true), true) {
+                @Override public void close() {
+                    try { super.close(); } finally { activeLogs.remove(this); }
+                }
+            };
+            activeLogs.put(writer, file);
+            return writer;
         } catch (IOException error) {
             apiLogger.warn("Failed to create TuneWeave log file", error);
             return null;
@@ -429,15 +442,6 @@ public class ApiServerManager implements ServerRegister {
             }
         } catch (IOException failure) {
             apiLogger.debug("TuneWeave process output closed", failure);
-        }
-    }
-
-    private void cleanupManagedBinaries(Path executable) {
-        ApiBinaryUpdateService.CleanupReport report = ApiBinaryUpdateService.getInstance()
-                .cleanupObsoleteManagedBinaries(executable.toAbsolutePath().getParent(), executable);
-        if (report.failed() > 0 || report.rejected() > 0) {
-            apiLogger.warn("Deferred cleanup of {} TuneWeave binaries; rejected {} unsafe manifest entries",
-                    report.failed(), report.rejected());
         }
     }
 
@@ -494,28 +498,40 @@ public class ApiServerManager implements ServerRegister {
 
     /** Keep executable, API logs, and TuneWeave data in one installation folder. */
     private Path installationDirectory() {
-        Path absolute = Paths.get(serverConfig.getServerApiBinaryExecutablePath()).toAbsolutePath().normalize();
-        Path parent = Files.isDirectory(absolute) ? absolute : absolute.getParent();
-        return parent == null ? Paths.get("musichud-tuneweave").toAbsolutePath() : parent;
+        Path fallback = Paths.get("musichud-tuneweave").toAbsolutePath().normalize();
+        String configured = serverConfig.getServerApiBinaryExecutablePath();
+        if (configured == null || configured.isBlank()) return fallback;
+        try {
+            Path absolute = Paths.get(configured).toAbsolutePath().normalize();
+            if (Files.isDirectory(absolute)) return fallback;
+            Path parent = absolute.getParent();
+            return parent == null ? fallback : parent;
+        } catch (InvalidPathException ignored) {
+            return fallback;
+        }
     }
 
     public Path getLogDir() {
         return installationDirectory().resolve("logs");
     }
 
-    public void clearLogs() {
+    private static boolean isApiLog(Path path) {
+        return path.getFileName().toString().matches("api-server-[0-9]{8}-[0-9]{6}\\.log")
+                && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS);
+    }
+
+    public synchronized void clearLogs() {
         try (var stream = Files.list(getLogDir())) {
-            stream.filter(path -> path.getFileName().toString().endsWith(".log")).forEach(path -> {
+            stream.filter(ApiServerManager::isApiLog).filter(path -> !activeLogs.containsValue(path)).forEach(path -> {
                 try { Files.deleteIfExists(path); } catch (IOException ignored) { }
             });
         } catch (IOException ignored) { }
     }
 
     public long[] getLogStats() {
-        try { Files.createDirectories(getLogDir()); } catch (IOException ignored) { }
         try (var stream = Files.list(getLogDir())) {
             long[] result = {0, 0};
-            stream.filter(path -> path.getFileName().toString().endsWith(".log")).forEach(path -> {
+            stream.filter(ApiServerManager::isApiLog).forEach(path -> {
                 result[0]++;
                 try { result[1] += Files.size(path); } catch (IOException ignored) { }
             });

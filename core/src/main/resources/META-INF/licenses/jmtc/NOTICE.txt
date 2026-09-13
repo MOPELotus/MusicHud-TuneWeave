@@ -1,0 +1,7 @@
+Java Media Transport Controls (JMTC)
+Copyright (c) 2023 Selemba. Distributed under the included MIT License.
+Source: https://github.com/Selemba1000/JavaMediaTransportControls
+
+MusicHud TuneWeave retains adapted io.github.selemba1000 Java integration
+and the Windows SMTCAdapter libraries inherited from MusicHud.
+The project-level LGPL license does not replace this component's MIT notice.
