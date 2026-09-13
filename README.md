@@ -98,3 +98,15 @@ Actions 中的 `release-bundle` 可用于获取开发构建。报告问题时请
 ## 致谢与许可
 
 感谢 [Ephern / Etern 的 MusicHud](https://github.com/Ephern/MusicHud)、[ModernUI](https://github.com/BloCamLimb/ModernUI-MC)、mVUS 维护者，以及 [TuneWeave](https://github.com/MOPELotus/TuneWeave)。本项目由 MOPELotus 维护，保留上游署名，按 [LGPL-3.0](license) 发布。
+
+## 构建发行版本
+
+插件也支持 `-Pdistribution=cf`，仅用于给送审包统一添加 `-cf` 版本后缀，插件功能不变：服务器和代理始终不下载、不启动 TuneWeave，不持有音乐平台账号。
+
+```bash
+./gradlew core:test paper:build velocity:build bungeecord:build -Pdistribution=cf --rerun-tasks
+```
+
+Windows 使用 `gradlew.bat`。基础 `mod_version` 不添加后缀，例如 `1.3.0-beta-3` 在此模式下生成 `musichud-tuneweave-velocity-1.3.0-beta-3-cf.jar`。省略该参数或使用 `-Pdistribution=standard` 构建普通版，无需先 `clean`。两种客户端使用同一通信协议，插件以相同基础发行版本匹配即可。
+
+Actions 的 `distribution=cf` 模式仅生成送审产物，不自动发布 GitHub Release；Modrinth 和 CurseForge 上传仍未启用。CF 后缀不表示平台已经批准。
