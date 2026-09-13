@@ -51,6 +51,8 @@ ModernUI 有以下三条来源，按上表选择其中一条，再选择对应�
 
 ## 首次使用
 
+以下内置下载步骤适用于普通版。CF 版请先自行安装 TuneWeave，再选择本地程序或配置已有服务地址；详见下方“构建发行版本”。
+
 1. 将模组和对应依赖放入游戏实例的 `mods` 目录，进入世界或服务器，按 **M** 打开界面。
 2. 首次使用需要准备 **TuneWeave 本地服务**。打开设置中的 API 服务区域，点击“下载 TuneWeave 服务端”，选择保存目录和下载方式，再点击“下载”。内置下载会按系统选择发布文件并校验 SHA-256。
 3. 下载完成后，在“使用该文件并立即（重新）启动 TuneWeave？”提示中选择“是”。确认设置页中的 TuneWeave 状态正常；以后可使用已经保存的服务配置。
@@ -98,3 +100,21 @@ Actions 中的 `release-bundle` 可用于获取开发构建。报告问题时请
 ## 致谢与许可
 
 感谢 [Ephern / Etern 的 MusicHud](https://github.com/Ephern/MusicHud)、[ModernUI](https://github.com/BloCamLimb/ModernUI-MC)、mVUS 维护者，以及 [TuneWeave](https://github.com/MOPELotus/TuneWeave)。本项目由 MOPELotus 维护，保留上游署名，按 [LGPL-3.0](license) 发布。
+
+## 构建发行版本
+
+CF 专版移除了 TuneWeave 下载和更新功能；完整功能请使用普通版。平台说明见 [CF 版 README](README-CF.md)。
+
+默认构建为普通版。使用 `-Pdistribution=cf` 构建移除 TuneWeave 下载和更新功能的 CF 送审版：
+
+```bash
+./gradlew common:test fabric:build neoforge:build -Pdistribution=cf --rerun-tasks
+```
+
+Windows 使用 `gradlew.bat`。`gradle.properties` 中的 `mod_version` 保持原值；例如 `1.3.0-beta-3` 会生成 `1.3.0-beta-3-cf+26.2`，其他分支使用各自的 Minecraft 版本范围。省略参数或使用 `-Pdistribution=standard` 可构建普通版，无需先执行 `clean`。
+
+CF 版不包含 TuneWeave 下载器、更新器或下载界面。用户需自行安装 TuneWeave，再配置本地可执行文件路径并手动启动，或连接已自行运行的服务。新配置默认关闭自动启动且不预设程序路径；用户可主动开启自动启动，已有配置中的明确设置会保留。启动后的日志和 TuneWeave 数据仍写入所选程序所在目录。
+
+两种版本使用相同的模组标识、配置路径及通信协议，请只安装其中一种。CF 后缀标识发行方式，不代表已经通过 CurseForge 审核。构建会检查最终 JAR、嵌套依赖和源码 JAR，防止 CF 版残留下载实现。
+
+插件分支也接受该参数并添加 `-cf` 后缀，功能不变：服务器和代理始终不运行 TuneWeave。Actions 手动运行时可选择 `distribution=cf` 获取全版本送审产物；该模式不自动发布 GitHub Release，Modrinth 和 CurseForge 上传仍未启用。
