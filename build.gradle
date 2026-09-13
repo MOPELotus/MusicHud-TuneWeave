@@ -9,3 +9,44 @@ allprojects {
     group = rootProject.maven_group
     version = rootProject.mod_version + "+" + rootProject.minecraft_version_range
 }
+
+subprojects {
+    if (name in ['fabric', 'neoforge']) {
+        plugins.withId('java') {
+            def verifyIdentity = tasks.register('verifyIdentityJar') {
+                dependsOn tasks.named('jar')
+                inputs.file(tasks.named('jar').flatMap { it.archiveFile })
+                doLast {
+                    def artifact = tasks.named('jar').get().archiveFile.get().asFile
+                    new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                        if (zip.getEntry('assets/musichud_tuneweave/icon.png') == null
+                                || zip.getEntry('musichud_tuneweave.mixins.json') == null) {
+                            throw new GradleException("Missing fork identity resources in ${artifact.name}")
+                        }
+                        for (path in ['META-INF/licenses/nayuki-flac/NOTICE.txt',
+                                      'META-INF/licenses/nayuki-flac/COPYING.txt',
+                                      'META-INF/licenses/nayuki-flac/COPYING.LESSER.txt',
+                                      'indi/mopelotus/musichud/client/audio/decoder/flac/decode/FrameDecoder.class']) {
+                            if (zip.getEntry(path) == null) throw new GradleException("Missing FLAC decoder/license ${path}")
+                        }
+                        if (zip.entries().toList().any { it.name.startsWith('assets/music_hud/') || it.name == 'music_hud.mixins.json' }) {
+                            throw new GradleException("Legacy identity resources remain in ${artifact.name}")
+                        }
+                        if (project.name == 'fabric') {
+                            def entry = zip.getEntry('fabric.mod.json')
+                            def metadata = new groovy.json.JsonSlurper().parse(zip.getInputStream(entry))
+                            if (metadata.id != 'musichud_tuneweave') throw new GradleException('Incorrect Fabric mod ID')
+                        } else {
+                            def entry = zip.getEntry('META-INF/neoforge.mods.toml')
+                            def metadata = zip.getInputStream(entry).getText('UTF-8')
+                            if (!(metadata =~ /(?s)\[\[mods\]\]\s*modId\s*=\s*"musichud_tuneweave"/).find()) {
+                                throw new GradleException('Incorrect NeoForge mod ID')
+                            }
+                        }
+                    }
+                }
+            }
+            tasks.named('build').configure { dependsOn verifyIdentity }
+        }
+    }
+}

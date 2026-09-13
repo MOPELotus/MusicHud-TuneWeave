@@ -17,9 +17,16 @@ repositories {
         name = "Fuzs Mod Resources"
         url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
     }
-    maven {
-        name = "Terraformers"
-        url = "https://maven.terraformersmc.com/"
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
     }
     maven {
         name "IzzelAliz Maven"
@@ -69,9 +76,9 @@ dependencies {
     common(project(':common')) { transitive = false }
     shadowBundle(project(':common')) { transitive = false }
 
-    implementation "com.terraformersmc:modmenu:$rootProject.modmenu_version"
+    implementation "maven.modrinth:modmenu:$rootProject.modmenu_version"
 
-    implementation("icyllis.modernui:ModernUI-Fabric:26.1.2-${rootProject.modernui_version}.+")
+    compileOnly "icyllis.modernui:ModernUI-Fabric:$rootProject.modernui_mc_version"
     implementation("dev.icyllis:modernui-core:$rootProject.modernui_version") {
         exclude group: "org.slf4j", module: "slf4j-api"
         exclude group: "org.apache.logging.log4j", module: "log4j-core"
@@ -91,9 +98,8 @@ dependencies {
         exclude group: "it.unimi.dsi", module: "fastutil"
         exclude group: "org.commonmark"
     }
-
-    implementation "com.sedmelluq:lavaplayer:$rootProject.lavaplayer_version"
-    shadowBundle "com.sedmelluq:lavaplayer:$rootProject.lavaplayer_version"
+    implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
+    shadowBundle "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
 
 //    implementation "io.github.selemba1000:JavaMediaTransportControls:$rootProject.jmtc_version"
 //    shadowBundle "io.github.selemba1000:JavaMediaTransportControls:$rootProject.jmtc_version"
@@ -101,6 +107,22 @@ dependencies {
     shadowBundle "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
     implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
     shadowBundle "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
+    implementation "com.google.zxing:core:3.5.4"
+    shadowBundle "com.google.zxing:core:3.5.4"
+    implementation("org.apache.xmlgraphics:batik-transcoder:1.17") {
+        // Java 25 provides the XML APIs from java.xml. Bundling xml-apis
+        // creates duplicate org.w3c.dom/javax.xml classes in Fabric's Knot loader.
+        exclude group: "xml-apis", module: "xml-apis"
+    }
+    shadowBundle("org.apache.xmlgraphics:batik-transcoder:1.17") {
+        exclude group: "xml-apis", module: "xml-apis"
+    }
+    implementation("org.apache.xmlgraphics:batik-codec:1.17") {
+        exclude group: "xml-apis", module: "xml-apis"
+    }
+    shadowBundle("org.apache.xmlgraphics:batik-codec:1.17") {
+        exclude group: "xml-apis", module: "xml-apis"
+    }
 
     compileOnly "org.projectlombok:lombok:$rootProject.lombok_version"
     annotationProcessor "org.projectlombok:lombok:$rootProject.lombok_version"
@@ -141,6 +163,9 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
+    relocate 'com.fasterxml.jackson', 'indi.mopelotus.musichud.shaded.jackson'
+    mergeServiceFiles { setIncludes(['META-INF/services/com.fasterxml.jackson.*']) }
     exclude 'org/slf4j/**'
 }
 
@@ -155,14 +180,14 @@ loom {
         client {
             setRunDirectory file("../fabric/run/client")
             jvmArguments.addAll(
-                    "-Dmusichud.log.level=DEBUG",
+                    "-Dmusichud-tuneweave.log.level=DEBUG",
                     "-Dfabric.dli.config=${rootProject.rootDir}/.gradle/loom-cache/projects/${project.name}/launch.cfg"
             )
         }
         server {
             setRunDirectory file("../fabric/run/server")
             jvmArguments.addAll(
-                    "-Dmusichud.log.level=DEBUG",
+                    "-Dmusichud-tuneweave.log.level=DEBUG",
                     "-Dfabric.dli.config=${rootProject.rootDir}/.gradle/loom-cache/projects/${project.name}/launch.cfg"
             )
         }
@@ -176,3 +201,5 @@ publishing {
         }
     }
 }
+
+apply from: rootProject.file('gradle/verify-shaded-jackson.gradle')

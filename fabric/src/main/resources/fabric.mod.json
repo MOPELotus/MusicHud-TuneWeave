@@ -1,42 +1,40 @@
 {
   "schemaVersion": 1,
-  "id": "music_hud",
+  "id": "musichud_tuneweave",
   "version": "${version}",
-  "name": "Music HUD",
-  "description": "Enjoy music in all situations powered by Netease Cloud Music (NCM) | 基于网易云的全场景音乐模组",
+  "name": "MusicHud TuneWeave",
+  "description": "Client music playback and synchronization powered by TuneWeave | 由 TuneWeave 驱动的客户端音乐播放与同步项目",
   "authors": [
-    "Etern"
+    "Etern",
+    "MOPELotus"
   ],
   "contact": {
-    "sources": "https://github.com/Etern-34520/MusicHud",
-    "homepage": "https://modrinth.com/mod/music-hud",
-    "issues": "https://github.com/Etern-34520/MusicHud/issues"
+    "sources": "https://github.com/MOPELotus/MusicHud-TuneWeave",
+    "homepage": "https://github.com/MOPELotus/MusicHud-TuneWeave",
+    "issues": "https://github.com/MOPELotus/MusicHud-TuneWeave/issues"
   },
   "license": "LGPL-3.0",
-  "icon": "assets/music_hud/icon.png",
+  "icon": "assets/musichud_tuneweave/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [
-      "indi.etern.musichud.fabric.CommonInitializer"
-    ],
-    "client": [
-      "indi.etern.musichud.fabric.client.ClientInitializer"
+      "indi.mopelotus.musichud.fabric.CommonInitializer"
     ],
     "modmenu": [
-      "indi.etern.musichud.fabric.config.ModMenuConfigurer"
+      "indi.mopelotus.musichud.fabric.config.ModMenuConfigurer"
     ]
   },
   "mixins": [
-    "music_hud.mixins.json"
+    "musichud_tuneweave.mixins.json"
   ],
   "depends": {
     "fabricloader": "*",
-    "minecraft": ">=26.1",
+    "minecraft": ">=26.1 <=26.1.2",
     "java": ">=25",
-    "fabric-api": "*"
+    "fabric-api": "*",
+    "modernui": ">=3.13.0.5"
   },
   "recommends": {
-    "modmenu": "*",
-    "modernui": "*"
+    "modmenu": "*"
   }
 }

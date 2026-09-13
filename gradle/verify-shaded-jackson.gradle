@@ -1,0 +1,60 @@
+import java.lang.reflect.InvocationTargetException
+import java.util.zip.ZipFile
+
+// Exercise the distributed JAR without Gradle's or Minecraft's Jackson on the classpath.
+def distributedJar = tasks.named(tasks.findByName('remapJar') == null ? 'jar' : 'remapJar')
+tasks.register('verifyShadedJackson') {
+    group = 'verification'
+    description = 'Checks Jackson isolation and Lavaplayer JSON parsing in the distributed JAR.'
+    dependsOn distributedJar
+    inputs.file(distributedJar.flatMap { it.archiveFile })
+    doLast {
+        File artifact = distributedJar.get().archiveFile.get().asFile
+        new ZipFile(artifact).withCloseable { zip ->
+            def leaked = zip.entries().findAll {
+                (it.name.startsWith('com/fasterxml/jackson/') || it.name ==~ /META-INF\/versions\/\d+\/com\/fasterxml\/jackson\/.*/) && it.name.endsWith('.class')
+            }
+            if (!leaked.isEmpty()) throw new GradleException("Unisolated Jackson classes in ${artifact.name}")
+            def serviceEntries = zip.entries().findAll { it.name.startsWith('META-INF/services/') && !it.directory }
+            serviceEntries.each { entry ->
+                if (entry.name.contains('com.fasterxml.jackson.') || zip.getInputStream(entry).withCloseable { it.getText('UTF-8') }.contains('com.fasterxml.jackson.')) {
+                    throw new GradleException("Unisolated Jackson service in ${artifact.name}: ${entry.name}")
+                }
+            }
+            if (zip.getEntry('indi/mopelotus/musichud/shaded/jackson/databind/ObjectMapper.class') == null) {
+                throw new GradleException("Missing private Jackson in ${artifact.name}")
+            }
+        }
+        new URLClassLoader([artifact.toURI().toURL()] as URL[], ClassLoader.getPlatformClassLoader()).withCloseable { loader ->
+            for (String serviceName : ['core.JsonFactory', 'core.ObjectCodec']) {
+                Class service = loader.loadClass('indi.mopelotus.musichud.shaded.jackson.' + serviceName)
+                def providers = ServiceLoader.load(service, loader).iterator()
+                if (!providers.hasNext()) {
+                    throw new GradleException("Missing private Jackson service ${serviceName} in ${artifact.name}")
+                }
+                if (!providers.next().getClass().name.startsWith('indi.mopelotus.musichud.shaded.jackson.')) {
+                    throw new GradleException("Jackson service escaped the private package in ${artifact.name}")
+                }
+            }
+            Class browser = loader.loadClass('com.sedmelluq.discord.lavaplayer.tools.JsonBrowser')
+            def parse = browser.getMethod('parse', String)
+            def result = parse.invoke(null, '{"title":"TuneWeave 音乐","items":[1,null,true]}')
+            def title = browser.getMethod('get', String).invoke(result, 'title')
+            if (browser.getMethod('text').invoke(title) != 'TuneWeave 音乐') {
+                throw new GradleException("Packaged Lavaplayer failed JSON parsing in ${artifact.name}")
+            }
+            def mapper = browser.getDeclaredField('mapper')
+            if (mapper.type.name != 'indi.mopelotus.musichud.shaded.jackson.databind.ObjectMapper') {
+                throw new GradleException("Lavaplayer still references host Jackson in ${artifact.name}")
+            }
+            try {
+                parse.invoke(null, '{"title":')
+                throw new GradleException("Packaged Lavaplayer accepted truncated JSON in ${artifact.name}")
+            } catch (InvocationTargetException expected) {
+                if (!(expected.cause instanceof IOException)) throw expected
+            }
+        }
+        logger.lifecycle("Verified private Jackson and packaged Lavaplayer JSON parsing: ${artifact.name}")
+    }
+}
+tasks.named('check') { dependsOn tasks.named('verifyShadedJackson') }

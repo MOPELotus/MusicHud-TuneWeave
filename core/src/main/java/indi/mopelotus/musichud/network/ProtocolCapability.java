@@ -1,0 +1,11 @@
+package indi.mopelotus.musichud.network;
+
+public enum ProtocolCapability {
+    PUBLIC_PLAYBACK_SESSION,
+    RESOURCE_QUALITY_METADATA,
+    CLIENT_IDLE_SOURCE_SNAPSHOT,
+    IDLE_SOURCE_PLAY_MODES,
+    PLAYBACK_SOURCE_CONTEXT,
+    FRAGMENTED_PAYLOADS,
+    RESOLVED_TRACK_IDENTITY
+}

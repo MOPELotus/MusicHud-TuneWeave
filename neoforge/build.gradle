@@ -37,6 +37,17 @@ repositories {
         name = "Terraformers"
         url = "https://maven.terraformersmc.com/"
     }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
     maven {
         name "JitPack"
         url 'https://jitpack.io'
@@ -74,6 +85,7 @@ configurations {
 
 neoForge {
     version = rootProject.neoforge_version
+    addModdingDependenciesTo(sourceSets.test)
 
     runs {
         client {
@@ -87,6 +99,7 @@ neoForge {
     mods {
         "$rootProject.archives_name" {
             sourceSet sourceSets.main
+            sourceSet project(':core').sourceSets.main
         }
     }
 }
@@ -98,8 +111,9 @@ dependencies {
     shadowBundle(project(path: ':core')) { transitive = false }
 
     compileOnly "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+    compileOnly(project(path: ":processor"))
 
-    implementation("icyllis.modernui:ModernUI-NeoForge:26.1.2-${rootProject.modernui_version}.+")
+    compileOnly "icyllis.modernui:ModernUI-NeoForge:$rootProject.modernui_mc_version"
     implementation("dev.icyllis:modernui-core:$rootProject.modernui_version") {
         exclude group: "org.slf4j", module: "slf4j-api"
         exclude group: "org.apache.logging.log4j", module: "log4j-core"
@@ -120,8 +134,8 @@ dependencies {
         exclude group: "org.commonmark"
     }
 
-    implementation "com.sedmelluq:lavaplayer:$rootProject.lavaplayer_version"
-    shadowBundle "com.sedmelluq:lavaplayer:$rootProject.lavaplayer_version"
+    implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
+    shadowBundle "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
 
     compileOnly "org.projectlombok:lombok:$rootProject.lombok_version"
     compileOnly project(':processor')
@@ -136,9 +150,25 @@ dependencies {
 //    shadowBundle "io.github.selemba1000:JavaMediaTransportControls:$rootProject.jmtc_version"
     implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
     shadowBundle "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
+    implementation "com.google.zxing:core:3.5.4"
+    shadowBundle "com.google.zxing:core:3.5.4"
 
     implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
     shadowBundle "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
+    implementation("org.apache.xmlgraphics:batik-transcoder:1.17") {
+        // Java 25 provides the XML APIs from java.xml. Bundling xml-apis
+        // creates duplicate org.w3c.dom/javax.xml classes in the loader.
+        exclude group: "xml-apis", module: "xml-apis"
+    }
+    shadowBundle("org.apache.xmlgraphics:batik-transcoder:1.17") {
+        exclude group: "xml-apis", module: "xml-apis"
+    }
+    implementation("org.apache.xmlgraphics:batik-codec:1.17") {
+        exclude group: "xml-apis", module: "xml-apis"
+    }
+    shadowBundle("org.apache.xmlgraphics:batik-codec:1.17") {
+        exclude group: "xml-apis", module: "xml-apis"
+    }
 }
 
 java {
@@ -160,9 +190,20 @@ processResources {
     }
 }
 
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    dependsOn tasks.named('processResources')
+    systemProperty 'musichud.test.neoMetadata', layout.buildDirectory.file('resources/main/META-INF/neoforge.mods.toml').get().asFile.absolutePath
+    systemProperty 'musichud.test.neoforgeVersion', rootProject.neoforge_version
+    systemProperty 'musichud.test.minecraftVersion', rootProject.minecraft_version
+}
+
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
+    relocate 'com.fasterxml.jackson', 'indi.mopelotus.musichud.shaded.jackson'
+    mergeServiceFiles { setIncludes(['META-INF/services/com.fasterxml.jackson.*']) }
     exclude 'org/slf4j/**'
 }
 
@@ -180,3 +221,5 @@ publishing {
         }
     }
 }
+
+apply from: rootProject.file('gradle/verify-shaded-jackson.gradle')
