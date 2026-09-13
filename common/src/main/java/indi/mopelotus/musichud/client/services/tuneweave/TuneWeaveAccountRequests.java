@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import com.google.gson.JsonNull;
+import indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.TuneWeaveException;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import java.util.function.Supplier;
 
@@ -17,13 +19,18 @@ final class TuneWeaveAccountRequests {
         Object epoch = entities.captureEpoch();
         return gateway.capture(() -> {
             entities.requireEpoch(epoch);
-            if (!gateway.hasCredential(platform)) throw new IllegalStateException("Account credential is unavailable");
+            if (!gateway.hasCredential(platform)) throw loginRequired();
             if (authentication.cachedSession(platform) == null) authentication.loadSession(platform);
             TuneWeaveSession session = authentication.cachedSession(platform);
             if (session == null || !session.authenticated() || session.userId() == null || session.userId().isBlank())
-                throw new IllegalStateException("Account session is unavailable");
+                throw loginRequired();
             entities.requireEpoch(epoch);
             return entities.capture(operation).get();
         });
+    }
+
+    private static TuneWeaveException loginRequired() {
+        return new TuneWeaveException(
+                "Account login is required", 401, "authentication_required", false, JsonNull.INSTANCE);
     }
 }
