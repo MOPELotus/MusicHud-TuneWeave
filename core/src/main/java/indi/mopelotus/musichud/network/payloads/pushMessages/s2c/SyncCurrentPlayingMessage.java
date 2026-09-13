@@ -12,12 +12,20 @@ import indi.mopelotus.musichud.network.NetworkReceiver;
 import indi.mopelotus.musichud.network.payloads.S2CPayload;
 import indi.mopelotus.musichud.platform.Environment;
 
-public record SyncCurrentPlayingMessage(PlaybackSession playbackSession, MusicDetail nextIdle) implements S2CPayload {
+public record SyncCurrentPlayingMessage(PlaybackSession playbackSession, MusicDetail nextIdle, long previewRevision) implements S2CPayload {
+    public SyncCurrentPlayingMessage {
+        if (previewRevision < 0) throw new IllegalArgumentException("Negative preview revision");
+    }
+    public SyncCurrentPlayingMessage(PlaybackSession session, MusicDetail next) {
+        this(session, next, 0);
+    }
     public static final ByteBufCodec<SyncCurrentPlayingMessage> CODEC = ByteBufCodec.composite(
             PlaybackSession.CODEC,
             SyncCurrentPlayingMessage::playbackSession,
             MusicDetail.CODEC,
             SyncCurrentPlayingMessage::nextIdle,
+            indi.mopelotus.musichud.network.Codecs.LONG,
+            SyncCurrentPlayingMessage::previewRevision,
             SyncCurrentPlayingMessage::new
     );
 
@@ -29,7 +37,7 @@ public record SyncCurrentPlayingMessage(PlaybackSession playbackSession, MusicDe
             if (MusicHud.getCurrentEnvironment().getSide() == Environment.Side.CLIENT) {
                 receiver = (message, player) -> MusicHud.EXECUTOR.execute(() -> {
                     IClientMusicService musicService = IClientMusicService.getInstance();
-                    musicService.switchMusic(message.playbackSession, message.nextIdle, "");
+                    musicService.switchMusic(message.playbackSession, message.nextIdle, "", message.previewRevision);
                 });
             }
             INetworkRegister.getInstance().autoRegisterPayload(SyncCurrentPlayingMessage.class, CODEC, receiver);

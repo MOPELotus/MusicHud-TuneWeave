@@ -58,14 +58,30 @@ public final class IdlePlaySource {
     }
 
     public synchronized java.util.Optional<indi.mopelotus.musichud.beans.music.MusicDetail> nextTrack(java.util.random.RandomGenerator random) {
+        return nextTrackExcept(random, null);
+    }
+
+    public synchronized java.util.Optional<indi.mopelotus.musichud.beans.music.MusicDetail> nextTrackExcept(
+            java.util.random.RandomGenerator random, String excludedReference) {
         if (musicCollection == null || musicCollection.getMusicDetails().isEmpty()) return java.util.Optional.empty();
         var tracks = java.util.List.copyOf(musicCollection.getMusicDetails());
         int index = 0;
-        if (getMode() == IdlePlayMode.RANDOM) index = random.nextInt(tracks.size());
+        if (getMode() == IdlePlayMode.RANDOM) {
+            var available = tracks.stream().filter(track -> !track.getSourceRef().equals(excludedReference)).toList();
+            if (available.isEmpty()) return java.util.Optional.empty();
+            var track = available.get(random.nextInt(available.size()));
+            lastReference = track.getSourceRef();
+            return java.util.Optional.of(track);
+        }
         else if (lastReference != null) {
             for (int i = 0; i < tracks.size(); i++) {
                 if (lastReference.equals(tracks.get(i).getSourceRef())) { index = (i + 1) % tracks.size(); break; }
             }
+        }
+        int skipped = 0;
+        while (tracks.get(index).getSourceRef().equals(excludedReference)) {
+            if (++skipped == tracks.size()) return java.util.Optional.empty();
+            index = (index + 1) % tracks.size();
         }
         var track = tracks.get(index);
         lastReference = track.getSourceRef();

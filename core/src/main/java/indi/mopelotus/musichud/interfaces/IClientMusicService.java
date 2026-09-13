@@ -50,6 +50,12 @@ public interface IClientMusicService {
 
     void switchMusic(PlaybackSession playbackSession, MusicDetail nextIdleMusicDetail, String message);
 
+    default void switchMusic(PlaybackSession session, MusicDetail next, String message, long previewRevision) {
+        switchMusic(session, next, message);
+    }
+
+    default void updateNextToPlay(IdlePreview preview) {}
+
     PlaybackResolution resolvePublicPlayback(MusicDetail requestedMusic);
 
     CompletableFuture<Artist> loadArtist(long id, boolean ignoreCache);

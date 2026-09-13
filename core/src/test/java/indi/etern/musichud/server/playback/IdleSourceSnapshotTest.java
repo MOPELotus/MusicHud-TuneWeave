@@ -24,6 +24,18 @@ class IdleSourceSnapshotTest {
         assertEquals("netease:1", second.nextTrack(random).orElseThrow().getSourceRef());
     }
 
+    @Test void rerollExcludesCurrentTrackWithoutUnboundedRandomRetries() {
+        for (var mode : indi.mopelotus.musichud.beans.api.IdlePlayMode.values()) {
+            var collection = playlist();
+            var source = new IdlePlaySource(42, Playlist.class, mode);
+            source.useClientCollection(collection);
+            assertTrue(source.nextTrackExcept(new Random(1), "netease:1").isEmpty());
+            collection.getTracks().add(MusicDetail.fromTuneWeave(2, "netease:2", "track", "Two", 1000, Album.NONE, List.of()));
+            for (int i = 0; i < 30; i++)
+                assertEquals("netease:2", source.nextTrackExcept(new Random(i), "netease:1").orElseThrow().getSourceRef());
+        }
+    }
+
     @Test void modeCodecRejectsInvalidOrdinalAndNullMode() {
         assertThrows(NullPointerException.class, () -> new IdlePlaySource(42, Playlist.class, null));
         var source = new IdlePlaySource(42, Playlist.class, indi.mopelotus.musichud.beans.api.IdlePlayMode.SEQUENTIAL);
