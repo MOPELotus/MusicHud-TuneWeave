@@ -14,7 +14,8 @@ public final class ProtocolInfo {
             ProtocolCapability.IDLE_SOURCE_PLAY_MODES,
             ProtocolCapability.PLAYBACK_SOURCE_CONTEXT,
             ProtocolCapability.FRAGMENTED_PAYLOADS,
-            ProtocolCapability.RESOLVED_TRACK_IDENTITY);
+            ProtocolCapability.RESOLVED_TRACK_IDENTITY,
+            ProtocolCapability.IDLE_PREVIEW_ROTATION);
 
     private ProtocolInfo() {
     }

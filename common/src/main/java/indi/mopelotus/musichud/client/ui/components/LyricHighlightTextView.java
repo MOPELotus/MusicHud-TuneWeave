@@ -283,8 +283,7 @@ public class LyricHighlightTextView extends TextView {
     private void lowerPhrase(LyricLine.Phrase phrase, Duration startAt, Duration endAt, Duration now) {
         long startAtMillis = startAt.toMillis();
         long nowMillis = now.toMillis();
-        float t = Math.clamp((float) (nowMillis - startAtMillis) / RAISE_ANIMATION_DURATION, 0, 1);
-        float yOffset = -phraseRaiseY * SPRING.getInterpolation(t);
+        float yOffset = indi.mopelotus.musichud.client.utils.ui.LyricMotion.lowerOffset(phraseRaiseY, nowMillis - startAtMillis);
 
         phrase.spans().forEach(span -> span.setYOffset(yOffset));
     }
