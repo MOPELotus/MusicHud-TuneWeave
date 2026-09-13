@@ -1,0 +1,12 @@
+FLAC library (Java), Copyright Project Nayuki
+Source: https://github.com/nayuki/FLAC-library-Java
+Pinned revision: e807ab25e28a3759ac82e119a406490f8e336b9b
+License: LGPL-3.0-or-later (COPYING.LESSER.txt and COPYING.txt included).
+
+MusicHud-TuneWeave modifications, 2026-09-10:
+- Relocated six supporting decoder/header/bit-stream source files into the fork namespace.
+- Added 33-bit signed subframe reads and corrected the 33-bit LPC bound literal.
+- Recognized RFC 9639's 32-bit frame depth code and corrected kHz sample-rate decoding.
+- Rejected exhausted wasted-bit depths and noncanonical UTF-8 coded frame numbers.
+- Streaming adapter, byte budgets, metadata validation and lifecycle are implemented by the fork outside these source files.
+The original author notices are retained in every adapted source file.
