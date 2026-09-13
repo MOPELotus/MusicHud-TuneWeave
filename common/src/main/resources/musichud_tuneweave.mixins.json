@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "indi.mopelotus.musichud.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "indi.mopelotus.musichud.mixin.MusicHudMixinPlugin",
+  "client": [
+    "GuiFrameHudMixin",
+    "HudShaderLifecycleMixin",
+    "ReactiveMusicCompatMixin",
+    "SoundEngineMixin",
+    "SoundEngineSppCompatMixin",
+    "SpanSetMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

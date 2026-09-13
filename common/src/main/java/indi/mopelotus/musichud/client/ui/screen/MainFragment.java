@@ -1,0 +1,597 @@
+package indi.mopelotus.musichud.client.ui.screen;
+
+import icyllis.modernui.ModernUI;
+import icyllis.modernui.R;
+import icyllis.modernui.animation.LayoutTransition;
+import icyllis.modernui.annotation.Nullable;
+import icyllis.modernui.core.Context;
+import icyllis.modernui.fragment.Fragment;
+import icyllis.modernui.graphics.drawable.Drawable;
+import icyllis.modernui.mc.MuiModApi;
+import icyllis.modernui.mc.ui.ClampingScrollView;
+import icyllis.modernui.util.DataSet;
+import icyllis.modernui.view.Gravity;
+import icyllis.modernui.view.LayoutInflater;
+import icyllis.modernui.view.View;
+import icyllis.modernui.view.ViewGroup;
+import icyllis.modernui.widget.*;
+import indi.mopelotus.musichud.MusicHud;
+import indi.mopelotus.musichud.beans.music.Artist;
+import indi.mopelotus.musichud.beans.music.MusicDetail;
+import indi.mopelotus.musichud.client.audio.NowPlayingInfo;
+import indi.mopelotus.musichud.client.audio.StreamAudioPlayer;
+import indi.mopelotus.musichud.client.services.ConnectionManager;
+import indi.mopelotus.musichud.client.services.music.MusicService;
+import indi.mopelotus.musichud.client.ui.Theme;
+import indi.mopelotus.musichud.client.ui.components.*;
+import indi.mopelotus.musichud.client.ui.pages.ConfigView;
+import indi.mopelotus.musichud.client.ui.pages.HomeView;
+import indi.mopelotus.musichud.client.ui.pages.account.AccountBaseView;
+import indi.mopelotus.musichud.client.ui.pages.search.SearchView;
+import indi.mopelotus.musichud.client.utils.PlayerInfoUtil;
+import indi.mopelotus.musichud.client.utils.image.PlatformIconUtils;
+import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.interfaces.ClientConfig;
+import indi.mopelotus.musichud.interfaces.Unregister;
+import lombok.NonNull;
+import lombok.Setter;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.client.resources.language.I18n;
+
+import java.time.Duration;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+
+import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
+import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+
+public class MainFragment extends Fragment {
+    private static final ClientConfig clientConfig = ClientConfig.getInstance();
+    private static final ConnectionManager connectionManager = ConnectionManager.getInstance();
+    private static volatile MainFragment instance = null;
+
+    static {
+        MusicHud.getConnectStatusListeners().add(status -> {
+            MainFragment target = instance;
+            if (target != null) {
+                MuiModApi.postToUiThread(() -> {
+                    if (instance == target) {
+                        target.refreshServerConnectStatus();
+                    }
+                });
+            }
+        });
+    }
+
+    private final NowPlayingInfo playingInfo = NowPlayingInfo.getInstance();
+    private UrlImageView albumImage;
+    private TextView titleText;
+    private ImageView platformIcon;
+    private FlexWrapLayout artists;
+    private LinearLayout albumContainer;
+    private TextView pusherText;
+    @Setter
+    private int defaultSelectedIndex = 0;
+    private ProgressBar progressBar;
+    private VoteSkipButton skipCurrentButton;
+    private TextView serverConnectStatus;
+    private Button switchServerConnectButton;
+    private PlayerHeadView pusherHeadView;
+    private LinearLayout buttonsLayout;
+    private TextView playedTimeText;
+    private TextView totalTimeText;
+    private ToggleTrackLikeStateButton likeButton;
+    private ModifyPlaylistTrackModalButton addToPlaylistButton;
+    private final AtomicLong progressUpdateGeneration = new AtomicLong();
+    private final Consumer<NowPlayingInfo.PlaybackSnapshot> playbackStateListener = snapshot ->
+            MuiModApi.postToUiThread(() -> {
+                if (instance == this) {
+                    renderPlayback(snapshot);
+                }
+            });
+    private Unregister playbackStateRegister;
+
+    public MainFragment() {
+    }
+
+    public static void refresh() {
+        renderPlayback(NowPlayingInfo.getInstance().snapshot());
+        HomeView homeView = HomeView.getInstance();
+        if (homeView != null) {
+            homeView.refresh();
+        }
+        SearchView searchView = SearchView.getInstance();
+        if (searchView != null) {
+            searchView.refresh();
+        }
+        AccountBaseView accountBaseView = AccountBaseView.getInstance();
+        if (accountBaseView != null) {
+            accountBaseView.refresh();
+        }
+        if (instance != null && instance.titleText != null) {
+            instance.titleText.setText(I18n.get(MusicHud.MOD_ID + ".text.idle"));
+            instance.refreshServerConnectStatus();
+        }
+    }
+
+    private static void renderPlayback(NowPlayingInfo.PlaybackSnapshot snapshot) {
+        MusicDetail musicDetail = snapshot.musicDetail();
+        MainFragment target = instance;
+        if (target != null) {
+            long progressGeneration = target.progressUpdateGeneration.incrementAndGet();
+            if (musicDetail == null || musicDetail.equals(MusicDetail.NONE)) {
+                instance.albumImage.loadUrl(MusicHud.ICON_BASE64);
+                instance.titleText.setText(I18n.get(MusicHud.MOD_ID + ".text.idle"));
+                instance.titleText.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+                instance.platformIcon.setImageDrawable(null);
+                instance.platformIcon.setVisibility(View.INVISIBLE);
+                instance.artists.removeAllViews();
+                instance.albumContainer.removeAllViews();
+                instance.pusherHeadView.setVisibility(View.GONE);
+                instance.pusherText.setText("");
+                instance.progressBar.setVisibility(View.GONE);
+                instance.playedTimeText.setText("");
+                instance.totalTimeText.setText("");
+                instance.buttonsLayout.setVisibility(View.GONE);
+                instance.likeButton.bindMusicList(null);
+                instance.addToPlaylistButton.bindMusicDetail(null);
+            } else {
+                boolean program = "podcast_episode".equals(musicDetail.getSourceKind())
+                        || "radio_station".equals(musicDetail.getSourceKind());
+                boolean virtualCollection = program || "video".equals(musicDetail.getSourceKind());
+                instance.titleText.setTextColor(Theme.NORMAL_TEXT_COLOR);
+                instance.albumImage.loadUrl(musicDetail.getAlbum().getThumbnailPicUrl(240));
+                instance.titleText.setText(musicDetail.getName());
+                var platform = PlatformIconUtils.platform(musicDetail);
+                var platformImage = platform == null ? null
+                        : PlatformIconUtils.image(platform, instance.platformIcon.dp(20));
+                instance.platformIcon.setImageDrawable(platformImage == null ? null
+                        : new indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable(
+                                instance.platformIcon.getContext().getResources(), platformImage,
+                                instance.platformIcon.dp(16), instance.platformIcon.dp(20)));
+                instance.platformIcon.setVisibility(platformImage == null ? View.INVISIBLE : View.VISIBLE);
+                PlayerInfo pusherPlayerInfo = NowPlayingInfo.getInstance().getPusherPlayerInfo();
+                String name = pusherPlayerInfo != null ? pusherPlayerInfo.getProfile().getName() : null;
+                if (name == null || name.isEmpty()) {
+                    instance.pusherHeadView.setVisibility(View.GONE);
+                    instance.pusherText.setText("");
+                } else {
+                    instance.pusherHeadView.setVisibility(View.VISIBLE);
+                    instance.pusherText.setText(name);
+                }
+                Context context = ModernUI.getInstance();
+                instance.artists.removeAllViews();
+                int index = 0;
+                for (Artist artist : musicDetail.getArtists()) {
+                    if (index != 0) {
+                        TextView split = new TextView(context);
+                        split.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+                        split.setTextSize(Theme.TEXT_SIZE_SMALL);
+                        split.setText(" / ");
+                        instance.artists.addView(split);
+                    }
+                    index++;
+                    Button artistButton = new Button(context);
+                    Drawable background = ButtonInsetBackgroundFactory.builder()
+                            .inset(0)
+                            .cornerRadius(artistButton.dp(2))
+                            .padding(new ButtonInsetBackgroundFactory.Padding(0, 0, 0, 0))
+                            .build().newBackgroundDrawable();
+                    artistButton.setBackground(background);
+                    artistButton.setTextAlignment(View.TEXT_ALIGNMENT_TEXT_START);
+                    artistButton.setTextColor(virtualCollection ? Theme.SECONDARY_TEXT_COLOR : Theme.PRIMARY_COLOR);
+                    artistButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
+                    artistButton.setText(artist.getName());
+                    if (!virtualCollection) {
+                        artistButton.setOnClickListener(button -> {
+                            RouterContainer routerContainer = RouterContainer.getInstance();
+                            if (routerContainer != null) {
+                                routerContainer.pushNavigate(new ArtistDetailView(context, artist));
+                            }
+                        });
+                    }
+                    instance.artists.addView(artistButton);
+                }
+
+                instance.albumContainer.removeAllViews();
+                Button albumButton = new Button(context);
+                Drawable background = ButtonInsetBackgroundFactory.builder()
+                        .inset(0)
+                        .cornerRadius(albumButton.dp(2))
+                        .padding(new ButtonInsetBackgroundFactory.Padding(0, 0, 0, 0))
+                        .build().newBackgroundDrawable();
+                albumButton.setBackground(background);
+                albumButton.setTextColor(virtualCollection ? Theme.SECONDARY_TEXT_COLOR : Theme.PRIMARY_COLOR);
+                albumButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
+                albumButton.setTextAlignment(View.TEXT_ALIGNMENT_TEXT_START);
+                albumButton.setText(musicDetail.getAlbum().getName());
+                if (!virtualCollection) {
+                    albumButton.setOnClickListener(button -> {
+                        RouterContainer routerContainer = RouterContainer.getInstance();
+                        if (routerContainer != null) {
+                            routerContainer.pushNavigate(new MusicCollectionDetailView(context, musicDetail.getAlbum()));
+                        }
+                    });
+                }
+                instance.albumContainer.addView(albumButton);
+
+                instance.skipCurrentButton.reset();
+                instance.progressBar.setVisibility(View.VISIBLE);
+                instance.progressBar.setProgress(0);
+                instance.likeButton.setVisibility(virtualCollection ? View.GONE : View.VISIBLE);
+                instance.addToPlaylistButton.setVisibility(program ? View.GONE : View.VISIBLE);
+                if (!virtualCollection) {
+                    instance.likeButton.bindMusicList(MusicService.getInstance()
+                            .getMusicTrackState(musicDetail).currentUsersLikeList());
+                }
+                if (!program) instance.addToPlaylistButton.bindMusicDetail(musicDetail);
+                instance.buttonsLayout.setVisibility(View.VISIBLE);
+                startProgressUpdater(target, musicDetail, progressGeneration);
+            }
+        }
+    }
+
+    private static void startProgressUpdater(MainFragment target, MusicDetail musicDetail, long generation) {
+        NowPlayingInfo nowPlayingInfo = NowPlayingInfo.getInstance();
+        Duration musicDuration = nowPlayingInfo.getMusicDuration();
+        if (musicDuration == null) {
+            musicDuration = Duration.ofMillis(Math.max(0L, musicDetail.getDurationMillis()));
+        }
+        DateTimeFormatter formatter = musicDuration.toHoursPart() >= 1 ?
+                DateTimeFormatter.ofPattern("HH:mm:ss") :
+                DateTimeFormatter.ofPattern("mm:ss");
+        String totalTimeString = formatter.format(LocalTime.MIDNIGHT.plusSeconds(musicDuration.toSeconds()));
+        target.playedTimeText.setText(formatter.format(LocalTime.MIDNIGHT));
+        target.totalTimeText.setText(totalTimeString);
+        MusicHud.EXECUTOR.execute(() -> {
+            while (instance == target
+                    && target.progressUpdateGeneration.get() == generation
+                    && musicDetail.equals(nowPlayingInfo.getCurrentlyPlayingMusicDetail())) {
+                Duration playedDuration = nowPlayingInfo.getPlayedDuration();
+                String playedTimeString = formatter.format(LocalTime.MIDNIGHT.plusSeconds(playedDuration.toSeconds()));
+                int progress = Math.round(nowPlayingInfo.getProgressRate() * 100);
+                MuiModApi.postToUiThread(() -> {
+                    if (instance == target
+                            && target.progressUpdateGeneration.get() == generation
+                            && musicDetail.equals(nowPlayingInfo.getCurrentlyPlayingMusicDetail())) {
+                        target.progressBar.setProgress(progress);
+                        target.playedTimeText.setText(playedTimeString);
+                        target.totalTimeText.setText(totalTimeString);
+                    }
+                });
+                try {
+                    Thread.sleep(Duration.of(50, ChronoUnit.MILLIS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        });
+    }
+
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             @Nullable ViewGroup container,
+                             @Nullable DataSet savedInstanceState) {
+        try {
+            instance = this;
+            var context = requireContext();
+            var base = new LinearLayout(context);
+            base.setPadding(base.dp(24), 0, base.dp(24), 0);
+
+            var baseParams = new FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT);
+            base.setLayoutParams(baseParams);
+            base.setOrientation(LinearLayout.HORIZONTAL);
+
+            var routerContainer = new RouterContainer(context);
+            routerContainer.setTransitionType(RouterContainer.TransitionType.FADE);
+            routerContainer.setAnimationDuration(300);
+
+            {
+                var side = new LinearLayout(context);
+                side.setOrientation(LinearLayout.VERTICAL);
+                base.addView(side, new LinearLayout.LayoutParams(WRAP_CONTENT, MATCH_PARENT));
+
+                //noinspection UnstableApiUsage
+                var sideScrollView = new ClampingScrollView(context);
+                sideScrollView.setVerticalScrollBarEnabled(false);
+                sideScrollView.setHorizontalScrollBarEnabled(false);
+                side.addView(sideScrollView, new LinearLayout.LayoutParams(WRAP_CONTENT, 0, 1));
+
+                var sideContent = new LinearLayout(context);
+                sideContent.setOrientation(LinearLayout.VERTICAL);
+
+                var sideMenu = new SideMenu(context, routerContainer);
+                if (Minecraft.getInstance().player != null) {//in game
+                    var homeNav = sideMenu.createNavigationPage("Home", "/assets/musichud_tuneweave/textures/gui/icons/house.png",
+                            I18n.get(MusicHud.MOD_ID + ".text.page.home"), HomeView::new);
+                    var searchNav = sideMenu.createNavigationPage("Search", "/assets/musichud_tuneweave/textures/gui/icons/search.png",
+                            I18n.get(MusicHud.MOD_ID + ".text.page.search"), SearchView::new);
+                    var accountNav = sideMenu.createNavigationPage("Account", "/assets/musichud_tuneweave/textures/gui/icons/square_user_round.png",
+                            I18n.get(MusicHud.MOD_ID + ".text.page.account"), AccountBaseView::new);
+                    var settingsNav = sideMenu.createNavigationPage("Settings", "/assets/musichud_tuneweave/textures/gui/icons/settings.png",
+                            I18n.get(MusicHud.MOD_ID + ".text.page.setting"), ConfigView::new);
+                    SideMenu.NavigationMeta defaultMeta = List.of(homeNav, searchNav, accountNav, settingsNav).get(
+                            Math.min(defaultSelectedIndex, 3));
+                    defaultMeta.select();
+                } else {
+                    var settingsNav = sideMenu.createNavigationPage("Settings", "/assets/musichud_tuneweave/textures/gui/icons/settings.png",
+                            I18n.get(MusicHud.MOD_ID + ".text.page.setting"), ConfigView::new);
+                    settingsNav.select();
+                }
+
+                int widthDp = base.dp(160);
+                var params = new LinearLayout.LayoutParams(widthDp, MATCH_PARENT);
+                params.gravity = Gravity.CENTER;
+                albumImage = new UrlImageView(context);
+                albumImage.loadUrl(MusicHud.ICON_BASE64);
+                //noinspection SuspiciousNameCombination
+                var imageParams = new FrameLayout.LayoutParams(widthDp, widthDp);
+                sideContent.addView(albumImage, imageParams);
+
+                LinearLayout musicInfo = new LinearLayout(context);
+                musicInfo.setOrientation(LinearLayout.VERTICAL);
+
+                titleText = new TextView(context);
+                titleText.setTextSize(Theme.TEXT_SIZE_LARGE);
+                titleText.setTextColor(Theme.NORMAL_TEXT_COLOR);
+                instance.titleText.setText(I18n.get(MusicHud.MOD_ID + ".text.idle"));
+                LinearLayout titleRow = new LinearLayout(context);
+                titleRow.setOrientation(LinearLayout.HORIZONTAL);
+                titleRow.setGravity(Gravity.CENTER_VERTICAL);
+                titleRow.addView(titleText, new LinearLayout.LayoutParams(0, WRAP_CONTENT, 1));
+                musicInfo.addView(titleRow);
+
+                artists = new FlexWrapLayout(context);
+                musicInfo.addView(artists);
+
+                albumContainer = new LinearLayout(context);
+                albumContainer.setOrientation(LinearLayout.HORIZONTAL);
+                albumContainer.setGravity(Gravity.TOP | Gravity.LEFT);
+                musicInfo.addView(albumContainer);
+
+                pusherText = new TextView(context);
+                pusherText.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+                pusherText.setTextSize(Theme.TEXT_SIZE_NORMAL);
+
+                LinearLayout pusherRow = new LinearLayout(context);
+                pusherRow.setOrientation(LinearLayout.HORIZONTAL);
+                pusherRow.setGravity(Gravity.CENTER_VERTICAL);
+
+                platformIcon = new ImageView(context);
+                platformIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                platformIcon.setVisibility(View.INVISIBLE);
+                int rowHeight = pusherText.dp(Theme.TEXT_SIZE_LARGER);
+                LinearLayout.LayoutParams platformIconParams = new LinearLayout.LayoutParams(rowHeight, rowHeight);
+                platformIconParams.setMargins(0, 0, pusherText.dp(8), 0);
+                pusherRow.addView(platformIcon, platformIconParams);
+
+                pusherHeadView = new PlayerHeadView(context);
+                //noinspection SuspiciousNameCombination
+                pusherHeadView.setLayoutParams(new LinearLayout.LayoutParams(rowHeight, rowHeight));
+                pusherHeadView.setVisibility(View.GONE);
+                pusherHeadView.setPlayerSkinSupplier(() -> {
+                    try {
+                        PlayerInfo pusherPlayerInfo = NowPlayingInfo.getInstance().getPusherPlayerInfo();
+                        return PlayerInfoUtil.getPlayerSkin(pusherPlayerInfo);
+                    } catch (Exception ignored) {
+                    }
+                    return null;
+                });
+
+                pusherRow.addView(pusherHeadView);
+                LinearLayout.LayoutParams params5 = new LinearLayout.LayoutParams(WRAP_CONTENT, rowHeight);
+                params5.gravity = Gravity.LEFT | Gravity.CENTER_HORIZONTAL;
+                params5.setMargins(pusherText.dp(4), 0, 0, 0);
+                pusherRow.addView(pusherText, params5);
+                LinearLayout.LayoutParams params6 = new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT);
+                int dp2 = musicInfo.dp(2);
+                params6.setMargins(0, dp2, 0, dp2);
+                musicInfo.addView(pusherRow, params6);
+
+                progressBar = new ProgressBar(context, null, R.attr.progressBarStyleHorizontal);
+                progressBar.setMin(0);
+                progressBar.setMax(100);
+                progressBar.setVisibility(View.GONE);
+                StreamAudioPlayer streamAudioPlayer = StreamAudioPlayer.getInstance();
+                StreamAudioPlayer.Status status = streamAudioPlayer.getStatus();
+                checkAudioPlayerStatus(status);
+                Consumer<StreamAudioPlayer.Status> statusListener = newStatus -> MuiModApi.postToUiThread(() -> {
+                    checkAudioPlayerStatus(newStatus);
+                });
+                streamAudioPlayer.getStatusChangeListener().add(statusListener);
+                base.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                    @Override
+                    public void onViewAttachedToWindow(View v) {
+                    }
+
+                    @Override
+                    public void onViewDetachedFromWindow(View v) {
+                        streamAudioPlayer.getStatusChangeListener().remove(statusListener);
+                    }
+                });
+                LinearLayout.LayoutParams params2 = new LinearLayout.LayoutParams(MATCH_PARENT, base.dp(4));
+                params2.setMargins(0, sideContent.dp(1), 0, sideContent.dp(-4));
+                musicInfo.addView(progressBar, params2);
+
+                LinearLayout progressTexts = new LinearLayout(context);
+                progressTexts.setOrientation(LinearLayout.HORIZONTAL);
+                LinearLayout.LayoutParams params3 = new LinearLayout.LayoutParams(MATCH_PARENT, base.dp(16));
+                params3.setMargins(0, sideContent.dp(6), 0, 0);
+                musicInfo.addView(progressTexts, params3);
+
+                playedTimeText = new TextView(context);
+                playedTimeText.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+                playedTimeText.setTextSize(Theme.TEXT_SIZE_NORMAL);
+                progressTexts.addView(playedTimeText, new LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, 0));
+
+                progressTexts.addView(new View(context), new LinearLayout.LayoutParams(WRAP_CONTENT, MATCH_PARENT, 1));
+
+                totalTimeText = new TextView(context);
+                totalTimeText.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+                totalTimeText.setTextSize(Theme.TEXT_SIZE_NORMAL);
+                progressTexts.addView(totalTimeText, new LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, 0));
+
+                buttonsLayout = new LinearLayout(context);
+                buttonsLayout.setOrientation(LinearLayout.HORIZONTAL);
+
+                ButtonInsetBackgroundFactory backgroundFactory = ButtonInsetBackgroundFactory.builder()
+                        .backgroundColor(Theme.GHOST_BUTTON_STATES)
+                        .padding(new ButtonInsetBackgroundFactory.Padding(buttonsLayout.dp(2), buttonsLayout.dp(1), buttonsLayout.dp(2), buttonsLayout.dp(1)))
+                        .cornerRadius(buttonsLayout.dp(4)).build();
+                {
+                    likeButton = new ToggleTrackLikeStateButton(context);
+                    likeButton.setBackground(backgroundFactory.newBackgroundDrawable());
+                    buttonsLayout.addView(likeButton, new LinearLayout.LayoutParams(0, MATCH_PARENT, 1));
+                }
+                {
+                    addToPlaylistButton = new ModifyPlaylistTrackModalButton(context);
+                    addToPlaylistButton.setBackground(backgroundFactory.newBackgroundDrawable());
+                    buttonsLayout.addView(addToPlaylistButton, new LinearLayout.LayoutParams(0, MATCH_PARENT, 1));
+                }
+                {
+                    skipCurrentButton = new VoteSkipButton(context);
+                    skipCurrentButton.setBackground(backgroundFactory.newBackgroundDrawable());
+                    buttonsLayout.addView(skipCurrentButton, new LinearLayout.LayoutParams(0, MATCH_PARENT, 1));
+                }
+
+                NowPlayingInfo nowPlayingInfo = NowPlayingInfo.getInstance();
+
+                LinearLayout.LayoutParams buttonsParams = new LinearLayout.LayoutParams(MATCH_PARENT, buttonsLayout.dp(40));
+                buttonsParams.setMargins(0, sideContent.dp(2), 0, 0);
+
+                var params1 = new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT);
+                params1.setMargins(sideContent.dp(8), sideContent.dp(4), sideContent.dp(8), sideContent.dp(24));
+
+                musicInfo.addView(buttonsLayout, buttonsParams);
+                musicInfo.setMinimumHeight(sideContent.dp(132));
+
+                sideContent.addView(musicInfo, params1);
+                sideContent.addView(sideMenu, params);
+
+                var bottomBlank = new FrameLayout(context);
+                sideContent.addView(bottomBlank, new FrameLayout.LayoutParams(MATCH_PARENT, base.dp(128)));
+
+                var sideParams = new LinearLayout.LayoutParams(widthDp, MATCH_PARENT);
+                sideParams.setMargins(0, sideContent.dp(32), 0, 0);
+
+                sideScrollView.addView(sideContent, sideParams);
+
+                LinearLayout serverConnectPanel = new LinearLayout(context);
+                serverConnectPanel.setOrientation(LinearLayout.VERTICAL);
+                serverConnectPanel.setGravity(Gravity.CENTER_VERTICAL);
+
+                serverConnectStatus = new TextView(context);
+                serverConnectStatus.setTextSize(Theme.TEXT_SIZE_NORMAL);
+                serverConnectStatus.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+                serverConnectPanel.addView(serverConnectStatus, new LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+
+                switchServerConnectButton = new Button(context);
+                switchServerConnectButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
+                switchServerConnectButton.setTextColor(Theme.NORMAL_TEXT_COLOR);
+                switchServerConnectButton.setText(I18n.get(MusicHud.MOD_ID + ".button.logout"));
+                switchServerConnectButton.setGravity(Gravity.CENTER);
+                Drawable background1 = ButtonInsetBackgroundFactory.builder()
+                        .inset(0)
+                        .cornerRadius(switchServerConnectButton.dp(2))
+                        .padding(new ButtonInsetBackgroundFactory.Padding(0, 0, 0, 0))
+                        .build().newBackgroundDrawable();
+                switchServerConnectButton.setBackground(background1);
+                switchServerConnectButton.setOnClickListener(b -> {
+                    MusicHud.EXECUTOR.execute(connectionManager::toggleConnection);
+                });
+                serverConnectPanel.addView(switchServerConnectButton, new LinearLayout.LayoutParams(MATCH_PARENT, base.dp(40)));
+                refreshServerConnectStatus();
+                LinearLayout.LayoutParams params4 = new LinearLayout.LayoutParams(widthDp, WRAP_CONTENT);
+                params4.setMargins(0, serverConnectPanel.dp(8), 0, serverConnectPanel.dp(48));
+                side.addView(serverConnectPanel, params4);
+
+                LayoutTransition transition1 = new LayoutTransition();
+                transition1.enableTransitionType(LayoutTransition.CHANGING);
+                musicInfo.setLayoutTransition(transition1);
+
+                LayoutTransition transition2 = new LayoutTransition();
+                transition2.enableTransitionType(LayoutTransition.CHANGING);
+                sideContent.setLayoutTransition(transition2);
+
+                LayoutTransition transition3 = new LayoutTransition();
+                transition3.disableTransitionType(LayoutTransition.DISAPPEARING);
+                transition3.disableTransitionType(LayoutTransition.APPEARING);
+                transition3.enableTransitionType(LayoutTransition.CHANGING);
+                serverConnectPanel.setLayoutTransition(transition3);
+
+                if (playbackStateRegister != null) {
+                    playbackStateRegister.unregister();
+                }
+                playbackStateRegister = playingInfo.addPlaybackStateListener(playbackStateListener);
+                renderPlayback(playingInfo.snapshot());
+            }
+            var params = new LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT, 0);
+            params.setMargins(routerContainer.dp(80), 0, routerContainer.dp(48), 0);
+            base.addView(routerContainer, params);
+
+            return base;
+        } catch (Exception e) {
+            instance = null;
+            throw e;
+        }
+    }
+
+    private void refreshServerConnectStatus() {
+        if (Minecraft.getInstance().player != null) {
+            boolean singlePlayer = Minecraft.getInstance().getCurrentServer() == null;
+            switch (MusicHud.getConnectStatus()) {
+                case CONNECTED -> {
+                    if (singlePlayer) {
+                        serverConnectStatus.setText(I18n.get(MusicHud.MOD_ID + ".text.connected.integrated"));
+                        switchServerConnectButton.setVisibility(View.GONE);
+                    } else {
+                        serverConnectStatus.setText(I18n.get(MusicHud.MOD_ID + ".text.connected"));
+                        switchServerConnectButton.setVisibility(View.VISIBLE);
+                        switchServerConnectButton.setText(I18n.get(MusicHud.MOD_ID + ".button.disconnect"));
+                    }
+                }
+                case NOT_CONNECTED -> {
+                    if (clientConfig.getEnableIsolatedMode()) {
+                        serverConnectStatus.setText(I18n.get(MusicHud.MOD_ID + ".text.notConnected.isolated"));
+                    } else {
+                        serverConnectStatus.setText(I18n.get(MusicHud.MOD_ID + ".text.notConnected"));
+                    }
+                    switchServerConnectButton.setVisibility(View.VISIBLE);
+                    switchServerConnectButton.setText(I18n.get(MusicHud.MOD_ID + ".button.connect"));
+                }
+                case INCOMPATIBLE -> {
+                    serverConnectStatus.setText(I18n.get(
+                            indi.mopelotus.musichud.client.services.ConnectionHandshake.incompatibleMessageKey(connectionManager.getMode())));
+                    switchServerConnectButton.setVisibility(View.VISIBLE);
+                    switchServerConnectButton.setText(I18n.get(MusicHud.MOD_ID + ".button.connect"));
+                }
+            }
+        } else {
+            serverConnectStatus.setText("");
+            switchServerConnectButton.setVisibility(View.GONE);
+        }
+    }
+
+    private void checkAudioPlayerStatus(StreamAudioPlayer.Status status) {
+        progressBar.setIndeterminate(status == StreamAudioPlayer.Status.BUFFERING || status == StreamAudioPlayer.Status.RETRYING);
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        progressUpdateGeneration.incrementAndGet();
+        if (playbackStateRegister != null) {
+            playbackStateRegister.unregister();
+            playbackStateRegister = null;
+        }
+        if (instance == this) {
+            instance = null;
+        }
+    }
+}
