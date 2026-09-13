@@ -3,6 +3,7 @@
 import argparse
 import base64
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -60,6 +61,7 @@ def digest(path):
 
 
 def validate_row(row):
+    require(row.get('distribution', 'standard') in ('standard', 'cf'), 'Invalid distribution')
     require(row['branch'] in BRANCHES, 'Unsupported source branch')
     require(re.fullmatch(r'[0-9.]+|plugin', row['id']), 'Invalid build ID')
     require(set(row['modules']) <= MODULES and len(set(row['modules'])) == len(row['modules']), 'Invalid modules')
@@ -73,6 +75,7 @@ def validate_row(row):
         require(isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9.+_-]+', value), 'Invalid property value')
     if 'sha' in row:
         require(SHA.fullmatch(row['sha']) and VERSION.fullmatch(row['version']), 'Invalid revision/version')
+        require(not row['version'].endswith('-cf'), 'Base version must not include the distribution suffix')
         require(re.fullmatch(r'[0-9.-]*', row['range']), 'Invalid Minecraft version range')
 
 
@@ -82,6 +85,7 @@ def validate_matrix(rows):
     require({row['branch'] for row in rows} == BRANCHES, 'Incomplete branch matrix')
     for row in rows:
         validate_row(row)
+    require(len({row.get('distribution', 'standard') for row in rows}) == 1, 'Mixed distributions')
     published = [row for row in rows if row['publish']]
     require(len(published) == 7 and {row['branch'] for row in published} == BRANCHES,
             'Each branch needs exactly one distribution build')
@@ -100,6 +104,9 @@ def plan():
     repo = os.environ['GITHUB_REPOSITORY']
     event, ref = os.environ['GITHUB_EVENT_NAME'], os.environ['GITHUB_REF']
     publish = release_requested(event, ref, os.environ.get('PUBLISH_REQUESTED') == 'true')
+    distribution = os.environ.get('BUILD_DISTRIBUTION', 'standard')
+    require(distribution in ('standard', 'cf'), 'Invalid distribution')
+    require(not publish or distribution == 'standard', 'CF workflow builds are review artifacts only')
     rows = load_json('.github/build-matrix.json')
     validate_matrix(rows)
     source_branch = os.environ.get('GITHUB_BASE_REF') if event == 'pull_request' else ref.removeprefix('refs/heads/')
@@ -116,14 +123,16 @@ def plan():
                              'range': '' if branch == 'plugin' else props['minecraft_version_range']}
     for row in rows:
         row.update(revisions[row['branch']])
+        row['distribution'] = distribution
     validate_matrix(rows)
     version = revisions['26.2']['version']
-    tag = 'v' + version
+    tag = 'v' + version + ('-cf' if distribution == 'cf' else '')
     if publish:
         require(all(row['version'] == version for row in rows), 'Release versions must match on all seven branches')
         require(not ref.startswith('refs/tags/') or ref == 'refs/tags/' + tag, 'Tag does not match mod_version')
     controller = run('git', 'rev-parse', 'HEAD')
     manifest = {'repository': repo, 'controller': controller, 'tag': tag, 'publish': publish,
+                'distribution': distribution,
                 'run_id': os.environ['GITHUB_RUN_ID'], 'entries': rows}
     dump('build-plan.json', manifest)
     with Path(os.environ['GITHUB_OUTPUT']).open('a') as out:
@@ -131,17 +140,42 @@ def plan():
         out.write(f'controller={controller}\npublish={str(publish).lower()}\ntag={tag}\n')
 
 
+def artifact_version(row):
+    return row['version'] + ('-cf' if row.get('distribution', 'standard') == 'cf' else '') + ('+' + row['range'] if row['range'] else '')
+
+
 def filename(row, module):
     validate_row(row)
-    suffix = '+' + row['range'] if row['range'] else ''
-    return f'musichud-tuneweave-{module}-{row["version"]}{suffix}.jar'
+    return f'musichud-tuneweave-{module}-{artifact_version(row)}.jar'
+
+
+def verify_cf_contents(jar, depth=0):
+    require(depth <= 8, 'Excessive nested archives')
+    forbidden = (b'ApiServerFetcher', b'ApiBinaryUpdateService', b'ApiDownloadSession',
+                 b'release-manifest.json', b'NeteaseCloudMusicApiEnhanced/api-enhanced/releases')
+    for entry in jar.infolist():
+        if entry.is_dir():
+            continue
+        content = jar.read(entry)
+        require(not any(value in content or value in entry.filename.encode() for value in forbidden),
+                'Acquisition code in CF artifact')
+        require(not re.search(r'\.(exe|bat|cmd|ps1|sh)$', entry.filename, re.I), 'Standalone program/script in CF artifact')
+        if entry.filename.endswith('.jar'):
+            with zipfile.ZipFile(io.BytesIO(content)) as nested:
+                verify_cf_contents(nested, depth + 1)
 
 
 def verify_jar(path, row, module):
-    expected_version = row['version'] + ('+' + row['range'] if row['range'] else '')
+    validate_row(row)
+    expected_version = artifact_version(row)
     with zipfile.ZipFile(path) as jar:
         require(jar.testzip() is None, 'Corrupt JAR')
         names = jar.namelist()
+        marker = properties(jar.read('META-INF/musichud-distribution.properties').decode())
+        require(marker == {'distribution': row.get('distribution', 'standard'), 'version': expected_version},
+                'Distribution marker mismatch')
+        if marker['distribution'] == 'cf':
+            verify_cf_contents(jar)
         require(any(n.startswith('indi/mopelotus/musichud/') and n.endswith('.class') for n in names), 'Missing project classes')
         require(not any(n.startswith(('.codex-local/', 'docs/verification/')) or n.endswith('AGENTS.md') for n in names), 'Internal files in JAR')
         if module == 'fabric':
@@ -169,6 +203,7 @@ def build(source, output):
     command = ['./gradlew', *tasks, '--rerun-tasks', '--no-daemon', '--no-parallel', '--max-workers=2',
                '-Dorg.gradle.jvmargs=-Xmx4G', '--console=plain']
     command += [f'-P{k}={v}' for k, v in sorted(row['properties'].items())]
+    command += ['-Pdistribution=' + row.get('distribution', 'standard')]
     subprocess.run(command, cwd=source, check=True)
     output.mkdir(parents=True, exist_ok=False)
     artifacts = []
@@ -213,6 +248,10 @@ def bundle(downloads, output):
              '', 'All branches were built from the commit IDs in build-manifest.json. SHA256SUMS covers every attached distribution file.',
              'Modrinth and CurseForge publishing is currently disabled.', '', '| Branch | Commit |', '| --- | --- |']
     notes += [f'| {b} | `{next(r["sha"] for r in rows if r["branch"] == b)}` |' for b in sorted(BRANCHES)]
+    if rows[0].get('distribution') == 'cf':
+        notes += ['', 'CF review edition: no TuneWeave downloader or updater. Install TuneWeave separately and configure its local executable or service URL.',
+                  'Fresh client configurations leave automatic startup disabled. Existing explicit user settings are preserved.',
+                  'This build has not been approved by CurseForge. Plugin behavior is unchanged; the suffix identifies the review bundle.']
     (output / 'RELEASE_NOTES.md').write_text('\n'.join(notes) + '\n')
     for name in ('license', 'LICENSE', 'COPYING', 'COPYING.LESSER'):
         if Path(name).is_file():
@@ -243,6 +282,8 @@ def verify_bundle(folder):
 
 def publish(folder):
     manifest = verify_bundle(folder)
+    require(all(row.get('distribution', 'standard') == 'standard' for row in manifest['entries']),
+            'CF workflow builds are review artifacts only')
     repo, tag = os.environ['GITHUB_REPOSITORY'], os.environ['RELEASE_TAG']
     require(manifest['repository'] == repo and manifest['publish'] is True and tag == manifest['tag'], 'Release authorization mismatch')
     require(tag.startswith('v') and VERSION.fullmatch(tag[1:]), 'Invalid release tag')

@@ -1,4 +1,7 @@
 {
+  "musichud_tuneweave.button.localApiSetup": "本機 TuneWeave 設定",
+  "musichud_tuneweave.text.localApiSetup": "請自行安裝 TuneWeave，在路徑欄選擇執行檔後點擊「重新啟動」。選好檔案後可開啟隨遊戲啟動。若由你自行啟動服務，請關閉自動啟動並填寫服務位址（通常為 http://127.0.0.1:7832）。TuneWeave 資料和日誌儲存在所選程式旁。本版本不下載或更新程式。",
+  "musichud_tuneweave.button.localApiSetupClose": "關閉",
   "musichud_tuneweave.config.common.audioOutputMode": "音訊輸出",
   "musichud_tuneweave.config.common.audioOutputMode.MULTICHANNEL": "多聲道（裝置支援時）",
   "musichud_tuneweave.config.common.audioOutputMode.STEREO": "立體聲下混",

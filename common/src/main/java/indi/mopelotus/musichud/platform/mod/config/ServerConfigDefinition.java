@@ -1,6 +1,7 @@
 package indi.mopelotus.musichud.platform.mod.config;
 
 import indi.mopelotus.musichud.ProjectIdentity;
+import indi.mopelotus.musichud.BuildDistribution;
 import indi.mopelotus.musichud.interfaces.ServerConfig;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,8 +16,8 @@ public class ServerConfigDefinition implements ServerConfig {
     private static final ServerConfigDefinition instance = new ServerConfigDefinition();
 
     private String serverApiBaseUrl = "http://127.0.0.1:7832";
-    private boolean startupBinaryApiServerWhenLaunch = true;
-    private String serverApiBinaryExecutablePath = "musichud-tuneweave/tuneweave";
+    private boolean startupBinaryApiServerWhenLaunch = BuildDistribution.DEFAULT_AUTO_START;
+    private String serverApiBinaryExecutablePath = BuildDistribution.DEFAULT_EXECUTABLE_PATH;
     private double pusherVoteAdditionalRate = 0.5;
     private int port = 7832;
     @Setter

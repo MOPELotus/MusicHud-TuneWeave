@@ -1,0 +1,84 @@
+// Inspect final deployable JARs, including nested dependencies. This verifies
+// the chosen feature boundary; it does not claim platform review approval.
+gradle.projectsEvaluated {
+    subprojects.findAll { it.name in ['fabric', 'neoforge', 'paper', 'velocity', 'bungeecord'] }.each { target ->
+        def deploymentTask = target.tasks.findByName('remapJar') ?:
+                target.tasks.getByName(target.name in ['paper', 'velocity', 'bungeecord'] ? 'shadowJar' : 'jar')
+        def verification = target.tasks.register('verifyDistributionJar') {
+            dependsOn deploymentTask
+            def sourceArchives = [target]
+            if (target.name in ['fabric', 'neoforge']) sourceArchives += [project(':common'), project(':core')]
+            def sourceTasks = sourceArchives.collect { it.tasks.findByName('sourcesJar') }.findAll { it != null }
+            dependsOn sourceTasks
+            inputs.file(deploymentTask.archiveFile)
+            inputs.files(sourceTasks.collect { it.archiveFile })
+            inputs.property('distribution', rootProject.distribution)
+            inputs.property('version', target.version.toString())
+            doLast {
+                def file = deploymentTask.archiveFile.get().asFile
+                boolean cf = rootProject.distribution == 'cf'
+                def forbidden = ['ApiServerFetcher', 'ApiBinaryUpdateService', 'ApiDownloadSession',
+                                 'release-manifest.json', 'NeteaseCloudMusicApiEnhanced/api-enhanced/releases']
+                def names = []
+                Closure inspect
+                inspect = { byte[] bytes, String container, int depth ->
+                    if (depth > 8) throw new GradleException("Excessive JAR nesting in ${container}")
+                    new java.util.zip.ZipInputStream(new ByteArrayInputStream(bytes)).withCloseable { zip ->
+                        for (def entry = zip.nextEntry; entry != null; entry = zip.nextEntry) {
+                            if (entry.directory) continue
+                            byte[] content = zip.readAllBytes()
+                            String name = entry.name
+                            if (depth == 0) names.add(name)
+                            if (cf) {
+                                String text = new String(content, java.nio.charset.StandardCharsets.ISO_8859_1)
+                                if (forbidden.any { name.contains(it) || text.contains(it) }) {
+                                    throw new GradleException("Acquisition code remains in CF: ${container}!/${name}")
+                                }
+                                if (name.toLowerCase(Locale.ROOT).matches('.*\\.(exe|bat|cmd|ps1|sh)$')) {
+                                    throw new GradleException("Standalone program/script in CF: ${container}!/${name}")
+                                }
+                            }
+                            if (name.endsWith('.jar')) inspect(content, container + '!/' + name, depth + 1)
+                        }
+                    }
+                }
+                inspect(file.bytes, file.name, 0)
+                // Source attachments must match the feature selection as well.
+                sourceTasks.each { sourceTask ->
+                    def sourceJar = sourceTask.archiveFile.get().asFile
+                    inspect(sourceJar.bytes, sourceJar.name, 1)
+                }
+                new java.util.zip.ZipFile(file).withCloseable { zip ->
+                    def markerEntry = zip.getEntry('META-INF/musichud-distribution.properties')
+                    if (markerEntry == null) throw new GradleException("Missing distribution marker in ${file.name}")
+                    def marker = new Properties()
+                    marker.load(zip.getInputStream(markerEntry))
+                    if (marker.distribution != rootProject.distribution || marker.version != target.version.toString()) {
+                        throw new GradleException("Stale distribution/version in ${file.name}")
+                    }
+                    if (target.name in ['fabric', 'neoforge']) {
+                        if (zip.getEntry('META-INF/licenses/jmtc/LICENSE.txt') == null ||
+                                zip.getEntry('META-INF/licenses/jmtc/NOTICE.txt') == null) {
+                            throw new GradleException('Missing JMTC license/attribution')
+                        }
+                        if (!names.contains('indi/mopelotus/musichud/server/api/ApiServerManager.class')) {
+                            throw new GradleException('Missing local TuneWeave process controls')
+                        }
+                        if (!cf && !names.contains('indi/mopelotus/musichud/server/api/ApiServerFetcher.class')) {
+                            throw new GradleException('Standard distribution lost its downloader')
+                        }
+                        if (target.name == 'fabric') {
+                            def meta = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('fabric.mod.json')))
+                            if (meta.version != target.version.toString()) throw new GradleException('Fabric distribution version mismatch')
+                        } else {
+                            def meta = zip.getInputStream(zip.getEntry('META-INF/neoforge.mods.toml')).getText('UTF-8')
+                            if (!meta.contains('version = "' + target.version + '"')) throw new GradleException('NeoForge distribution version mismatch')
+                        }
+                    }
+                }
+                logger.lifecycle("Verified ${rootProject.distribution} distribution: ${file.name}")
+            }
+        }
+        target.tasks.named('build').configure { dependsOn verification }
+    }
+}

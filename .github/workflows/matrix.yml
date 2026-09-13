@@ -3,6 +3,9 @@ name: All supported versions
 on:
   workflow_call:
     inputs:
+      distribution:
+        type: string
+        default: standard
       publish:
         type: boolean
         default: false
@@ -30,6 +33,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PUBLISH_REQUESTED: ${{ inputs.publish }}
+          BUILD_DISTRIBUTION: ${{ inputs.distribution }}
         run: python .github/scripts/build_release.py plan
       - uses: actions/upload-artifact@v4
         with:

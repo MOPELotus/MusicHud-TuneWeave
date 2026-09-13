@@ -1,5 +1,6 @@
 import copy
 import json
+import io
 import os
 from pathlib import Path
 import tempfile
@@ -35,8 +36,10 @@ class ReleaseContracts(unittest.TestCase):
             for module in row['modules']:
                 name = release.filename(row, module)
                 path = folder / name
-                version = row['version'] + ('+' + row['range'] if row['range'] else '')
+                version = release.artifact_version(row)
                 with zipfile.ZipFile(path, 'w') as jar:
+                    jar.writestr('META-INF/musichud-distribution.properties',
+                                 'distribution=' + row.get('distribution', 'standard') + '\nversion=' + version + '\n')
                     jar.writestr('indi/mopelotus/musichud/Test.class', b'fixture')
                     if module == 'fabric':
                         jar.writestr('fabric.mod.json', json.dumps({'id': 'musichud_tuneweave', 'version': version}))
@@ -57,6 +60,44 @@ class ReleaseContracts(unittest.TestCase):
         self.assertEqual({'1.21.1', '1.21.8', '1.21.10', '1.21.11', '26.1.2', '26.2', 'plugin'},
                          {a['endpoint'] for a in manifest['artifacts']})
         self.assertEqual(release.BRANCHES, {a['branch'] for a in manifest['artifacts']})
+
+    def test_cf_bundle_versions_and_publication_boundary(self):
+        for row in self.rows:
+            row['distribution'] = 'cf'
+        self.fixture()
+        release.bundle(self.downloads, self.output)
+        self.assertEqual(15, len(list(self.output.glob('*-cf*.jar'))))
+        with patch.object(release.subprocess, 'run') as run:
+            with self.assertRaisesRegex(ValueError, 'review artifacts only'):
+                release.publish(self.output)
+            run.assert_not_called()
+
+    def test_cf_nested_acquisition_and_forged_marker_are_rejected(self):
+        for row in self.rows:
+            row['distribution'] = 'cf'
+        self.fixture()
+        row = self.rows[0]
+        path = self.downloads / ('build-' + row['id']) / release.filename(row, 'fabric')
+        nested = io.BytesIO()
+        with zipfile.ZipFile(nested, 'w') as jar:
+            jar.writestr('Acquisition.class', b'ApiServerFetcher')
+        with zipfile.ZipFile(path, 'a') as jar:
+            jar.writestr('META-INF/jars/hidden.jar', nested.getvalue())
+        with self.assertRaisesRegex(ValueError, 'Acquisition code'):
+            release.verify_jar(path, row, 'fabric')
+        standard = row | {'distribution': 'standard'}
+        with self.assertRaisesRegex(ValueError, 'marker mismatch'):
+            release.verify_jar(path, standard, 'fabric')
+
+    def test_unsafe_and_mixed_distributions_are_rejected(self):
+        for value in ('CF', '', '../cf', 'cf\n-Pother=x', '--init-script=x', None):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                release.validate_row(self.rows[0] | {'distribution': value})
+        with self.assertRaisesRegex(ValueError, 'Base version'):
+            release.validate_row(self.rows[0] | {'version': '1.3.0-beta-3-cf'})
+        self.rows[0]['distribution'] = 'cf'
+        with self.assertRaisesRegex(ValueError, 'Mixed distributions'):
+            release.validate_matrix(self.rows)
 
     def test_missing_neoforge_or_modified_jar_fails_before_bundle_creation(self):
         self.fixture()

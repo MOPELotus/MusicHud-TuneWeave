@@ -1,0 +1,61 @@
+// Select at build time: -Pdistribution=cf. Runtime configuration cannot enable
+// code that is absent from the CurseForge artifact.
+def distribution = providers.gradleProperty('distribution').getOrElse('standard')
+if (!(distribution in ['standard', 'cf'])) {
+    throw new GradleException('distribution must be standard or cf')
+}
+if (rootProject.mod_version.endsWith('-cf')) {
+    throw new GradleException('Keep mod_version unsuffixed; use -Pdistribution=cf')
+}
+ext.distribution = distribution
+ext.releaseVersion = rootProject.mod_version + (distribution == 'cf' ? '-cf' : '')
+
+subprojects {
+    plugins.withId('java') {
+        if (project.name in ['core', 'common']) {
+            sourceSets.main.java.srcDir("src/${distribution}/java")
+            sourceSets.test.java.srcDir("src/${distribution}Test/java")
+        }
+        // NeoForge compiles the common sources directly on these branches.
+        if (project.name == 'neoforge') {
+            sourceSets.main.java.srcDir(project(':common').file("src/${distribution}/java"))
+        }
+        tasks.withType(Test).configureEach {
+            systemProperty 'musichud.test.distribution', distribution
+        }
+        if (project.name != 'processor') {
+            // A real resource input also runs for modules such as Velocity
+            // whose resource directory would otherwise be NO-SOURCE.
+            def generatedResources = tasks.register('generateDistributionResources') {
+                def directory = layout.buildDirectory.dir('generated/distribution-resources')
+                inputs.property('distribution', distribution)
+                inputs.property('distributionVersion', provider { project.version.toString() })
+                outputs.dir(directory)
+                doLast {
+                    def marker = directory.get().file('META-INF/musichud-distribution.properties').asFile
+                    marker.parentFile.mkdirs()
+                    marker.setText("distribution=${distribution}\nversion=${project.version}\n", 'UTF-8')
+                }
+            }
+            sourceSets.main.resources.srcDir(generatedResources)
+        }
+        tasks.named('processResources').configure {
+            inputs.property('distribution', distribution)
+            inputs.property('distributionVersion', project.version.toString())
+            if (distribution == 'cf') {
+                doLast {
+                    fileTree(destinationDir).matching { include 'assets/musichud_tuneweave/lang/*.json' }.each { file ->
+                        def translations = new groovy.json.JsonSlurper().parse(file)
+                        translations.keySet().removeIf { key ->
+                            key.startsWith('musichud_tuneweave.modal.downloadApiServer') ||
+                                    key.startsWith('musichud_tuneweave.button.downloadApiServer')
+                        }
+                        file.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(translations)) + '\n', 'UTF-8')
+                    }
+                }
+            }
+        }
+    }
+}
+
+apply from: rootProject.file('gradle/verify-distribution.gradle')
