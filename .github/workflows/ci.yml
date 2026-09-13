@@ -8,6 +8,11 @@ on:
     branches: ['26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin']
   workflow_dispatch:
     inputs:
+      distribution:
+        description: 'Build edition (cf creates review artifacts only)'
+        type: choice
+        options: [standard, cf]
+        default: standard
       publish:
         description: 'Publish the version in gradle.properties to GitHub Release (run from 26.2)'
         type: boolean
@@ -28,3 +33,4 @@ jobs:
       contents: write
     with:
       publish: ${{ inputs.publish || false }}
+      distribution: ${{ inputs.distribution || 'standard' }}
