@@ -1,4 +1,7 @@
 {
+  "musichud_tuneweave.button.localApiSetup": "Local TuneWeave setup",
+  "musichud_tuneweave.text.localApiSetup": "Install TuneWeave separately, then choose its executable in the path field and click Restart. You can enable automatic startup after choosing the file. To use a service you start yourself, leave automatic startup off and enter its URL (normally http://127.0.0.1:7832). TuneWeave stores its data and logs beside the selected executable. This edition does not download or update programs.",
+  "musichud_tuneweave.button.localApiSetupClose": "Close",
   "musichud_tuneweave.config.common.audioOutputMode": "Audio output",
   "musichud_tuneweave.config.common.audioOutputMode.MULTICHANNEL": "Multichannel when supported",
   "musichud_tuneweave.config.common.audioOutputMode.STEREO": "Stereo downmix",
