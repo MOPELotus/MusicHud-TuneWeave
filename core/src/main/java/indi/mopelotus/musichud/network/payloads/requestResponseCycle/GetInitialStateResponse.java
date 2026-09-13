@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Queue;
 
 @Getter
-@AllArgsConstructor
 public class GetInitialStateResponse extends ApiResponsePayload {
     public static final ByteBufCodec<GetInitialStateResponse> CODEC =
             RequestResponseCodecs.withCycleId(
@@ -35,15 +34,27 @@ public class GetInitialStateResponse extends ApiResponsePayload {
                             GetInitialStateResponse::getPlaylistSources,
                             Codecs.ofList(() -> Album.CODEC),
                             GetInitialStateResponse::getAlbumSources,
+                            Codecs.LONG, GetInitialStateResponse::getPreviewRevision,
                             GetInitialStateResponse::new
                     )
             );
 
+    public GetInitialStateResponse(PlaybackSession session, MusicDetail next, Queue<QueueItem> queue,
+                                   List<Playlist> playlists, List<Album> albums, long previewRevision) {
+        if (previewRevision < 0) throw new IllegalArgumentException("Negative preview revision");
+        this.playbackSession = session; this.nextIdle = next; this.queue = queue;
+        this.playlistSources = playlists; this.albumSources = albums; this.previewRevision = previewRevision;
+    }
+    public GetInitialStateResponse(PlaybackSession session, MusicDetail next, Queue<QueueItem> queue,
+                                   List<Playlist> playlists, List<Album> albums) {
+        this(session, next, queue, playlists, albums, 0);
+    }
     private final PlaybackSession playbackSession;
     private final MusicDetail nextIdle;
     private final Queue<QueueItem> queue;
     private final List<Playlist> playlistSources;
     private final List<Album> albumSources;
+    private final long previewRevision;
 
     @RegisterMark
     public static class RegisterImpl implements CommonRegister {

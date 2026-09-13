@@ -5,6 +5,9 @@ import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.mc.UIManager;
 import icyllis.modernui.widget.Toast;
 import indi.mopelotus.musichud.MusicHud;
+import indi.mopelotus.musichud.network.RequestResponseManager;
+import indi.mopelotus.musichud.network.payloads.requestResponseCycle.RotateNextToPlayRequest;
+import indi.mopelotus.musichud.network.payloads.requestResponseCycle.RotateNextToPlayResponse;
 import indi.mopelotus.musichud.beans.music.*;
 import indi.mopelotus.musichud.beans.state.IIdlePlaySourceState;
 import indi.mopelotus.musichud.beans.state.IMusicTrackState;
@@ -71,6 +74,9 @@ public class MusicService implements IClientMusicService {
     private final PublicPlaybackState publicPlayback = new PublicPlaybackState(this, new PublicPlaybackState.Output() {
         public void publish(PlaybackSession session, MusicDetail next) {
             if (clientConfig.getEnable()) publishPublicPlayback(session, next);
+        }
+        public void preview(MusicDetail next) {
+            if (clientConfig.getEnable()) NowPlayingInfo.getInstance().updateNextToPlayIdle(next);
         }
         public CompletableFuture<?> play(PlaybackSession session) {
             return clientConfig.getEnable() ? StreamAudioPlayer.getInstance().playSessionAsync(session)
@@ -460,13 +466,34 @@ public class MusicService implements IClientMusicService {
     @Override
     public synchronized void switchMusic(PlaybackSession playbackSession,
                                          MusicDetail nextIdleMusicDetail, String message) {
-        if (publicPlayback.accept(playbackSession, nextIdleMusicDetail) && clientConfig.getEnable()
+        switchMusic(playbackSession, nextIdleMusicDetail, message, 0);
+    }
+
+    @Override
+    public synchronized void switchMusic(PlaybackSession playbackSession,
+                                         MusicDetail nextIdleMusicDetail, String message, long previewRevision) {
+        if (publicPlayback.accept(playbackSession, nextIdleMusicDetail, previewRevision) && clientConfig.getEnable()
                 && message != null && !message.isEmpty()) {
             MuiModApi.postToUiThread(() -> {
                 var decor = UIManager.getInstance().getDecorView();
                 if (decor != null) ToastUtil.show(Toast.makeText(decor.getContext(), message, Toast.LENGTH_SHORT));
             });
         }
+    }
+
+    @Override
+    public void updateNextToPlay(IdlePreview preview) {
+        publicPlayback.updatePreview(preview);
+    }
+
+    public CompletableFuture<indi.mopelotus.musichud.beans.music.actions.MessagedResult<Boolean>> rotateNextToPlay() {
+        IdlePreview preview = publicPlayback.preview();
+        return RequestResponseManager.send(new RotateNextToPlayRequest(
+                        preview.sessionId(), preview.sequence(), preview.revision()),
+                        RotateNextToPlayResponse.class, Duration.ofSeconds(10))
+                .thenApply(RotateNextToPlayResponse::getResult)
+                .exceptionally(error -> indi.mopelotus.musichud.beans.music.actions.MessagedResult.fail(
+                        MusicHud.MOD_ID + ".text.rotateNextFailed", false));
     }
 
     private void resetPublicPlayback() {

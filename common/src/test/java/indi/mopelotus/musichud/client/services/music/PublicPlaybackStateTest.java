@@ -127,6 +127,82 @@ class PublicPlaybackStateTest {
         assertEquals(1, f.stops);
     }
 
+    @Test void rerollChangesOnlyPreviewAndKeepsPendingAudioFailureRelevant() {
+        Fixture f = new Fixture();
+        PlaybackSession playing = session(1);
+        f.state.accept(playing, MusicDetail.NONE, 10);
+        MusicDetail next = session(2).musicDetail();
+        assertTrue(f.state.updatePreview(new IdlePreview(playing.sessionId(), 1, 11, next)));
+        assertSame(playing, f.published);
+        assertSame(next, f.next);
+        assertEquals(1, f.starts.size());
+        assertEquals(0, f.stops);
+        assertEquals(List.of("publish:1", "play:1", "preview"), f.events);
+        f.starts.getFirst().completeExceptionally(new IllegalStateException("current decoder failed"));
+        f.drain();
+        assertEquals(List.of(playing), f.failures);
+    }
+
+    @Test void outOfOrderAndDuplicateRerollsNeverRollBackOrCrossSession() {
+        Fixture f = new Fixture(); PlaybackSession playing = session(3);
+        f.state.accept(playing, MusicDetail.NONE, 10);
+        MusicDetail newest = session(4).musicDetail();
+        assertTrue(f.state.updatePreview(new IdlePreview(playing.sessionId(), 3, 12, newest)));
+        assertFalse(f.state.updatePreview(new IdlePreview(playing.sessionId(), 3, 11, MusicDetail.NONE)));
+        assertFalse(f.state.updatePreview(new IdlePreview(playing.sessionId(), 3, 12, MusicDetail.NONE)));
+        assertFalse(f.state.updatePreview(new IdlePreview(UUID.randomUUID(), 3, 13, MusicDetail.NONE)));
+        assertFalse(f.state.updatePreview(new IdlePreview(playing.sessionId(), 2, 99, MusicDetail.NONE)));
+        assertSame(newest, f.next);
+    }
+
+    @Test void previewBeforeInitialStateIsAppliedWithoutExtraPlaybackStart() {
+        Fixture f = new Fixture(); PlaybackSession playing = session(2);
+        MusicDetail next = session(3).musicDetail();
+        assertFalse(f.state.updatePreview(new IdlePreview(playing.sessionId(), 2, 8, next)));
+        assertFalse(f.state.updatePreview(new IdlePreview(playing.sessionId(), 2, 7, MusicDetail.NONE)));
+        f.state.accept(playing, MusicDetail.NONE, 6);
+        assertSame(next, f.next);
+        assertEquals(1, f.starts.size());
+        assertEquals(List.of("publish:2", "play:2"), f.events);
+    }
+
+    @Test void futurePreviewSurvivesIntermediateSwitchButResetDiscardsIt() {
+        Fixture f = new Fixture(); PlaybackSession future = session(3);
+        MusicDetail next = session(4).musicDetail();
+        f.state.updatePreview(new IdlePreview(future.sessionId(), 3, 8, next));
+        f.state.accept(session(2), MusicDetail.NONE, 2);
+        assertSame(MusicDetail.NONE, f.next);
+        f.state.accept(future, MusicDetail.NONE, 6);
+        assertSame(next, f.next);
+        f.state.reset();
+        f.state.accept(future, MusicDetail.NONE, 6);
+        assertSame(MusicDetail.NONE, f.next);
+    }
+
+    @Test void resourceRefreshKeepsNewerPreviewAndDuplicateSyncCanAdvancePreview() {
+        Fixture f = new Fixture(); PlaybackSession playing = session(1);
+        MusicDetail next = session(2).musicDetail();
+        f.state.accept(playing, MusicDetail.NONE, 1);
+        f.state.updatePreview(new IdlePreview(playing.sessionId(), 1, 3, next));
+        PlaybackSession refresh = new PlaybackSession(playing.sessionId(), 1, 1,
+                playing.musicDetail(), playing.resourceInfo(), playing.startTime());
+        f.state.accept(refresh, MusicDetail.NONE, 2);
+        assertSame(next, f.next);
+        assertFalse(f.state.accept(refresh, MusicDetail.NONE, 4));
+        assertSame(MusicDetail.NONE, f.next);
+        assertEquals(2, f.starts.size());
+    }
+
+    @Test void stoppedPlaybackIgnoresRerollsAndRejectsMalformedRevision() {
+        Fixture f = new Fixture(); PlaybackSession playing = session(1);
+        f.state.accept(playing, MusicDetail.NONE, 1);
+        f.state.accept(PlaybackSession.stopped(2), MusicDetail.NONE, 2);
+        assertFalse(f.state.updatePreview(new IdlePreview(playing.sessionId(), 1, 5, playing.musicDetail())));
+        assertFalse(f.state.updatePreview(new IdlePreview(PlaybackSession.NONE.sessionId(), 2, 6, playing.musicDetail())));
+        assertSame(MusicDetail.NONE, f.next);
+        assertThrows(IllegalArgumentException.class, () -> f.state.accept(playing, MusicDetail.NONE, -1));
+    }
+
     private static PlaybackSession session(long sequence) {
         MusicDetail song = MusicDetail.fromTuneWeave(sequence, "netease:track:" + sequence,
                 "track", "Song " + sequence, 180_000, Album.NONE, List.of());
@@ -148,6 +224,7 @@ class PublicPlaybackStateTest {
         public void publish(PlaybackSession session, MusicDetail next) {
             published = session; this.next = next; events.add("publish:" + session.sequence()); onPublish.run();
         }
+        public void preview(MusicDetail next) { this.next = next; events.add("preview"); }
         public CompletableFuture<?> play(PlaybackSession session) {
             assertSame(session, published, "public state must precede local start");
             events.add("play:" + session.sequence());

@@ -297,6 +297,14 @@ public class NowPlayingInfo {
         if (startTime != null) startLyricsUpdater();
     }
 
+    /** Publish through the same snapshot subscription without disturbing the current lyrics or timeline. */
+    public void updateNextToPlayIdle(MusicDetail next) {
+        synchronized (playbackStateLock) {
+            nextToPlayIdleMusicDetail = java.util.Objects.requireNonNull(next);
+            publishPlaybackStateLocked();
+        }
+    }
+
     private void parseLyrics(MusicDetail musicDetail) {
         LyricInfo lyricInfo = musicDetail.getLyricInfo();
         if (lyricInfo.equals(LyricInfo.NONE)) {
