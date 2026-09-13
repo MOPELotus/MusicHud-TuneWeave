@@ -33,7 +33,11 @@ public record ResolvePlaybackRequestMessage(UUID requestId, int revision,
         public void register() {
             NetworkReceiver<ResolvePlaybackRequestMessage> receiver = NetworkReceiver.noop();
             if (MusicHud.getCurrentEnvironment().getSide() == Environment.Side.CLIENT) {
-                receiver = (message, player) -> MusicHud.EXECUTOR.execute(() -> {
+                receiver = (message, player) -> {
+                    var admission = indi.mopelotus.musichud.network.ClientPacketContext.capture();
+                    if (!admission.isCurrent()) return;
+                    MusicHud.EXECUTOR.execute(() -> {
+                    if (!admission.isCurrent()) return;
                     ResolvePlaybackResultMessage result;
                     try {
                         PlaybackResolution resolution = IClientMusicService.getInstance()
@@ -44,8 +48,10 @@ public record ResolvePlaybackRequestMessage(UUID requestId, int revision,
                         result = ResolvePlaybackResultMessage.failure(
                                 message.requestId(), message.revision(), "resolve_failed");
                     }
-                    IClientNetworkService.getInstance().sendToServer(result);
-                });
+                    ResolvePlaybackResultMessage completed = result;
+                    admission.runIfCurrent(() -> IClientNetworkService.getInstance().sendToServer(completed));
+                    });
+                };
             }
             INetworkRegister.getInstance().autoRegisterPayload(
                     ResolvePlaybackRequestMessage.class, CODEC, receiver);

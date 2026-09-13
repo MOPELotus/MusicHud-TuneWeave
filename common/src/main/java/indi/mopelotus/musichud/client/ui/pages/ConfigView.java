@@ -15,6 +15,7 @@ import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.beans.api.AutoConnectServerFilterType;
 import indi.mopelotus.musichud.beans.music.Quality;
 import indi.mopelotus.musichud.beans.music.ScrobbleMode;
+import indi.mopelotus.musichud.beans.music.AudioOutputMode;
 import indi.mopelotus.musichud.client.services.ConnectionManager;
 import indi.mopelotus.musichud.client.services.LoginService;
 import indi.mopelotus.musichud.client.network.vanilla.VanillaPlayerProxy;
@@ -161,6 +162,16 @@ public class ConfigView extends LinearLayout {
                     .setDefaultValue(10)
                     .create(commonCategory);
             Quality[] qualities = {Quality.STANDARD, Quality.EX_HIGH, Quality.LOSSLESS, Quality.HIRES, Quality.JY_EFFECT, Quality.DOLBY, Quality.JY_MASTER, Quality.SKY};
+            String[] outputLabels = Arrays.stream(AudioOutputMode.values())
+                    .map(mode -> I18n.get(MusicHud.MOD_ID + ".config.common.audioOutputMode." + mode.name()))
+                    .toArray(String[]::new);
+            List<String> outputOptions = Arrays.asList(outputLabels);
+            new PreferencesFragment.DropDownOption<>(context,
+                    I18n.get(MusicHud.MOD_ID + ".config.common.audioOutputMode"), outputLabels,
+                    outputOptions::indexOf,
+                    () -> outputLabels[clientConfig.getAudioOutputMode().ordinal()],
+                    label -> clientConfig.setAudioOutputMode(AudioOutputMode.values()[outputOptions.indexOf(label)]))
+                    .create(commonCategory);
             String[] scrobbleLabels = Arrays.stream(ScrobbleMode.values())
                     .map(mode -> I18n.get(MusicHud.MOD_ID + ".config.common.scrobbleMode." + mode.name()))
                     .toArray(String[]::new);

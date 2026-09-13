@@ -49,7 +49,7 @@ public record ConnectResponse(boolean accepted, String projectId, Version server
         public void register() {
             NetworkReceiver<ConnectResponse> receiver = NetworkReceiver.noop();
             if (MusicHud.getCurrentEnvironment().getSide() == Environment.Side.CLIENT) {
-                receiver = (payload, player) -> IConnectionManager.getInstance().onConnectResponse(payload);
+                receiver = (payload, player) -> IConnectionManager.getInstance().onConnectResponse(payload, player);
             }
             INetworkRegister.getInstance().autoRegisterPayload(
                     ConnectResponse.class, CODEC,

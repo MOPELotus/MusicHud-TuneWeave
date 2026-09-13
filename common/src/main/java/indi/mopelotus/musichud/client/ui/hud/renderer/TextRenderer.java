@@ -175,28 +175,34 @@ public class TextRenderer implements HudRenderer {
             if (text.isEmpty()) return;
         }
         context.pushScissor((int) x, (int) y, (int) (x + layoutWidth), (int) (y + layout.getHeight() + 1));
-        HudRenderContext.Transforming transform = context.transform();
-        String finalText = text;
-        transform.translate(x1, y)
-                .subTransform(transforming -> {
-                    transforming.scale(scale)
-                            .then(transforming1 -> {
-                                context.drawString(Minecraft.getInstance().font, finalText, 0, 0, color, false);
-                            });
-                });
-        if (overflow && enableMarqueeText) {
-            if (marqueeWidth - marqueeOffset < layoutWidth) {
-                transform.translate(marqueeWidth, 0)
+        try {
+            HudRenderContext.Transforming transform = context.transform();
+            try {
+                String finalText = text;
+                transform.translate(x1, y)
                         .subTransform(transforming -> {
                             transforming.scale(scale)
                                     .then(transforming1 -> {
                                         context.drawString(Minecraft.getInstance().font, finalText, 0, 0, color, false);
                                     });
                         });
+                if (overflow && enableMarqueeText) {
+                    if (marqueeWidth - marqueeOffset < layoutWidth) {
+                        transform.translate(marqueeWidth, 0)
+                                .subTransform(transforming -> {
+                                    transforming.scale(scale)
+                                            .then(transforming1 -> {
+                                                context.drawString(Minecraft.getInstance().font, finalText, 0, 0, color, false);
+                                            });
+                                });
+                    }
+                }
+            } finally {
+                transform.end();
             }
+        } finally {
+            context.popScissor();
         }
-        transform.end();
-        context.popScissor();
     }
 
     private int getColorWithAlpha(int baseColor, float alpha) {

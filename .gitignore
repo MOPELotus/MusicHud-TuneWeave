@@ -123,3 +123,21 @@ common/logs/
 
 # Local planning and audit notes; never publish roadmap files
 docs/roadmap/
+
+# Local-only internal instructions, design, audits and development records
+/.codex-local/
+/AGENTS.md
+/docs/*
+!/docs/deployment.md
+/logs/
+**/logs/
+*.log.gz
+*.hprof
+/.cache/
+
+# Inactive modules may remain locally from the transfer snapshot
+/protocol/
+/server-core/
+/paper/
+/velocity/
+/bungeecord/

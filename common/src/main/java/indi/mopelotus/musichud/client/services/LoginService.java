@@ -117,10 +117,8 @@ public class LoginService implements IClientLoginService {
             synchronized (LoginService.this) {
                 if (version != platformSessionVersion.get() || tuneWeave.defaultPlatform() != platform) return;
                 MusicService.getInstance().invalidateUserCollections();
-                // Logging out must invalidate the local public-playback lane as well.
-                // Public sessions remain server-authoritative, but an engine/decoder
-                // created under the old account must not be reused by the next session.
-                MusicService.resetCurrentMusicStatus();
+                // Retire the old account's playback engine without clearing the server's public state.
+                MusicService.getInstance().recoverPlaybackAfterLogout();
                 Profile.setCurrent(Profile.ANONYMOUS);
                 notifyLoginStateChanged();
                 refreshAccountView();
@@ -220,7 +218,7 @@ public class LoginService implements IClientLoginService {
                 });
             }
             eventService.registerClientPlayerJoin((player) -> {
-                MusicHud.EXECUTOR.execute(() -> {
+                ConnectionManager.getInstance().onPlayerJoin(player, () -> {
                     ServerData currentServer = Minecraft.getInstance().getCurrentServer();
                     if (currentServer != null) {
                         boolean autoConnectToServer = clientConfig.getEnableAutoConnect();
@@ -243,10 +241,8 @@ public class LoginService implements IClientLoginService {
                     }
                 });
             });
-            eventService.registerClientPlayerQuit((player) -> {
-                ServerPlayerRegistry.getInstance().leave(VanillaPlayerProxy.ofPlayer(player));
-                MusicHud.setConnectStatus(MusicHud.ConnectStatus.NOT_CONNECTED);
-            });
+            eventService.registerClientPlayerQuit(player -> ConnectionManager.getInstance().onPlayerQuit(player));
+            eventService.registerClientTickPost(() -> ConnectionManager.getInstance().onClientTick());
         }
     }
 

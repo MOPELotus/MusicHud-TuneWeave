@@ -47,6 +47,9 @@ public interface ClientConfig {
 
     void setPrimaryChosenQuality(Quality primaryChosenQuality);
 
+    default indi.mopelotus.musichud.beans.music.AudioOutputMode getAudioOutputMode() { return indi.mopelotus.musichud.beans.music.AudioOutputMode.MULTICHANNEL; }
+    default void setAudioOutputMode(indi.mopelotus.musichud.beans.music.AudioOutputMode mode) {}
+
     ScrobbleMode getScrobbleMode();
     void setScrobbleMode(ScrobbleMode mode);
 

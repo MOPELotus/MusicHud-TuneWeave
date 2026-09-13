@@ -27,7 +27,7 @@ public record SyncCurrentPlayingMessage(PlaybackSession playbackSession, MusicDe
         public void register() {
             NetworkReceiver<SyncCurrentPlayingMessage> receiver = NetworkReceiver.noop();
             if (MusicHud.getCurrentEnvironment().getSide() == Environment.Side.CLIENT) {
-                receiver = (message, player) -> MusicHud.EXECUTOR.execute(() -> {
+                receiver = (message, player) -> indi.mopelotus.musichud.network.ClientPacketContext.execute(MusicHud.EXECUTOR,() -> {
                     IClientMusicService musicService = IClientMusicService.getInstance();
                     musicService.switchMusic(message.playbackSession, message.nextIdle, "");
                 });

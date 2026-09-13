@@ -21,15 +21,23 @@ public record RefreshMusicQueueMessage(Queue<QueueItem> queue) implements S2CPay
             RefreshMusicQueueMessage::new
     );
 
+    /** The transport and the queued mutation share the same captured connection admission. */
+    public static NetworkReceiver<RefreshMusicQueueMessage> receiver(
+            java.util.function.Supplier<IClientMusicService> service, java.util.concurrent.Executor executor) {
+        return (message, player) -> {
+            if (!indi.mopelotus.musichud.network.ClientPacketContext.capture().isCurrent()) return;
+            Runnable publication = service.get().prepareQueueRefresh(message.queue);
+            indi.mopelotus.musichud.network.ClientPacketContext.execute(executor, publication);
+        };
+    }
+
     @RegisterMark
     public static class RegisterImpl implements CommonRegister {
         @Override
         public void register() {
             NetworkReceiver<RefreshMusicQueueMessage> receiver = NetworkReceiver.noop();
             if (MusicHud.getCurrentEnvironment().getSide() == Environment.Side.CLIENT) {
-                receiver = (message, context) -> MusicHud.EXECUTOR.execute(() ->
-                        IClientMusicService.getInstance().refreshQueue(message.queue)
-                );
+                receiver = receiver(IClientMusicService::getInstance, MusicHud.EXECUTOR);
             }
             INetworkRegister.getInstance().autoRegisterPayload(
                     RefreshMusicQueueMessage.class, CODEC,

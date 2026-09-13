@@ -51,7 +51,12 @@ public class NeoForgeNetworkManager implements INetworkRegister, VanillaServerNe
         } else if (S2CPayload.class.isAssignableFrom(info.clazz)) { // S2C
             if (side == Environment.Side.CLIENT) {
                 registrar.playToClient(info.type(), StreamCodecWrapper.of(info.codec()), (payload, context) -> {
-                    payload.receive(info.clientReceiver(), VanillaPlayerProxy.ofPlayer(context.player()));
+                    var minecraft = net.minecraft.client.Minecraft.getInstance();
+                    indi.mopelotus.musichud.client.services.ClientPayloadAdmission.receiveFromListener(
+                            context.listener(), minecraft.getConnection(), () -> minecraft.player,
+                            player -> indi.mopelotus.musichud.client.services.ConnectionManager.getInstance()
+                                    .captureClientPayload(true, VanillaPlayerProxy.ofPlayer(player), payload.getPayload()),
+                            player -> payload.receive(info.clientReceiver(), VanillaPlayerProxy.ofPlayer(player)));
                 });
             } else {
                 registrar.playToClient(info.type(), StreamCodecWrapper.of(info.codec()), (payload, context) -> {

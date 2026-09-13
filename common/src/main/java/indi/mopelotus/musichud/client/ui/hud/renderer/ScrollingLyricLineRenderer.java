@@ -223,49 +223,52 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
         float x = absolutePosition.x();
         float y = absolutePosition.y();
         context.pushScissor((int) x, (int) y, (int) (x + layout.getWidth()), (int) (y + layout.getHeight()));
-        if (isTransitioning && nextLine1.line != null && nextLine2.line != null) {
-            float easedProgress = Easing.EASE_IN_OUT_QUINT.getInterpolation(transitionProgress);
-            float oldYOffset = -easedProgress * layout.getHeight();
-            if (currentLine1.line != null && currentLine1.line.lyricLine != null) {
-                if (currentLine1.line.lyricLine.isWordByWord()) {
-                    renderLine(context, currentLine1, currentLine1.line.fadeColor, cachedContainerX, startY, line1Height, oldYOffset);
-                    renderLineHighlight(context, currentLine1, cachedContainerX, startY, line1Height, y, x, calcHighlightWidth(currentLine1, line1Height), oldYOffset);
-                } else {
-                    renderLine(context, currentLine1, currentLine1.line.emphasizeColor, cachedContainerX, startY, line1Height, oldYOffset);
-                }
-                if (clientConfig.getShowTranslatedCnLyrics()) {
-                    if (currentLine2.line != null && currentLine2.line.lyricLine != null) {
-                        renderLine(context, currentLine2, currentLine2.line.fadeColor, cachedContainerX, (int) (startY + lineSpacing + line1Height), line2Height, oldYOffset);
+        try {
+            if (isTransitioning && nextLine1.line != null && nextLine2.line != null) {
+                float easedProgress = Easing.EASE_IN_OUT_QUINT.getInterpolation(transitionProgress);
+                float oldYOffset = -easedProgress * layout.getHeight();
+                if (currentLine1.line != null && currentLine1.line.lyricLine != null) {
+                    if (currentLine1.line.lyricLine.isWordByWord()) {
+                        renderLine(context, currentLine1, currentLine1.line.fadeColor, cachedContainerX, startY, line1Height, oldYOffset);
+                        renderLineHighlight(context, currentLine1, cachedContainerX, startY, line1Height, y, x, calcHighlightWidth(currentLine1, line1Height), oldYOffset);
+                    } else {
+                        renderLine(context, currentLine1, currentLine1.line.emphasizeColor, cachedContainerX, startY, line1Height, oldYOffset);
+                    }
+                    if (clientConfig.getShowTranslatedCnLyrics()) {
+                        if (currentLine2.line != null && currentLine2.line.lyricLine != null) {
+                            renderLine(context, currentLine2, currentLine2.line.fadeColor, cachedContainerX, (int) (startY + lineSpacing + line1Height), line2Height, oldYOffset);
+                        }
                     }
                 }
-            }
 
-            if (nextLine1.line != null && nextLine1.line.lyricLine != null) {
-                float newYOffset = (1 - easedProgress) * layout.getHeight();
-                int color = nextLine1.line.lyricLine.isWordByWord() ? nextLine1.line.fadeColor : nextLine1.line.emphasizeColor;
-                renderLine(context, nextLine1, color, cachedContainerX, startY, line1Height, newYOffset);
-                if (clientConfig.getShowTranslatedCnLyrics()) {
-                    if (nextLine2.line != null && nextLine2.line.lyricLine != null) {
-                        renderLine(context, nextLine2, nextLine2.line.fadeColor, cachedContainerX, (int) (startY + lineSpacing + line1Height), line2Height, newYOffset);
+                if (nextLine1.line != null && nextLine1.line.lyricLine != null) {
+                    float newYOffset = (1 - easedProgress) * layout.getHeight();
+                    int color = nextLine1.line.lyricLine.isWordByWord() ? nextLine1.line.fadeColor : nextLine1.line.emphasizeColor;
+                    renderLine(context, nextLine1, color, cachedContainerX, startY, line1Height, newYOffset);
+                    if (clientConfig.getShowTranslatedCnLyrics()) {
+                        if (nextLine2.line != null && nextLine2.line.lyricLine != null) {
+                            renderLine(context, nextLine2, nextLine2.line.fadeColor, cachedContainerX, (int) (startY + lineSpacing + line1Height), line2Height, newYOffset);
+                        }
+                    }
+                }
+            } else {
+                if (currentLine1.line != null && currentLine1.line.lyricLine != null) {
+                    if (currentLine1.line.lyricLine.isWordByWord()) {
+                        renderLine(context, currentLine1, currentLine1.line.fadeColor, cachedContainerX, startY, line1Height, 0);
+                        renderLineHighlight(context, currentLine1, cachedContainerX, startY, line1Height, y, x, calcHighlightWidth(currentLine1, line1Height), 0);
+                    } else {
+                        renderLine(context, currentLine1, currentLine1.line.emphasizeColor, cachedContainerX, startY, line1Height, 0);
+                    }
+                    if (clientConfig.getShowTranslatedCnLyrics()) {
+                        if (currentLine2.line != null && currentLine2.line.lyricLine != null) {
+                            renderLine(context, currentLine2, currentLine2.line.fadeColor, cachedContainerX, (int) (startY + lineSpacing + line1Height), line2Height, 0);
+                        }
                     }
                 }
             }
-        } else {
-            if (currentLine1.line != null && currentLine1.line.lyricLine != null) {
-                if (currentLine1.line.lyricLine.isWordByWord()) {
-                    renderLine(context, currentLine1, currentLine1.line.fadeColor, cachedContainerX, startY, line1Height, 0);
-                    renderLineHighlight(context, currentLine1, cachedContainerX, startY, line1Height, y, x, calcHighlightWidth(currentLine1, line1Height), 0);
-                } else {
-                    renderLine(context, currentLine1, currentLine1.line.emphasizeColor, cachedContainerX, startY, line1Height, 0);
-                }
-                if (clientConfig.getShowTranslatedCnLyrics()) {
-                    if (currentLine2.line != null && currentLine2.line.lyricLine != null) {
-                        renderLine(context, currentLine2, currentLine2.line.fadeColor, cachedContainerX, (int) (startY + lineSpacing + line1Height), line2Height, 0);
-                    }
-                }
-            }
+        } finally {
+            context.popScissor();
         }
-        context.popScissor();
     }
 
     private float calcHighlightWidth(LineState lineState,float lineHeight) {
@@ -341,13 +344,16 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
             float drawY = baseY + yOffset;
             int toX = (int) (drawX + highlightToX);
             context.pushScissor((int) highlightFromX, (int) positionY, toX, (int) (positionY + layout.getHeight()));
-            context.transform()
-                    .translate(drawX, drawY)
-                    .scale(scale)
-                    .end(transforming -> {
-                        context.drawString(Minecraft.getInstance().font, text, 0, 0, line.line.emphasizeColor, false);
-                    });
-            context.popScissor();
+            try {
+                context.transform()
+                        .translate(drawX, drawY)
+                        .scale(scale)
+                        .end(transforming -> {
+                            context.drawString(Minecraft.getInstance().font, text, 0, 0, line.line.emphasizeColor, false);
+                        });
+            } finally {
+                context.popScissor();
+            }
         }
     }
 

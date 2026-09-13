@@ -43,7 +43,7 @@ public record SwitchMusicMessage(PlaybackSession playbackSession, MusicDetail ne
             NetworkReceiver<SwitchMusicMessage> receiver = NetworkReceiver.noop();
             if (MusicHud.getCurrentEnvironment().getSide() == Environment.Side.CLIENT) {
                 receiver = (message, player) -> {
-                    MusicHud.EXECUTOR.execute(() -> {
+                    indi.mopelotus.musichud.network.ClientPacketContext.execute(MusicHud.EXECUTOR,() -> {
                         if (!clientConfig.getEnable()) {
                             return;
                         }

@@ -52,4 +52,9 @@ public interface IConnectionManager {
      * Handles a ConnectResponse from the server: drives the connection state machine.
      */
     void onConnectResponse(ConnectResponse response);
+
+    /** Transport origin is local metadata; it is never added to the wire handshake. */
+    default void onConnectResponse(ConnectResponse response, indi.mopelotus.musichud.network.IPlayerClient origin) {
+        onConnectResponse(response);
+    }
 }

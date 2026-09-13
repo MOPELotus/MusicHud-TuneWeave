@@ -5,6 +5,21 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PlaybackSubmissionGateTest {
+    @Test void replacementCarriesClaimWithoutBlockingTheNextSession() {
+        UUID session = UUID.randomUUID();
+        var old = new PlaybackSubmissionGate();
+        old.activate(4, session);
+        assertFalse(old.isClaimed(4));
+        assertTrue(old.claim(4, true));
+        assertFalse(old.isClaimed(3));
+        var replacement = new PlaybackSubmissionGate();
+        replacement.activate(1, session);
+        if (old.isClaimed(4)) replacement.claim(1, true);
+        assertFalse(replacement.claim(1, true));
+        replacement.activate(2, UUID.randomUUID());
+        assertTrue(replacement.claim(2, true));
+    }
+
     @Test void eachTrackCanSubmitButCompletionAndStopCannotDuplicate() {
         var gate = new PlaybackSubmissionGate();
         gate.activate(1, UUID.randomUUID());

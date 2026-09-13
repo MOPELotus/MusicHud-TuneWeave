@@ -21,6 +21,7 @@ final class PlaybackHandoff<L extends PlaybackHandoff.Lane> {
     }
 
     L current() { return current; }
+    L pending() { return pending; }
     boolean preparing() { return pending != null; }
 
     CompletableFuture<ZonedDateTime> begin(L candidate, Function<L, CompletableFuture<ZonedDateTime>> start) {

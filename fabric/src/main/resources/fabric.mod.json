@@ -20,9 +20,6 @@
     "main": [
       "indi.mopelotus.musichud.fabric.CommonInitializer"
     ],
-    "client": [
-      "indi.mopelotus.musichud.fabric.client.ClientInitializer"
-    ],
     "modmenu": [
       "indi.mopelotus.musichud.fabric.config.ModMenuConfigurer"
     ]
@@ -34,7 +31,7 @@
     "fabricloader": "*",
     "minecraft": ">=26.2",
     "java": ">=25",
-    "fabric-api": "*",
+    "fabric-api": ">=0.160.0+26.2",
     "modernui": ">=3.13.0.7"
   },
   "recommends": {

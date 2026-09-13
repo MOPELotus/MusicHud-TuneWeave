@@ -11,4 +11,6 @@ public interface IPlayerClient {
     ClientType getClientType();
     default boolean isConnected() { return true; }
     default Object connectionIdentity() { return this; }
+    /** Stable transport key for ordering handshake controls across player respawn. */
+    default Object controlConnectionIdentity() { return connectionIdentity(); }
 }

@@ -5,6 +5,7 @@ import indi.mopelotus.musichud.ProjectIdentity;
 import indi.mopelotus.musichud.beans.api.AutoConnectServerFilterType;
 import indi.mopelotus.musichud.beans.music.Quality;
 import indi.mopelotus.musichud.beans.music.ScrobbleMode;
+import indi.mopelotus.musichud.beans.music.AudioOutputMode;
 import indi.mopelotus.musichud.beans.user.ProfileConfigData;
 import indi.mopelotus.musichud.interfaces.ClientConfig;
 import indi.mopelotus.musichud.utils.JsonUtil;
@@ -33,6 +34,7 @@ public class ClientConfigDefinition implements ClientConfig {
     private int soundVolumeInterval = 10;
     private Quality primaryChosenQuality = Quality.LOSSLESS;
     private volatile ScrobbleMode scrobbleMode = ScrobbleMode.ONLY_SELF;
+    private volatile AudioOutputMode audioOutputMode = AudioOutputMode.MULTICHANNEL;
     private double mainScreenAdditionalBackgroundDarken = 0.5;
     private double hudBackgroundMixAlpha = 0.5;
     private String hudVerticalPosition = "TOP";
@@ -74,6 +76,7 @@ public class ClientConfigDefinition implements ClientConfig {
         soundVolumeInterval = SimpleTomlConfig.getInt(values, "soundVolumeInterval", soundVolumeInterval);
         primaryChosenQuality = SimpleTomlConfig.getEnum(values, "primaryChosenQuality", Quality.class, primaryChosenQuality);
         scrobbleMode = ScrobbleMode.parse(SimpleTomlConfig.getString(values, "scrobbleMode", scrobbleMode.name()));
+        audioOutputMode = AudioOutputMode.parse(SimpleTomlConfig.getString(values, "audioOutputMode", audioOutputMode.name()));
         mainScreenAdditionalBackgroundDarken = SimpleTomlConfig.getDouble(values, "mainScreenAdditionalBackgroundDarken", mainScreenAdditionalBackgroundDarken);
         hudBackgroundMixAlpha = SimpleTomlConfig.getDouble(values, "hudBackgroundMixAlpha", hudBackgroundMixAlpha);
         hudVerticalPosition = SimpleTomlConfig.getString(values, "verticalPosition", hudVerticalPosition);
@@ -327,6 +330,9 @@ public class ClientConfigDefinition implements ClientConfig {
         return primaryChosenQuality;
     }
 
+    @Override public AudioOutputMode getAudioOutputMode() { return audioOutputMode; }
+    @Override public void setAudioOutputMode(AudioOutputMode mode) { audioOutputMode = mode == null ? AudioOutputMode.MULTICHANNEL : mode; }
+
     @Override public ScrobbleMode getScrobbleMode() { return scrobbleMode; }
     @Override public void setScrobbleMode(ScrobbleMode mode) {
         scrobbleMode = mode == null ? ScrobbleMode.NONE : mode;
@@ -445,6 +451,7 @@ public class ClientConfigDefinition implements ClientConfig {
                 new SimpleTomlConfig.Entry("muted", "Record muted switch", muted),
                 new SimpleTomlConfig.Entry("soundVolume", "Sound volume for MusicHud TuneWeave audio", soundVolume),
                 new SimpleTomlConfig.Entry("soundVolumeInterval", "Sound volume interval for hot key adjustment", soundVolumeInterval),
+                new SimpleTomlConfig.Entry("audioOutputMode", "Device output: MULTICHANNEL or STEREO downmix", audioOutputMode.name()),
                 new SimpleTomlConfig.Entry("primaryChosenQuality", "Primary chosen quality", primaryChosenQuality.name()),
                 new SimpleTomlConfig.Entry("scrobbleMode", "Listening history after 30 seconds: NONE|ONLY_SELF|ALL", scrobbleMode.name()),
                 new SimpleTomlConfig.Entry("mainScreenAdditionalBackgroundDarken", "Main screen additional background darken rate", mainScreenAdditionalBackgroundDarken),

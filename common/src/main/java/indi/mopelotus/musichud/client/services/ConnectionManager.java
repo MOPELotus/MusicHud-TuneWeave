@@ -52,6 +52,83 @@ public class ConnectionManager implements IConnectionManager {
     private static volatile ConnectionManager instance;
     private final ConnectionActionGate connectionActions = new ConnectionActionGate(this);
     private final java.util.concurrent.atomic.AtomicInteger connectGeneration = new java.util.concurrent.atomic.AtomicInteger(0);
+    private final ConnectionHandshake handshake = new ConnectionHandshake(this, new ConnectionHandshake.Effects() {
+        public Object connection() { return Minecraft.getInstance().getConnection(); }
+        public Object player() { return Minecraft.getInstance().player; }
+        public boolean enabled() { return clientConfig.getEnable(); }
+        public boolean allowIsolated() { return clientConfig.getEnableIsolatedMode(); }
+        public void execute(Runnable action) { Minecraft.getInstance().execute(action); }
+        public void mode(ConnectionMode next) {
+            connectionActions.invalidate();
+            mode = next;
+            connectGeneration.incrementAndGet();
+            indi.mopelotus.musichud.network.PayloadFragments.resetClient();
+        }
+        public void status(MusicHud.ConnectStatus next) { MusicHud.setConnectStatus(next); }
+        public void resetPlayback() { ConnectionManager.this.resetPlayback(); }
+        public void joinLocalPlayer() {
+            var player = Minecraft.getInstance().player;
+            if (player != null) ServerPlayerRegistry.getInstance().join(VanillaPlayerProxy.ofPlayer(player));
+        }
+        public void restoreSession() { IClientLoginService.getInstance().restoreSession(); }
+        public void requestInitialState() { ConnectionManager.this.requestInitialState(); }
+        public void refreshGui() { IClientDistUtil.getInstance().refreshMainGUI(); }
+        public void leaveRemoteServer() { ConnectionManager.this.leaveRemoteServer(); }
+    });
+    private final ClientPayloadAdmission clientPackets = new ClientPayloadAdmission(this, connectGeneration::get,
+            () -> Minecraft.getInstance().getConnection(), () -> Minecraft.getInstance().player,
+            () -> this.mode, MusicHud::getConnectStatus, () -> Minecraft.getInstance().getCurrentServer() == null,
+            clientConfig::getEnable);
+    private final ClientConnectionLifecycle lifecycle = new ClientConnectionLifecycle(this,
+            () -> Minecraft.getInstance().getConnection(),
+            () -> Minecraft.getInstance().getConnection() == null ? null : Minecraft.getInstance().getConnection().getConnection(),
+            () -> Minecraft.getInstance().player, action -> Minecraft.getInstance().execute(action));
+
+    public void onPlayerJoin(net.minecraft.world.entity.player.Player player, Runnable connect) {
+        lifecycle.join(player, connect, this::continueWithPlayer);
+    }
+
+    public void onPlayerQuit(net.minecraft.world.entity.player.Player player) {
+        Object physical = player instanceof net.minecraft.client.player.LocalPlayer local ? local.connection : null;
+        lifecycle.quit(player, physical, this::detachPlayer, this::resetPlayback);
+    }
+
+    private void detachPlayer(Object previous) {
+        ServerPlayerRegistry.getInstance().disconnect(VanillaPlayerProxy.ofPlayer((net.minecraft.world.entity.player.Player) previous));
+        connectionActions.invalidate();
+        handshake.invalidate();
+        connectGeneration.incrementAndGet();
+        mode = ConnectionMode.DISCONNECTED;
+        MusicHud.setConnectStatus(MusicHud.ConnectStatus.NOT_CONNECTED);
+        indi.mopelotus.musichud.network.PayloadFragments.resetClient();
+    }
+
+    public void onClientTick() {
+        lifecycle.disconnectIfClosed(physical -> ((net.minecraft.network.Connection) physical).isConnected(),
+                this::detachPlayer, this::resetPlayback);
+        lifecycle.tick(this::continueWithPlayer);
+    }
+
+    /** A new PLAY listener on the same TCP connection keeps the chosen mode and public session. */
+    private void continueWithPlayer(Object previous) {
+        connectionActions.invalidate();
+        handshake.invalidate();
+        connectGeneration.incrementAndGet();
+        indi.mopelotus.musichud.network.PayloadFragments.resetClient();
+        var registry = ServerPlayerRegistry.getInstance();
+        if (mode == ConnectionMode.ISOLATED) {
+            // Replace atomically before leaving the old wrapper; do not temporarily retire the last member.
+            registry.join(VanillaPlayerProxy.ofPlayer(Minecraft.getInstance().player));
+        }
+        registry.leave(VanillaPlayerProxy.ofPlayer((net.minecraft.world.entity.player.Player) previous));
+        if (mode == ConnectionMode.EXTERNAL && MusicHud.getConnectStatus() != MusicHud.ConnectStatus.CONNECTED) {
+            connectToExternalServer();
+        } else if (mode == ConnectionMode.EXTERNAL || mode == ConnectionMode.ISOLATED) {
+            // Re-handshaking an already accepted connection would reset the live playback engine.
+            requestInitialState();
+        }
+    }
+
     private double lastPressTime;
     @Getter
     private volatile ConnectionMode mode = ConnectionMode.DISCONNECTED;
@@ -70,11 +147,15 @@ public class ConnectionManager implements IConnectionManager {
     @Override
     public synchronized void connectToExternalServer() {
         connectionActions.invalidate();
+        handshake.invalidate();
+        leaveLocalPlayer();
+        indi.mopelotus.musichud.network.PayloadFragments.resetClient();
         if (clientConfig.getEnable()) {
             mode = ConnectionMode.EXTERNAL;
             MusicHud.setConnectStatus(MusicHud.ConnectStatus.NOT_CONNECTED);
-            clientNetworkService.sendToServer(ConnectRequest.current());
+            handshake.begin();
             scheduleConnectTimeoutFallback();
+            clientNetworkService.sendToServer(ConnectRequest.current());
         }
     }
 
@@ -90,8 +171,8 @@ public class ConnectionManager implements IConnectionManager {
                         && MusicHud.getConnectStatus() == MusicHud.ConnectStatus.NOT_CONNECTED) {
                     if (clientConfig.getEnableIsolatedMode()) {
                         logger.warn("No ConnectResponse within {}, falling back to isolated mode", CONNECT_TIMEOUT);
-                        launchIsolated();
                     } else logger.warn("No ConnectResponse within {}; isolated mode is disabled", CONNECT_TIMEOUT);
+                    handshake.timeout();
                 }
             }
         });
@@ -100,16 +181,38 @@ public class ConnectionManager implements IConnectionManager {
     @Override
     public synchronized void launchIsolated() {
         connectionActions.invalidate();
-        mode = ConnectionMode.ISOLATED;
-        if (Minecraft.getInstance().player != null) {
-            ServerPlayerRegistry.getInstance().join(
-                    VanillaPlayerProxy.ofPlayer(Minecraft.getInstance().player));
+        handshake.isolate();
+    }
+
+    private void leaveLocalPlayer() {
+        var player = Minecraft.getInstance().player;
+        if (player != null) ServerPlayerRegistry.getInstance().leave(VanillaPlayerProxy.ofPlayer(player));
+    }
+
+    /** Capture at the transport boundary, before local dispatch is queued. */
+    public indi.mopelotus.musichud.network.ClientPacketContext.Admission captureClientPayload(
+            boolean remote, indi.mopelotus.musichud.network.IPlayerClient origin,
+            indi.mopelotus.musichud.network.payloads.IPayload payload) {
+        Object player = origin instanceof VanillaPlayerProxy proxy ? proxy.getPlayer() : null;
+        return clientPackets.capture(remote, player, payload instanceof ConnectResponse);
+    }
+
+    private void leaveRemoteServer() {
+        var minecraft = Minecraft.getInstance();
+        if (minecraft.getCurrentServer() == null || minecraft.getConnection() == null) return;
+        try {
+            ((indi.mopelotus.musichud.client.network.vanilla.VanillaClientNetworkService) clientNetworkService)
+                    .sendToNetworkServer(DisconnectMessage.INSTANCE);
+        } catch (RuntimeException e) {
+            // A server without the channel, or an already closed transport, must not prevent local fallback.
+            logger.debug("Could not retire remote TuneWeave membership", e);
         }
-        IClientLoginService.getInstance().restoreSession();
+    }
+
+    private void resetPlayback() {
         MusicService.resetCurrentMusicStatus();
         NowPlayingInfo.getInstance().stop();
         StreamAudioPlayer.getInstance().stop();
-        requestInitialState();
     }
 
     @Override
@@ -121,8 +224,10 @@ public class ConnectionManager implements IConnectionManager {
     @Override
     public synchronized void disconnect() {
         connectionActions.invalidate();
+        handshake.invalidate();
+        leaveLocalPlayer();
         indi.mopelotus.musichud.network.PayloadFragments.resetClient();
-        clientNetworkService.sendToServer(DisconnectMessage.INSTANCE);
+        if (mode == ConnectionMode.EXTERNAL) leaveRemoteServer();
         MusicService.resetCurrentMusicStatus();
         NowPlayingInfo.getInstance().stop();
         StreamAudioPlayer.getInstance().stop();
@@ -134,7 +239,8 @@ public class ConnectionManager implements IConnectionManager {
     @Override
     public synchronized Boolean toggleConnection() {
         MusicHud.ConnectStatus status = MusicHud.getConnectStatus();
-        if (status != MusicHud.ConnectStatus.CONNECTED && status != MusicHud.ConnectStatus.NOT_CONNECTED) return null;
+        if (status != MusicHud.ConnectStatus.CONNECTED && status != MusicHud.ConnectStatus.NOT_CONNECTED
+                && status != MusicHud.ConnectStatus.INCOMPATIBLE) return null;
         var minecraft = Minecraft.getInstance();
         Runnable action = connectionActions.prepare(minecraft::getConnection, () -> {
             if (minecraft.player == null || MusicHud.getConnectStatus() != status) return;
@@ -193,34 +299,13 @@ public class ConnectionManager implements IConnectionManager {
     }
 
     @Override
-    public synchronized void onConnectResponse(ConnectResponse payload) {
-        IClientDistUtil clientDistUtil = IClientDistUtil.getInstance();
-        IClientLoginService clientLoginService = IClientLoginService.getInstance();
-        if (MusicHud.getConnectStatus() == MusicHud.ConnectStatus.NOT_CONNECTED) {
-            logger.info("Connecting {} accepted", payload.accepted() ? "accepted" : "denied");
-            if (payload.accepted()) {
-                if (ProtocolInfo.isCompatible(payload.projectId(), payload.serverVersion(),
-                        payload.capabilities())) {
-                    if (!clientDistUtil.inIntegratedServer()
-                            && MusicHud.getConnectStatus() != MusicHud.ConnectStatus.CONNECTED
-                            && clientConfig.getEnableIsolatedMode()) {
-                        disconnect();
-                    }
-                    connectGeneration.incrementAndGet();
-                    MusicHud.setConnectStatus(MusicHud.ConnectStatus.CONNECTED);
-                    clientLoginService.restoreSession();
-                    requestInitialState();
-                } else {
-                    MusicHud.setConnectStatus(MusicHud.ConnectStatus.INCOMPATIBLE);
-                }
-            } else {
-                MusicHud.setConnectStatus(MusicHud.ConnectStatus.INCOMPATIBLE);
-            }
-        } else if (!payload.accepted()) {
-            logger.info("Disconnected");
-            disconnect();
-        }
-        clientDistUtil.refreshMainGUI();
+    public void onConnectResponse(ConnectResponse payload) {
+        handshake.receive(payload, Minecraft.getInstance().player);
+    }
+
+    @Override
+    public void onConnectResponse(ConnectResponse payload, indi.mopelotus.musichud.network.IPlayerClient origin) {
+        if (origin instanceof VanillaPlayerProxy player) handshake.receive(payload, player.getPlayer());
     }
 
     private void requestInitialState() {
@@ -231,18 +316,19 @@ public class ConnectionManager implements IConnectionManager {
 
     private void requestInitialState(ConnectionMode requestedMode, int requestedGeneration, int attempt) {
         MusicHud.EXECUTOR.execute(() -> {
+            java.util.concurrent.CompletableFuture<GetInitialStateResponse> request;
+            long requestedQueueRevision;
             synchronized (ConnectionManager.this) {
                 if (mode != requestedMode || requestedGeneration != connectGeneration.get()
                         || (requestedMode == ConnectionMode.EXTERNAL
                         && MusicHud.getConnectStatus() != MusicHud.ConnectStatus.CONNECTED)) {
                     return;
                 }
+                requestedQueueRevision = MusicService.getInstance().queueRevision();
+                request = RequestResponseManager.send(
+                        new GetInitialStateRequest(), GetInitialStateResponse.class, Duration.ofSeconds(5));
             }
-            RequestResponseManager.send(
-                            new GetInitialStateRequest(),
-                            GetInitialStateResponse.class,
-                            Duration.ofSeconds(5))
-                    .thenAccept(response -> {
+            request.thenAccept(response -> {
                         synchronized (ConnectionManager.this) {
                             if (mode != requestedMode || requestedGeneration != connectGeneration.get()
                                     || MusicHud.getConnectStatus() != MusicHud.ConnectStatus.CONNECTED && requestedMode == ConnectionMode.EXTERNAL) {
@@ -250,12 +336,12 @@ public class ConnectionManager implements IConnectionManager {
                                         requestedMode, requestedGeneration);
                                 return;
                             }
+                            MusicService.getInstance().refreshInitialQueue(requestedQueueRevision, response.getQueue());
+                            MusicService.getInstance().switchMusic(
+                                    response.getPlaybackSession(), response.getNextIdle(), "");
+                            MusicService.getInstance().getIdlePlaySourceState().external().updateAll(
+                                    response.getPlaylistSources(), response.getAlbumSources());
                         }
-                        MusicService.getInstance().refreshQueue(response.getQueue());
-                        MusicService.getInstance().switchMusic(
-                                response.getPlaybackSession(), response.getNextIdle(), "");
-                        MusicService.getInstance().getIdlePlaySourceState().external().updateAll(
-                                response.getPlaylistSources(), response.getAlbumSources());
                     })
                     .exceptionally(e -> {
                         if (attempt < 2) {

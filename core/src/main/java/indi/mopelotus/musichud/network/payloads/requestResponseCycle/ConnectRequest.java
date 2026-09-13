@@ -56,7 +56,7 @@ public record ConnectRequest(String projectId, Version clientVersion,
         public void register() {
             INetworkRegister.getInstance().autoRegisterPayload(
                     ConnectRequest.class, CODEC,
-                    ServerDataPacketVThreadExecutor.execute((startQRLoginRequest, player) -> {
+                    ServerDataPacketVThreadExecutor.executeControl((startQRLoginRequest, player) -> {
                         boolean compatible = ProtocolInfo.isCompatible(
                                 startQRLoginRequest.projectId(), startQRLoginRequest.clientVersion(),
                                 startQRLoginRequest.capabilities());

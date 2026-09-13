@@ -566,11 +566,8 @@ public class MainFragment extends Fragment {
                     switchServerConnectButton.setText(I18n.get(MusicHud.MOD_ID + ".button.connect"));
                 }
                 case INCOMPATIBLE -> {
-                    if (clientConfig.getEnableIsolatedMode()) {
-                        serverConnectStatus.setText(I18n.get(MusicHud.MOD_ID + ".text.incompatible"));
-                    } else {
-                        serverConnectStatus.setText(I18n.get(MusicHud.MOD_ID + ".text.incompatible.isolated"));
-                    }
+                    serverConnectStatus.setText(I18n.get(
+                            indi.mopelotus.musichud.client.services.ConnectionHandshake.incompatibleMessageKey(connectionManager.getMode())));
                     switchServerConnectButton.setVisibility(View.VISIBLE);
                     switchServerConnectButton.setText(I18n.get(MusicHud.MOD_ID + ".button.connect"));
                 }

@@ -163,6 +163,9 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
+    relocate 'com.fasterxml.jackson', 'indi.mopelotus.musichud.shaded.jackson'
+    mergeServiceFiles { setIncludes(['META-INF/services/com.fasterxml.jackson.*']) }
     exclude 'org/slf4j/**'
 }
 
@@ -197,4 +200,12 @@ publishing {
             from components.java
         }
     }
+}
+
+apply from: rootProject.file('gradle/verify-shaded-jackson.gradle')
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'musichud.test.fabricMetadata', layout.buildDirectory.file('resources/main/fabric.mod.json').get().asFile.absolutePath
+    systemProperty 'musichud.test.fabricApiVersion', rootProject.fabric_api_version
 }

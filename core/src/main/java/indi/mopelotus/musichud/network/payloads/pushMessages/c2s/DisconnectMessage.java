@@ -21,7 +21,7 @@ public final class DisconnectMessage implements C2SPayload {
         public void register() {
             INetworkRegister.getInstance().autoRegisterPayload(
                     DisconnectMessage.class, CODEC,
-                    ServerDataPacketVThreadExecutor.execute((message, player) ->
+                    ServerDataPacketVThreadExecutor.executeControl((message, player) ->
                             ServerPlayerRegistry.getInstance().leave(player)));
         }
     }

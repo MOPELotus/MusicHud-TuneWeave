@@ -14,18 +14,19 @@ public interface VanillaClientNetworkService extends IClientNetworkService {
     @Override
     default <T extends C2SPayload> void sendToServer(T payload) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.getCurrentServer() != null && (MusicHud.getConnectStatus() == MusicHud.ConnectStatus.CONNECTED
-                || payload instanceof ConnectRequest)) {
+        var route = indi.mopelotus.musichud.client.services.ClientConnectionRouting.route(
+                minecraft.player != null, minecraft.getCurrentServer() != null, MusicHud.getConnectStatus(),
+                payload instanceof ConnectRequest, ClientConfig.getInstance().getEnableIsolatedMode());
+        if (route == indi.mopelotus.musichud.client.services.ClientConnectionRouting.Route.REMOTE) {
             indi.mopelotus.musichud.network.PayloadFragments.sendC2S(payload, this::sendToNetworkServer);
-        } else if ((minecraft.getCurrentServer() != null || minecraft.player != null)
-                && ClientConfig.getInstance().getEnableIsolatedMode()){// in single player game or isolated client
+        } else if (route == indi.mopelotus.musichud.client.services.ClientConnectionRouting.Route.LOCAL) {
             //noinspection unchecked
             NetworkReceiver<T> receiver = (NetworkReceiver<T>) IVanillaNetworkRegister.getMetaDataOrNew(payload.getClass(), null).receiver();
             if (receiver != null) {
                 receiver.receive(payload, VanillaPlayerProxy.ofPlayer(minecraft.player));
             }
         } else {
-            MusicHud.LOGGER.warn("Dropped C2S payload {}: connection status is {} and isolated mode is disabled",
+            MusicHud.LOGGER.warn("Dropped C2S payload {}: no active route for connection status {}",
                     payload.getClass().getName(), MusicHud.getConnectStatus());
         }
 

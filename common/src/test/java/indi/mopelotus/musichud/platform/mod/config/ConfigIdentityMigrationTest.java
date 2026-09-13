@@ -24,6 +24,22 @@ class ConfigIdentityMigrationTest {
         } finally { MusicHud.setConfigDirectory(previous); }
     }
 
+    @Test void audioOutputPreferenceLoadsSavesAndRejectsUnknownValues() throws Exception {
+        Path active = directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-client.toml");
+        Path previous = MusicHud.getConfigDirectory(); MusicHud.setConfigDirectory(directory);
+        try {
+            var constructor = ClientConfigDefinition.class.getDeclaredConstructor(); constructor.setAccessible(true);
+            var config = constructor.newInstance();
+            Files.writeString(active, "audioOutputMode = \"STEREO\"\n"); config.load();
+            assertEquals(indi.mopelotus.musichud.beans.music.AudioOutputMode.STEREO, config.getAudioOutputMode());
+            config.save(); assertEquals("STEREO", SimpleTomlConfig.read(active).get("audioOutputMode"));
+            Files.writeString(active, "audioOutputMode = \"unknown\"\n"); config.load();
+            assertEquals(indi.mopelotus.musichud.beans.music.AudioOutputMode.MULTICHANNEL, config.getAudioOutputMode());
+            config.setAudioOutputMode(null);
+            assertEquals(indi.mopelotus.musichud.beans.music.AudioOutputMode.MULTICHANNEL, config.getAudioOutputMode());
+        } finally { MusicHud.setConfigDirectory(previous); }
+    }
+
     @Test void currentServerConfigIsProjectOwned() throws Exception {
         Path active = directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-server.toml"); Files.writeString(active, "port = 7002\n");
         Path previous = MusicHud.getConfigDirectory(); MusicHud.setConfigDirectory(directory);

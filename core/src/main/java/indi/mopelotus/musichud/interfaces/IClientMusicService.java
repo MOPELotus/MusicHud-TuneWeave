@@ -44,6 +44,9 @@ public interface IClientMusicService {
 
     void refreshQueue(Queue<QueueItem> queue);
 
+    /** Captures queue ordering and ownership before dispatching asynchronous publication. */
+    Runnable prepareQueueRefresh(Queue<QueueItem> queue);
+
     void sendPushMusicToQueue(MusicDetail musicDetail);
 
     void sendRemoveMusicFromQueue(int index, QueueItem item);

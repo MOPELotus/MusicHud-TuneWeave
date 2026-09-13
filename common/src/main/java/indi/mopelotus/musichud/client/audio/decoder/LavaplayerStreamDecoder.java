@@ -12,6 +12,9 @@ import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrackState;
+import com.sedmelluq.discord.lavaplayer.track.InternalAudioTrack;
+import com.sedmelluq.discord.lavaplayer.track.playback.AudioTrackExecutor;
 import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrame;
 import indi.mopelotus.musichud.server.playback.SharedResourceValidator;
 import org.lwjgl.openal.AL10;
@@ -33,6 +36,7 @@ public final class LavaplayerStreamDecoder implements AudioDecoder {
 
     private final AudioPlayer player;
     private final AudioTrack track;
+    private final AudioTrackExecutor trackExecutor;
     private final PlaybackState playbackState;
     private final int format;
     private final int sampleRate;
@@ -46,6 +50,7 @@ public final class LavaplayerStreamDecoder implements AudioDecoder {
                                     int format, int sampleRate, int channelCount, AudioPlayerManager playerManager) {
         this.player = player;
         this.track = track;
+        this.trackExecutor = ((InternalAudioTrack) track).getActiveExecutor();
         this.playbackState = playbackState;
         this.format = format;
         this.sampleRate = sampleRate;
@@ -76,6 +81,10 @@ public final class LavaplayerStreamDecoder implements AudioDecoder {
             playerManager.shutdown();
             throw error;
         }
+        return start(playerManager, track);
+    }
+
+    static LavaplayerStreamDecoder start(AudioPlayerManager playerManager, AudioTrack track) {
         AudioPlayer player = playerManager.createPlayer();
         PlaybackState playbackState = new PlaybackState();
         player.addListener(new AudioEventAdapter() {
@@ -119,19 +128,29 @@ public final class LavaplayerStreamDecoder implements AudioDecoder {
                 currentFrameOffset = 0;
                 throwIfPlaybackFailed();
                 if (hasTrackEnded()) {
+                    awaitTrackCompletion();
                     break;
                 }
 
-                AudioFrame frame = player.provide(STUCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+                AudioFrame frame;
+                try {
+                    frame = player.provide(STUCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+                } catch (TimeoutException error) {
+                    throwIfPlaybackFailed();
+                    if (!hasTrackEnded()) throw new RuntimeException("Timed out while reading decoded audio", error);
+                    awaitTrackCompletion();
+                    break;
+                }
                 if (frame == null) {
                     throwIfPlaybackFailed();
                     if (hasTrackEnded()) {
+                        awaitTrackCompletion();
                         break;
                     }
                     throw new RuntimeException("Timed out while reading decoded audio");
                 }
                 if (frame.isTerminator()) {
-                    throwIfPlaybackFailed();
+                    awaitTrackCompletion();
                     break;
                 }
                 currentFrameData = frame.getData();
@@ -142,11 +161,6 @@ public final class LavaplayerStreamDecoder implements AudioDecoder {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return written == 0 ? null : Arrays.copyOf(result, written);
-        } catch (TimeoutException e) {
-            throwIfPlaybackFailed();
-            if (!hasTrackEnded()) {
-                throw new RuntimeException("Timed out while reading decoded audio", e);
-            }
         }
         return written == 0 ? null : Arrays.copyOf(result, written);
     }
@@ -213,6 +227,21 @@ public final class LavaplayerStreamDecoder implements AudioDecoder {
 
     private boolean hasTrackEnded() {
         return playbackState.endReason != null || player.getPlayingTrack() == null;
+    }
+
+    private void awaitTrackCompletion() throws InterruptedException {
+        // Lavaplayer 2.2.7 publishes the terminator before reporting an exception. FINISHED
+        // is published after that callback, so a drained buffer alone cannot establish success.
+        // Keep the original executor: player.provide() detaches it when consuming a terminator.
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(STUCK_TIMEOUT_MILLIS);
+        while (!closed && trackExecutor.getState() != AudioTrackState.FINISHED) {
+            throwIfPlaybackFailed();
+            if (System.nanoTime() - deadline >= 0) {
+                throw new RuntimeException("Timed out waiting for decoded audio completion");
+            }
+            Thread.sleep(1);
+        }
+        if (!closed) throwIfPlaybackFailed();
     }
 
     private void throwIfPlaybackFailed() {

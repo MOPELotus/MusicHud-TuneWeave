@@ -22,6 +22,10 @@ final class PlaybackSubmissionGate {
         return true;
     }
 
+    synchronized boolean isClaimed(long generation) {
+        return this.generation == generation && claimed;
+    }
+
     synchronized void invalidate(long generation) {
         if (generation > this.generation) {
             this.generation = generation;

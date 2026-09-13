@@ -270,6 +270,11 @@ public class NowPlayingInfo {
     }
 
     public void switchMusicInfo(MusicDetail musicDetail, MusicDetail idleNextToPlay) {
+        switchMusicInfoAt(musicDetail, idleNextToPlay, null);
+    }
+
+    /** Publish one complete authoritative snapshot, including its timeline, before local audio starts. */
+    public void switchMusicInfoAt(MusicDetail musicDetail, MusicDetail idleNextToPlay, ZonedDateTime startTime) {
         MusicDetail previous;
         synchronized (playbackStateLock) {
             previous = currentlyPlayingMusicDetail;
@@ -278,7 +283,7 @@ public class NowPlayingInfo {
             nextToPlayIdleMusicDetail = idleNextToPlay;
             musicDuration = musicDetail.equals(MusicDetail.NONE)
                     ? null : Duration.ofMillis(musicDetail.getDurationMillis());
-            musicStartTime = null;
+            musicStartTime = startTime;
             parseLyrics(musicDetail);
             publishPlaybackStateLocked();
         }
@@ -289,6 +294,7 @@ public class NowPlayingInfo {
         }
         callMusicSwitchListeners(previous, musicDetail);
         callLyricsUpdateListeners(null);
+        if (startTime != null) startLyricsUpdater();
     }
 
     private void parseLyrics(MusicDetail musicDetail) {
@@ -321,6 +327,10 @@ public class NowPlayingInfo {
             musicStartTime = Objects.requireNonNullElseGet(zonedDateTime, ZonedDateTime::now);
             publishPlaybackStateLocked();
         }
+        startLyricsUpdater();
+    }
+
+    private void startLyricsUpdater() {
         // SMTC state change picked up by jmtcLoop polling
         if (lyricLines != null && !lyricLines.isEmpty()) {
             if (lyricUpdaterVThread == null) {

@@ -17,9 +17,10 @@ public interface VanillaServerNetworkService extends IServerNetworkService {
             NetworkReceiver<T> receiver = (NetworkReceiver<T>) IVanillaNetworkRegister
                     .getMetaDataOrNew(payload.getClass(), null).receiver();
             if (receiver != null) {
-                MusicHud.EXECUTOR.execute(() -> {
-                    receiver.receive(payload, player);
-                });
+                var admission = indi.mopelotus.musichud.client.services.ConnectionManager.getInstance()
+                        .captureClientPayload(false, player, payload);
+                MusicHud.EXECUTOR.execute(() -> indi.mopelotus.musichud.network.ClientPacketContext.receive(
+                        admission, () -> receiver.receive(payload, player)));
             } else {
                 throw new IllegalStateException();
             }

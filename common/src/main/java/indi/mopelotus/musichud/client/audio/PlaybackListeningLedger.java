@@ -66,4 +66,11 @@ final class PlaybackListeningLedger {
     synchronized long playedMillis(long generation) {
         return generation == this.generation ? (long) (listenedSeconds * 1000) : 0;
     }
+
+    /** A replacement engine inherits consumed time, never a device's pending PCM/offset. */
+    synchronized void restoreConsumed(long generation, long playedMillis) {
+        if (generation != this.generation || session == null) return;
+        if (playedMillis < 0) throw new IllegalArgumentException("Negative listening duration");
+        listenedSeconds = playedMillis / 1000.0;
+    }
 }

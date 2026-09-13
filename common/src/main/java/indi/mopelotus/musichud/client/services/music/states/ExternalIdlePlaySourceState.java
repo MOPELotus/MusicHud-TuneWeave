@@ -46,7 +46,12 @@ public class ExternalIdlePlaySourceState extends AbstractIdlePlaySourceLayerStat
     }
 
     @Override
-    public void reset() {
+    public synchronized void reset() {
+        Set<MusicCollection> previous = Set.copyOf(sources);
         sources.clear();
+        previous.forEach(collection -> {
+            notifyChange(collection);
+            notifyRemove(collection);
+        });
     }
 }

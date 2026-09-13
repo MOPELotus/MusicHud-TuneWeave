@@ -85,6 +85,7 @@ configurations {
 
 neoForge {
     version = rootProject.neoforge_version
+    addModdingDependenciesTo(sourceSets.test)
 
     runs {
         client {
@@ -98,6 +99,7 @@ neoForge {
     mods {
         "$rootProject.archives_name" {
             sourceSet sourceSets.main
+            sourceSet project(':core').sourceSets.main
         }
     }
 }
@@ -191,6 +193,9 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
+    relocate 'com.fasterxml.jackson', 'indi.mopelotus.musichud.shaded.jackson'
+    mergeServiceFiles { setIncludes(['META-INF/services/com.fasterxml.jackson.*']) }
     exclude 'org/slf4j/**'
 }
 
@@ -208,3 +213,14 @@ publishing {
         }
     }
 }
+
+// Verify the processed loader metadata with the same parser and version rules as FML.
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    dependsOn tasks.named('processResources')
+    systemProperty 'musichud.test.neoMetadata', layout.buildDirectory.file('resources/main/META-INF/neoforge.mods.toml').get().asFile.absolutePath
+    systemProperty 'musichud.test.neoforgeVersion', rootProject.neoforge_version
+    systemProperty 'musichud.test.minecraftVersion', rootProject.minecraft_version
+}
+
+apply from: rootProject.file('gradle/verify-shaded-jackson.gradle')

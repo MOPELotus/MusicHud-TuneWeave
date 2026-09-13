@@ -10,7 +10,15 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 public class FabricClientNetworkRegisterUtil {
     public static <T extends IPayload> void register(CustomPacketPayload.Type<CustomPacketPayloadWrapper<T>> type, NetworkReceiver<T> clientReceiver) {
         ClientPlayNetworking.registerGlobalReceiver(type, (payload, context) -> {
-            clientReceiver.receive(payload.getPayload(), VanillaPlayerProxy.ofPlayer(context.player()));
+            var client = context.client();
+            // The response sender belongs to the originating PLAY addon, even after a proxy switch.
+            var currentSender = client.getConnection() == null ? null : ClientPlayNetworking.getSender();
+            indi.mopelotus.musichud.client.services.ClientPayloadAdmission.receiveFromListener(
+                    context.responseSender(), currentSender,
+                    () -> client.player == null ? null : VanillaPlayerProxy.ofPlayer(client.player),
+                    player -> indi.mopelotus.musichud.client.services.ConnectionManager.getInstance()
+                            .captureClientPayload(true, player, payload.getPayload()),
+                    player -> clientReceiver.receive(payload.getPayload(), player));
         });
     }
 }

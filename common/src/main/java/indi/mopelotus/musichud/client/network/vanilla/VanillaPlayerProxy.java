@@ -1,7 +1,6 @@
 package indi.mopelotus.musichud.client.network.vanilla;
 
 import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.network.IPlayerClient;
 import indi.mopelotus.musichud.platform.Environment;
@@ -11,15 +10,12 @@ import lombok.SneakyThrows;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 public class VanillaPlayerProxy implements IPlayerClient {
     @Getter
     private final Player player;
 
-    private static final Cache<Player, VanillaPlayerProxy> playerProxyCache = CacheBuilder.newBuilder()
-            .expireAfterAccess(5, TimeUnit.MINUTES)
-            .build();
+    private static final Cache<Player, VanillaPlayerProxy> playerProxyCache = PlayerProxyCache.create();
     private final ClientType clientType;
 
     private VanillaPlayerProxy(Player player) {
@@ -39,6 +35,10 @@ public class VanillaPlayerProxy implements IPlayerClient {
     }
 
     @Override public Object connectionIdentity() { return player; }
+    @Override public Object controlConnectionIdentity() {
+        if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) return serverPlayer.connection;
+        return clientType == ClientType.LOCAL ? IClientDistUtil.getInstance().localPlayerConnection(player) : player;
+    }
     @Override public boolean isConnected() {
         if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) return serverPlayer.connection.isAcceptingMessages();
         return !player.isRemoved() && (clientType != ClientType.LOCAL || IClientDistUtil.getInstance().isLocalPlayer(player));

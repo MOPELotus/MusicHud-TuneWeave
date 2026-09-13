@@ -53,6 +53,8 @@ public class MusicService implements IClientMusicService {
     private final IIdlePlaySourceState idlePlaySourceState = new IdlePlaySourceState();
     @Getter
     private final Queue<QueueItem> musicQueue = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private final indi.mopelotus.musichud.client.services.music.states.QueueSnapshotPublication queuePublication =
+            new indi.mopelotus.musichud.client.services.music.states.QueueSnapshotPublication(this, this::refreshQueue);
     @Getter
     private final Set<Consumer<Queue<QueueItem>>> musicQueueRefreshListeners = ConcurrentHashMap.newKeySet();
     @Getter
@@ -66,7 +68,26 @@ public class MusicService implements IClientMusicService {
     private volatile boolean favoriteIntelligenceEnabled;
     private volatile boolean favoriteIntelligencePushPending;
     private volatile String favoriteIntelligenceLastReference = "";
-    private PlaybackSession currentPublicSession = PlaybackSession.NONE;
+    private final PublicPlaybackState publicPlayback = new PublicPlaybackState(this, new PublicPlaybackState.Output() {
+        public void publish(PlaybackSession session, MusicDetail next) {
+            if (clientConfig.getEnable()) publishPublicPlayback(session, next);
+        }
+        public CompletableFuture<?> play(PlaybackSession session) {
+            return clientConfig.getEnable() ? StreamAudioPlayer.getInstance().playSessionAsync(session)
+                    : CompletableFuture.completedFuture(null);
+        }
+        public CompletableFuture<?> restart(PlaybackSession session) {
+            if (clientConfig.getEnable()) return StreamAudioPlayer.getInstance().restartSessionAsync(session);
+            stop();
+            return CompletableFuture.completedFuture(null);
+        }
+        public void stop() { StreamAudioPlayer.getInstance().stop(); }
+        public void failed(PlaybackSession session) {
+            var decor = UIManager.getInstance().getDecorView();
+            if (decor != null) ToastUtil.show(Toast.makeText(decor.getContext(),
+                    I18n.get(MusicHud.MOD_ID + ".text.failedToLoadMusicResource"), Toast.LENGTH_SHORT));
+        }
+    }, MuiModApi::postToUiThread);
     long lastPressTime = 0;
     private final AccountModulesByPlatform<UserCategoryPlaylists, ObservableSequencedSet<Album>,
             ObservableSequencedSet<Artist>> userCollections = new AccountModulesByPlatform<>();
@@ -292,11 +313,22 @@ public class MusicService implements IClientMusicService {
             instance.disableFavoriteIntelligence();
             instance.resetPublicPlayback();
             instance.getIdlePlaySourceState().local().reset();
-            instance.musicQueue.clear();
+            instance.getIdlePlaySourceState().external().reset();
+            synchronized (instance) {
+                instance.queuePublication.invalidate();
+                instance.musicQueue.clear();
+            }
         }
         if (HudRendererManager.isLoaded()) {
             HudRendererManager.getInstance().reset();
         }
+    }
+
+    /** Account data can be invalidated without erasing the server's queue or session ordering. */
+    public synchronized void recoverPlaybackAfterLogout() {
+        disableFavoriteIntelligence();
+        getIdlePlaySourceState().local().reset();
+        publicPlayback.recoverLocalPlayback();
     }
 
     @Override
@@ -361,6 +393,17 @@ public class MusicService implements IClientMusicService {
     }
 
     @Override
+    public Runnable prepareQueueRefresh(Queue<QueueItem> queue) {
+        return queuePublication.prepare(queue);
+    }
+
+    public long queueRevision() { return queuePublication.revision(); }
+
+    public void refreshInitialQueue(long requestedRevision, Queue<QueueItem> queue) {
+        queuePublication.publishInitialIfUnchanged(requestedRevision, queue);
+    }
+
+    @Override
     public synchronized void refreshQueue(Queue<QueueItem> queue) {
         List<QueueItem> local = new ArrayList<>(musicQueue);
         List<QueueItem> fresh = new ArrayList<>(queue);
@@ -417,69 +460,30 @@ public class MusicService implements IClientMusicService {
     @Override
     public synchronized void switchMusic(PlaybackSession playbackSession,
                                          MusicDetail nextIdleMusicDetail, String message) {
-        Objects.requireNonNull(playbackSession, "playbackSession");
-        if (!playbackSession.supersedes(currentPublicSession)) {
-            return;
+        if (publicPlayback.accept(playbackSession, nextIdleMusicDetail) && clientConfig.getEnable()
+                && message != null && !message.isEmpty()) {
+            MuiModApi.postToUiThread(() -> {
+                var decor = UIManager.getInstance().getDecorView();
+                if (decor != null) ToastUtil.show(Toast.makeText(decor.getContext(), message, Toast.LENGTH_SHORT));
+            });
         }
-        currentPublicSession = playbackSession;
-        applyPublicPlayback(playbackSession, nextIdleMusicDetail, message);
     }
 
-    private synchronized void resetPublicPlayback() {
-        currentPublicSession = PlaybackSession.NONE;
-        applyPublicPlayback(PlaybackSession.NONE, MusicDetail.NONE, "");
+    private void resetPublicPlayback() {
+        publicPlayback.reset();
     }
 
-    private void applyPublicPlayback(PlaybackSession playbackSession,
-                                     MusicDetail nextIdleMusicDetail, String message) {
-        if (clientConfig.getEnable()) {
-            MusicDetail musicDetail = playbackSession.musicDetail();
-            if (!musicQueue.isEmpty()) {// preload image
-                MusicDetail peek = musicQueue.peek().musicDetail();
-                ImageUtils.downloadAsync(peek.getAlbum().getThumbnailPicUrl(240));
-                HudRendererManager.getInstance().preloadAlbumImage(peek.getAlbum());
-            } else if (nextIdleMusicDetail != null && !nextIdleMusicDetail.equals(MusicDetail.NONE)) {
-                ImageUtils.downloadAsync(nextIdleMusicDetail.getAlbum().getThumbnailPicUrl(240));
-                HudRendererManager.getInstance().preloadAlbumImage(nextIdleMusicDetail.getAlbum());
-            }
-            if (!message.isEmpty()) {
-                MuiModApi.postToUiThread(() -> {
-                    //noinspection UnstableApiUsage
-                    Context context = UIManager.getInstance().getDecorView().getContext();
-                    ToastUtil.show(Toast.makeText(context, message, Toast.LENGTH_SHORT));
-                });
-            }
-            NowPlayingInfo nowPlayingInfo = NowPlayingInfo.getInstance();
-            if (!musicDetail.equals(MusicDetail.NONE)) {
-                ImageUtils.downloadAsync(musicDetail.getAlbum().getThumbnailPicUrl(240));
-                StreamAudioPlayer streamAudioPlayer = StreamAudioPlayer.getInstance();
-                streamAudioPlayer.playSessionAsync(playbackSession)
-                        .thenAccept(startedAt -> {
-                            synchronized (MusicService.this) {
-                                if (currentPublicSession != playbackSession) return;
-                                nowPlayingInfo.switchMusicInfo(musicDetail, nextIdleMusicDetail);
-                                nowPlayingInfo.startAt(musicDetail, startedAt);
-                            }
-                        })
-                        .exceptionally(error -> {
-                            MuiModApi.postToUiThread(() -> {
-                                synchronized (MusicService.this) {
-                                    if (currentPublicSession != playbackSession) return;
-                                    var decor = UIManager.getInstance().getDecorView();
-                                    if (decor != null) ToastUtil.show(Toast.makeText(decor.getContext(),
-                                            net.minecraft.client.resources.language.I18n.get(MusicHud.MOD_ID + ".text.failedToLoadMusicResource"),
-                                            Toast.LENGTH_SHORT));
-                                }
-                            });
-                            return null;
-                        });
-            } else {//TODO optional account sync
-                nowPlayingInfo.switchMusicInfo(musicDetail, nextIdleMusicDetail);
-//                nowPlayingInfo.switchMusic(MusicDetail.NONE,MusicDetail.NONE,null);
-                StreamAudioPlayer streamAudioPlayer = StreamAudioPlayer.getInstance();
-                streamAudioPlayer.stop();
-            }
+    private void publishPublicPlayback(PlaybackSession session, MusicDetail next) {
+        // The server's song, lyrics and timeline remain visible during buffering or local failure.
+        NowPlayingInfo.getInstance().switchMusicInfoAt(session.musicDetail(), next,
+                session.isActive() ? session.startTime() : null);
+        QueueItem queued = musicQueue.peek();
+        MusicDetail preload = queued == null ? next : queued.musicDetail();
+        if (preload != null && preload != MusicDetail.NONE) {
+            ImageUtils.downloadAsync(preload.getAlbum().getThumbnailPicUrl(240));
+            HudRendererManager.getInstance().preloadAlbumImage(preload.getAlbum());
         }
+        if (session.isActive()) ImageUtils.downloadAsync(session.musicDetail().getAlbum().getThumbnailPicUrl(240));
     }
 
     @Override
@@ -789,9 +793,6 @@ public class MusicService implements IClientMusicService {
                 if (state != IClientLoginService.LoginState.UNLOGGED) {
                     MusicService.getInstance().getIdlePlaySourceState().local().loadFromConfig();
                 }
-            });
-            IClientEventService.getInstance().registerClientPlayerQuit((player) -> {
-                MusicHud.EXECUTOR.execute(MusicService::resetCurrentMusicStatus);
             });
         }
     }

@@ -6,6 +6,27 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PlaybackListeningLedgerTest {
+    @Test void replacementRestoresOnlyConsumedAudioAndRejectsRetiredGeneration() {
+        UUID session = UUID.randomUUID();
+        var old = new PlaybackListeningLedger();
+        old.begin(1, session, "netease:a");
+        old.queue(1, 1, 60_000, 1000, true);
+        old.observe(1, 12, true);
+        var replacement = new PlaybackListeningLedger();
+        replacement.begin(1, session, "netease:a");
+        replacement.restoreConsumed(1, old.playedMillis(1));
+        replacement.observe(1, 60, true);
+        assertEquals(12_000, replacement.playedMillis(1), "queued audio must not survive replacement");
+        replacement.begin(2, session, "netease:a");
+        replacement.restoreConsumed(1, 60_000);
+        replacement.queue(2, 1, 20_000, 1000, true);
+        replacement.observe(2, 3, true);
+        assertEquals(15_000, replacement.playedMillis(2));
+        replacement.begin(3, session, "netease:b");
+        assertEquals(0, replacement.playedMillis(3));
+        assertThrows(IllegalArgumentException.class, () -> replacement.restoreConsumed(3, -1));
+    }
+
     @Test void sameSessionDifferentResolvedTrackStartsSeparateListeningCount() {
         var ledger = new PlaybackListeningLedger(); UUID session = UUID.randomUUID();
         ledger.begin(1, session, "netease:a");

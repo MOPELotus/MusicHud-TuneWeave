@@ -26,6 +26,8 @@ public interface IClientDistUtil {
 
     boolean isLocalPlayer(Object player);
 
+    default Object localPlayerConnection(Object player) { return player; }
+
     String getI18n(String key, Object... objects);
 
     void showToast(CharSequence message);

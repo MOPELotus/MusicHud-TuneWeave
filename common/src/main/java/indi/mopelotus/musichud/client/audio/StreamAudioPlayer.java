@@ -6,8 +6,6 @@ import indi.mopelotus.musichud.beans.music.PlaybackSession;
 import java.time.ZonedDateTime;
 import java.util.Set;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /** Public player facade: prepare a muted lane, then atomically hand over and fade for 150 ms. */
@@ -15,8 +13,7 @@ public final class StreamAudioPlayer {
     public enum Status { IDLE, BUFFERING, PLAYING, RETRYING, ERROR }
     private static final StreamAudioPlayer INSTANCE = new StreamAudioPlayer();
     private final Set<Consumer<Status>> listeners = ConcurrentHashMap.newKeySet();
-    private final AtomicReference<Status> status = new AtomicReference<>(Status.IDLE);
-    private final AtomicLong requests = new AtomicLong();
+    private final PlaybackStatusState status = new PlaybackStatusState(next -> listeners.forEach(listener -> listener.accept(next)));
     private final PlaybackHandoff<PlaybackEngine> handoff = new PlaybackHandoff<>(MusicHud.EXECUTOR,
             task -> CompletableFuture.delayedExecutor(20, TimeUnit.MILLISECONDS, MusicHud.EXECUTOR).execute(task), System::nanoTime);
 
@@ -25,15 +22,14 @@ public final class StreamAudioPlayer {
     public Status getStatus() { return status.get(); }
     public Set<Consumer<Status>> getStatusChangeListener() { return listeners; }
 
-    private void publish(Status next) {
-        if (status.getAndSet(next) != next) listeners.forEach(listener -> listener.accept(next));
+    private PlaybackEngine createEngine() {
+        return observeEngine(new PlaybackEngine());
     }
 
-    private PlaybackEngine createEngine() {
-        var engine = new PlaybackEngine();
+    private PlaybackEngine observeEngine(PlaybackEngine engine) {
         engine.getStatusChangeListener().add(next -> MusicHud.EXECUTOR.execute(() -> {
             synchronized (this) {
-                if (handoff.current() == engine && engine.getStatus() == next) publish(handoff.preparing() ? Status.BUFFERING : next);
+                if (handoff.current() == engine && engine.getStatus() == next) status.observe(next);
             }
         }));
         return engine;
@@ -41,33 +37,51 @@ public final class StreamAudioPlayer {
 
     public synchronized CompletableFuture<ZonedDateTime> playSessionAsync(PlaybackSession session) {
         if (session == null || !session.isActive()) return CompletableFuture.failedFuture(new IllegalArgumentException("Inactive playback session"));
-        long request = requests.incrementAndGet();
         PlaybackEngine current = handoff.current();
-        PlaybackEngine candidate = current != null && current.session().sessionId().equals(session.sessionId()) ? current : createEngine();
-        publish(Status.BUFFERING);
+        PlaybackEngine pending = handoff.pending();
+        PlaybackEngine candidate;
+        if (current != null && current.session().sessionId().equals(session.sessionId())) candidate = current;
+        else if (pending != null && pending.session().sessionId().equals(session.sessionId())) {
+            // A server resource refresh can arrive before a recovery starter runs, too.
+            candidate = observeEngine(pending.replaceForRecovery(session));
+        } else candidate = createEngine();
+        return startSession(session, candidate);
+    }
+
+    /** Account lifecycle recovery must not reuse a potentially wedged same-session engine. */
+    public synchronized CompletableFuture<ZonedDateTime> restartSessionAsync(PlaybackSession session) {
+        if (session == null || !session.isActive()) return CompletableFuture.failedFuture(new IllegalArgumentException("Inactive playback session"));
+        status.invalidate();
+        PlaybackEngine owner = handoff.pending();
+        if (owner == null || !owner.session().sessionId().equals(session.sessionId())) owner = handoff.current();
+        PlaybackEngine replacement = owner != null && owner.session().sessionId().equals(session.sessionId())
+                ? observeEngine(owner.replaceForRecovery(session)) : createEngine();
+        handoff.stop();
+        return startSession(session, replacement);
+    }
+
+    private CompletableFuture<ZonedDateTime> startSession(PlaybackSession session, PlaybackEngine candidate) {
+        long request = status.begin();
         return handoff.begin(candidate, engine -> engine.playSessionAsync(session)).whenComplete((started, error) -> {
             synchronized (this) {
-            if (requests.get() != request) return;
-            if (error == null) publish(candidate.getStatus());
-            else publish(handoff.current() == null ? Status.ERROR : handoff.current().getStatus());
+                status.complete(request, candidate.getStatus(), error);
             }
         });
     }
 
     public synchronized CompletableFuture<ZonedDateTime> playDirectAsync(String identifier, FormatType format, ZonedDateTime startTime) {
-        long request = requests.incrementAndGet();
         var candidate = createEngine();
-        publish(Status.BUFFERING);
+        long request = status.begin();
         return handoff.begin(candidate, engine -> engine.playDirectAsync(identifier, format, startTime)).whenComplete((started, error) -> {
             synchronized (this) {
-            if (requests.get() == request) publish(error == null ? candidate.getStatus() : Status.ERROR);
+                status.complete(request, candidate.getStatus(), error);
             }
         });
     }
 
     public synchronized void stop() {
-        requests.incrementAndGet();
+        status.invalidate();
         handoff.stop();
-        publish(Status.IDLE);
+        status.observe(Status.IDLE);
     }
 }

@@ -1,4 +1,7 @@
 {
+  "musichud_tuneweave.config.common.audioOutputMode": "Audio output",
+  "musichud_tuneweave.config.common.audioOutputMode.MULTICHANNEL": "Multichannel when supported",
+  "musichud_tuneweave.config.common.audioOutputMode.STEREO": "Stereo downmix",
   "musichud_tuneweave.config.common.primaryChosenQuality.VIVID": "Audio Vivid",
   "musichud_tuneweave.text.operationFailed": "Operation failed. Please retry.",
   "musichud_tuneweave.command.skip.sent": "Skip request sent.",

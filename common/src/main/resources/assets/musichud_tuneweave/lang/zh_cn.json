@@ -1,4 +1,7 @@
 {
+  "musichud_tuneweave.config.common.audioOutputMode": "音频输出",
+  "musichud_tuneweave.config.common.audioOutputMode.MULTICHANNEL": "多声道（设备支持时）",
+  "musichud_tuneweave.config.common.audioOutputMode.STEREO": "立体声下混",
   "musichud_tuneweave.config.common.primaryChosenQuality.VIVID": "臻音",
   "musichud_tuneweave.text.operationFailed": "操作失败，请重试。",
   "musichud_tuneweave.command.skip.sent": "已发送切歌请求。",

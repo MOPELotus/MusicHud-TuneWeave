@@ -27,6 +27,9 @@ public class ClientDistUtil implements IClientDistUtil {
     }
 
     @Override
+    public Object localPlayerConnection(Object player) { return ((LocalPlayer) player).connection; }
+
+    @Override
     public String getI18n(String key, Object... objects) {
         return I18n.get(key, objects);
     }

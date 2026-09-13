@@ -2,8 +2,6 @@ package indi.mopelotus.musichud.platform.mod.neoforge.event;
 
 import indi.mopelotus.musichud.client.interfaces.IClientEventService;
 import indi.mopelotus.musichud.interfaces.Unregister;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
@@ -15,7 +13,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 public class NeoForgeClientEventService implements IClientEventService {
-    private String serverIp;
     private static volatile NeoForgeClientEventService instance;
     private final Set<Consumer<Player>> joinListeners = new HashSet<>();
     private final Set<Consumer<Player>> quitListeners = new HashSet<>();
@@ -45,17 +42,12 @@ public class NeoForgeClientEventService implements IClientEventService {
 
     @SubscribeEvent
     public void onClientPlayerJoin(ClientPlayerNetworkEvent.LoggingIn event) {
-        ServerData currentServer = Minecraft.getInstance().getCurrentServer();
-        if (currentServer == null || !currentServer.ip.equals(serverIp)) {
-            serverIp = currentServer == null ? null : currentServer.ip;
-            joinListeners.forEach(l -> l.accept(event.getPlayer()));
-        }
+        joinListeners.forEach(l -> l.accept(event.getPlayer()));
     }
 
     @SubscribeEvent
     public void onClientPlayerQuit(ClientPlayerNetworkEvent.LoggingOut event) {
         if (event.getPlayer() != null) {
-            serverIp = null;
             quitListeners.forEach(q -> q.accept(event.getPlayer()));
         }
     }

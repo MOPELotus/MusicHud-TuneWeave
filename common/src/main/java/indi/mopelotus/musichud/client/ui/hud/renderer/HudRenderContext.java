@@ -186,8 +186,11 @@ public class HudRenderContext {
         }
 
         public void end(Consumer<Transforming> task) {
-            task.accept(this);
-            pose.popMatrix();
+            try {
+                task.accept(this);
+            } finally {
+                pose.popMatrix();
+            }
         }
 
         public void end() {
@@ -196,8 +199,11 @@ public class HudRenderContext {
 
         public Transforming subTransform(Consumer<Transforming> consumer) {
             pose.pushMatrix();
-            consumer.accept(this);
-            pose.popMatrix();
+            try {
+                consumer.accept(this);
+            } finally {
+                pose.popMatrix();
+            }
             return this;
         }
     }
