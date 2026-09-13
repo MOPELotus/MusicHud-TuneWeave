@@ -117,7 +117,7 @@ public class ArtistDetailView extends LinearLayout {
         toggleSubscribeButton.bindState(subscribeState);
 
         ScrollView descriptionScrollView = new ScrollView(context);
-        LayoutParams scrollParams = new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LayoutParams scrollParams = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         descriptionScrollView.setLayoutParams(scrollParams);
 
         TextView description = new TextView(context);

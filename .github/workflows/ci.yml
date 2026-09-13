@@ -1,24 +1,30 @@
-name: CI
+name: CI and GitHub Release
 
 on:
   push:
+    branches: ['26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin']
+    tags: ['v*']
   pull_request:
+    branches: ['26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the version in gradle.properties to GitHub Release (run from 26.2)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+concurrency:
+  group: matrix-${{ github.repository }}-${{ github.event_name == 'pull_request' && github.ref || github.ref_type == 'tag' && github.ref || inputs.publish && github.run_id || 'branches' }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' && !inputs.publish }}
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Java 25
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-      - name: Test and build client artifacts
-        run: ./gradlew common:test fabric:build neoforge:build --rerun-tasks --no-daemon
+  all-branches:
+    # The implementation and matrix live only on the default branch.
+    uses: MOPELotus/MusicHud-TuneWeave/.github/workflows/matrix.yml@26.2
+    permissions:
+      contents: write
+    with:
+      publish: ${{ inputs.publish || false }}
