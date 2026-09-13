@@ -32,6 +32,59 @@ class ApiServerManagerTest {
     @TempDir Path directory;
 
     @Test
+    void emptyMalformedOrDirectorySelectionNeverTargetsGameLogs() throws IOException {
+        Fixture fixture = new Fixture(directory);
+        Path expected = Path.of("musichud-tuneweave", "logs").toAbsolutePath().normalize();
+        for (String path : new String[]{null, "", " ", "bad\u0000path", directory.toString()}) {
+            fixture.configuredPath = path;
+            assertEquals(expected, fixture.manager.getLogDir());
+            assertNotEquals(Path.of("logs").toAbsolutePath().normalize(), fixture.manager.getLogDir());
+        }
+    }
+
+    @Test
+    void clearingApiLogsPreservesActiveWritersAndUnrelatedFiles() throws Exception {
+        Fixture fixture = new Fixture(directory);
+        Path logs = Files.createDirectories(fixture.manager.getLogDir());
+        Path unrelated = Files.writeString(logs.resolve("latest.log"), "game log");
+        Path previous = Files.writeString(logs.resolve("api-server-20000101-000000.log"), "previous");
+        Path subdirectory = Files.createDirectory(logs.resolve("api-server-20000102-000000.log"));
+        var openLog = ApiServerManager.class.getDeclaredMethod("openLog");
+        openLog.setAccessible(true);
+        try (var first = (java.io.PrintWriter) openLog.invoke(fixture.manager);
+             var second = (java.io.PrintWriter) openLog.invoke(fixture.manager)) {
+            assertNotNull(first);
+            assertNotNull(second);
+            first.println("active one");
+            second.println("active two");
+            first.close();
+            fixture.manager.clearLogs();
+            assertFalse(Files.exists(previous));
+            assertTrue(Files.isDirectory(subdirectory));
+            assertEquals("game log", Files.readString(unrelated));
+            assertTrue(fixture.manager.getLogStats()[0] >= 1, "the second active writer must be retained");
+        }
+        fixture.manager.clearLogs();
+        assertEquals(0, fixture.manager.getLogStats()[0]);
+        assertEquals("game log", Files.readString(unrelated));
+        assertTrue(Files.isDirectory(subdirectory));
+    }
+
+    @Test
+    void invalidLocalProgramSelectionNeverInvokesTheLauncher() throws IOException {
+        for (String path : new String[]{null, "", "  ", "bad\u0000path", directory.toString(),
+                directory.resolve("missing").toString()}) {
+            Fixture fixture = new Fixture(directory);
+            fixture.configuredPath = path;
+            fixture.manager.restartApiServer();
+            fixture.executor.runAll();
+            assertEquals(0, fixture.launchCalls);
+            assertFalse(fixture.statuses.contains(LAUNCHING));
+            assertEquals(0, fixture.activeHooks);
+        }
+    }
+
+    @Test
     void stoppedQueuedLaunchCannotStartAndDoesNotBlockNextGeneration() throws IOException {
         Fixture fixture = new Fixture(directory);
         fixture.manager.restartApiServer();
@@ -485,13 +538,15 @@ class ApiServerManagerTest {
         int activeHooks;
         int activeJvmHooks;
         int launchCalls;
+        String configuredPath;
 
         Fixture(Path directory) throws IOException {
             Path binary = Files.writeString(directory.resolve("tuneweave"), "test executable placeholder");
             assertTrue(binary.toFile().setExecutable(true));
+            configuredPath = binary.toString();
             ServerConfig config = (ServerConfig) Proxy.newProxyInstance(ServerConfig.class.getClassLoader(),
                     new Class<?>[]{ServerConfig.class}, (proxy, method, args) -> switch (method.getName()) {
-                        case "getServerApiBinaryExecutablePath" -> binary.toString();
+                        case "getServerApiBinaryExecutablePath" -> configuredPath;
                         case "getPort" -> 3000;
                         case "getStartupBinaryApiServerWhenLaunch" -> false;
                         default -> throw new UnsupportedOperationException(method.getName());
