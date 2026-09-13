@@ -1,0 +1,155 @@
+[
+  {
+    "id": "26.1",
+    "branch": "26.1",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {
+      "minecraft_version": "26.1",
+      "fabric_api_version": "0.145.1+26.1",
+      "neoforge_version": "26.1.0.19-beta",
+      "fancymodloader_version": "11.0.5",
+      "modernui_mc_version": "26.1.2-3.13.0.5"
+    },
+    "publish": false
+  },
+  {
+    "id": "26.1.1",
+    "branch": "26.1",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {
+      "minecraft_version": "26.1.1",
+      "fabric_api_version": "0.145.4+26.1.1",
+      "neoforge_version": "26.1.1.15-beta",
+      "fancymodloader_version": "11.0.5",
+      "modernui_mc_version": "26.1.2-3.13.0.5"
+    },
+    "publish": false
+  },
+  {
+    "id": "26.1.2",
+    "branch": "26.1",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {
+      "minecraft_version": "26.1.2",
+      "fabric_api_version": "0.149.0+26.1.2",
+      "neoforge_version": "26.1.2.68-beta",
+      "fancymodloader_version": "10.0.8",
+      "modernui_mc_version": "26.1.2-3.13.0.5"
+    },
+    "publish": true
+  },
+  {
+    "id": "1.21.11",
+    "branch": "1.21.11",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {},
+    "publish": true
+  },
+  {
+    "id": "1.21.9",
+    "branch": "1.21.9-1.21.10",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {
+      "minecraft_version": "1.21.9",
+      "fabric_api_version": "0.134.1+1.21.9",
+      "neoforge_version": "21.9.16-beta",
+      "modernui_fabric_version": "PSsIJDQD",
+      "modernui_neoforge_version": "TLSeGO7Q"
+    },
+    "publish": false
+  },
+  {
+    "id": "1.21.10",
+    "branch": "1.21.9-1.21.10",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {},
+    "publish": true
+  },
+  {
+    "id": "1.21.6",
+    "branch": "1.21.6-1.21.8",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {
+      "minecraft_version": "1.21.6",
+      "fabric_api_version": "0.128.2+1.21.6",
+      "neoforge_version": "21.6.20-beta"
+    },
+    "publish": false
+  },
+  {
+    "id": "1.21.7",
+    "branch": "1.21.6-1.21.8",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {
+      "minecraft_version": "1.21.7",
+      "fabric_api_version": "0.129.0+1.21.7",
+      "neoforge_version": "21.7.25-beta"
+    },
+    "publish": false
+  },
+  {
+    "id": "1.21.8",
+    "branch": "1.21.6-1.21.8",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {},
+    "publish": true
+  },
+  {
+    "id": "26.2",
+    "branch": "26.2",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {},
+    "publish": true
+  },
+  {
+    "id": "1.21.1",
+    "branch": "1.21.1",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {},
+    "publish": true
+  },
+  {
+    "id": "plugin",
+    "branch": "plugin",
+    "modules": [
+      "paper",
+      "velocity",
+      "bungeecord"
+    ],
+    "properties": {},
+    "publish": true
+  }
+]

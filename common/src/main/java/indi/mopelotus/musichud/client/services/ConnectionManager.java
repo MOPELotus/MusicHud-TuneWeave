@@ -338,7 +338,7 @@ public class ConnectionManager implements IConnectionManager {
                             }
                             MusicService.getInstance().refreshInitialQueue(requestedQueueRevision, response.getQueue());
                             MusicService.getInstance().switchMusic(
-                                    response.getPlaybackSession(), response.getNextIdle(), "");
+                                    response.getPlaybackSession(), response.getNextIdle(), "", response.getPreviewRevision());
                             MusicService.getInstance().getIdlePlaySourceState().external().updateAll(
                                     response.getPlaylistSources(), response.getAlbumSources());
                         }

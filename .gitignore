@@ -141,3 +141,6 @@ docs/roadmap/
 /paper/
 /velocity/
 /bungeecord/
+
+# Python automation caches
+__pycache__/

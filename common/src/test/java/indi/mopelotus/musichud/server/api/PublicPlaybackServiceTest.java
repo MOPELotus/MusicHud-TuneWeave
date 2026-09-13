@@ -10,6 +10,8 @@ import indi.mopelotus.musichud.network.payloads.pushMessages.c2s.ResolvePlayback
 import indi.mopelotus.musichud.network.payloads.pushMessages.s2c.ResolvePlaybackRequestMessage;
 import indi.mopelotus.musichud.network.payloads.pushMessages.s2c.SwitchMusicMessage;
 import indi.mopelotus.musichud.server.ServerPlayerRegistry;
+import indi.mopelotus.musichud.network.payloads.requestResponseCycle.RotateNextToPlayRequest;
+import indi.mopelotus.musichud.network.payloads.pushMessages.s2c.UpdateNextToPlayMessage;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
@@ -119,12 +121,78 @@ class PublicPlaybackServiceTest {
         }
     }
 
+    @Test void reconnectedPlayerRetiresOldPhysicalConnectionRerolls() throws Exception {
+        try (Harness h = new Harness()) {
+            PlaybackSession playing = h.startIdle(3);
+            var state = h.service.buildInitialStateFor(h.owner);
+            var request = new RotateNextToPlayRequest(playing.sessionId(), playing.sequence(), state.getPreviewRevision());
+            var replacement = new Player(h.owner.uuid(), "reconnected owner");
+            ServerPlayerRegistry.getInstance().join(replacement);
+            try {
+                assertFalse(h.service.rotateNextToPlay(h.owner, request).extraData());
+                assertTrue(h.service.rotateNextToPlay(replacement, request).extraData());
+            } finally { ServerPlayerRegistry.getInstance().leave(replacement); }
+        }
+    }
+
+    @Test void rerollIsOwnerOnlyAndDoesNotResolveOrReplaceCurrentSession() throws Exception {
+        try (Harness h = new Harness()) {
+            PlaybackSession playing = h.startIdle(3);
+            var before = h.service.buildInitialStateFor(h.owner);
+            var request = new RotateNextToPlayRequest(playing.sessionId(), playing.sequence(), before.getPreviewRevision());
+            assertFalse(h.service.rotateNextToPlay(h.listener, request).extraData());
+            assertTrue(h.service.rotateNextToPlay(h.owner, request).extraData());
+            var after = h.service.buildInitialStateFor(h.listener);
+            assertSame(playing, after.getPlaybackSession());
+            assertNotEquals(before.getNextIdle().getSourceRef(), after.getNextIdle().getSourceRef());
+            assertEquals(before.getPreviewRevision() + 1, after.getPreviewRevision());
+            assertEquals(1, h.resolvers.size());
+            assertTrue(h.sessions.isEmpty(), "reroll must not publish an audio switch");
+            assertEquals(2, h.previews.size(), "all listeners receive the preview");
+            assertFalse(h.service.rotateNextToPlay(h.owner, request).extraData(), "repeated old request is stale");
+        }
+    }
+
+    @Test void rerollRejectsQueueStopAndMissingAlternativeWithoutChangingPreview() throws Exception {
+        try (Harness h = new Harness()) {
+            PlaybackSession playing = h.startIdle(1);
+            var before = h.service.buildInitialStateFor(h.owner);
+            var request = new RotateNextToPlayRequest(playing.sessionId(), playing.sequence(), before.getPreviewRevision());
+            assertFalse(h.service.rotateNextToPlay(h.owner, request).extraData());
+            assertEquals(before.getPreviewRevision(), h.service.buildInitialStateFor(h.owner).getPreviewRevision());
+            h.service.pushMusicToQueue(playing.musicDetail(), new PusherInfo(h.owner.uuid(), h.owner.name()));
+            assertFalse(h.service.rotateNextToPlay(h.owner, request).extraData());
+            h.service.reset();
+            assertFalse(h.service.rotateNextToPlay(h.owner, request).extraData());
+            assertTrue(h.previews.isEmpty());
+        }
+    }
+
+    @Test void rerollRemainsOrderedAcrossResourceRefresh() throws Exception {
+        try (Harness h = new Harness()) {
+            PlaybackSession playing = h.startIdle(3);
+            var before = h.service.buildInitialStateFor(h.owner);
+            var request = new RotateNextToPlayRequest(playing.sessionId(), playing.sequence(), before.getPreviewRevision());
+            assertTrue(h.service.rotateNextToPlay(h.owner, request).extraData());
+            var selected = h.service.buildInitialStateFor(h.owner);
+            var report = new PlaybackResourceFailureMessage(playing.sessionId(), playing.revision());
+            h.service.reportPlaybackResourceFailure(h.owner, report);
+            h.service.reportPlaybackResourceFailure(h.listener, report);
+            h.runNext();
+            var refreshed = h.service.buildInitialStateFor(h.owner);
+            assertEquals(playing.revision() + 1, refreshed.getPlaybackSession().revision());
+            assertEquals(selected.getPreviewRevision(), refreshed.getPreviewRevision());
+            assertEquals(selected.getNextIdle().getSourceRef(), refreshed.getNextIdle().getSourceRef());
+        }
+    }
+
     private static final class Harness implements AutoCloseable, IServerNetworkService {
         final Player owner = new Player(UUID.randomUUID(), "owner");
         final Player listener = new Player(UUID.randomUUID(), "listener");
         final BlockingQueue<Runnable> tasks = new LinkedBlockingQueue<>();
         final BlockingQueue<PlaybackSession> sessions = new LinkedBlockingQueue<>();
         final BlockingQueue<PlaybackSession> listenerSessions = new LinkedBlockingQueue<>();
+        final List<IdlePreview> previews = new CopyOnWriteArrayList<>();
         final List<UUID> resolvers = new CopyOnWriteArrayList<>();
         final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
         final MusicPlayerServerService service;
@@ -135,6 +203,19 @@ class PublicPlaybackServiceTest {
                     forbidden(IMusicApiService.class), this, tasks::add);
             ServerPlayerRegistry.getInstance().join(owner);
             ServerPlayerRegistry.getInstance().join(listener);
+        }
+
+        PlaybackSession startIdle(int count) throws Exception {
+            Playlist playlist = Playlist.fromTuneWeave(42, "netease:playlist:42", "Source", "", count, 0,
+                    indi.mopelotus.musichud.beans.user.Profile.ANONYMOUS);
+            for (int i = 1; i <= count; i++) playlist.getTracks().add(MusicDetail.fromTuneWeave(i,
+                    "netease:track:" + i, "track", "Track " + i, 60_000, Album.NONE, List.of()));
+            service.addIdlePlaySource(playlist, new PusherInfo(owner.uuid(), owner.name()));
+            Runnable pusher = tasks.poll(2, TimeUnit.SECONDS); assertNotNull(pusher);
+            workers.submit(pusher);
+            PlaybackSession session = sessions.poll(2, TimeUnit.SECONDS); assertNotNull(session);
+            tasks.clear(); // Retire the unrelated source-list debounce in this fixture.
+            return session;
         }
 
         PlaybackSession start() throws Exception {
@@ -175,6 +256,8 @@ class PublicPlaybackServiceTest {
                     service.acceptPlaybackResolution(player, ResolvePlaybackResultMessage.success(
                             request.requestId(), request.revision(), new PlaybackResolution(track, resource)));
                 }
+            } else if (payload instanceof UpdateNextToPlayMessage update) {
+                previews.add(update.preview());
             } else if (payload instanceof SwitchMusicMessage update) {
                 if (player.getUUID().equals(owner.uuid())) sessions.add(update.playbackSession());
                 if (player.getUUID().equals(listener.uuid())) listenerSessions.add(update.playbackSession());

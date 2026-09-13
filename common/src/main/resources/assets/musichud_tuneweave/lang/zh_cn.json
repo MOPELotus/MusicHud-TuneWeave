@@ -387,5 +387,10 @@
   "musichud_tuneweave.command.playtest.requested": "已请求本地播放测试，不改变公共队列或其他玩家的播放。",
   "musichud_tuneweave.command.playtest.stopped": "已停止本地播放测试。",
   "musichud_tuneweave.command.playtest.failed": "本地播放测试失败，请检查音频文件或链接。",
-  "musichud_tuneweave.command.playtest.invalidSource": "音频来源无效。请输入文件路径或链接，含空格的路径可以使用双引号。"
+  "musichud_tuneweave.command.playtest.invalidSource": "音频来源无效。请输入文件路径或链接，含空格的路径可以使用双引号。",
+  "musichud_tuneweave.button.rotateNextToPlay": "重抽下一首",
+  "musichud_tuneweave.text.rotateNextFailed": "下一首重抽失败，请稍后重试",
+  "musichud_tuneweave.text.rotateNextNotOwned": "只有下一首的提供者才能重抽",
+  "musichud_tuneweave.text.rotateNextStale": "播放状态或队列已变化，请重试",
+  "musichud_tuneweave.text.rotateNextNoAlternative": "你的空闲播放源中没有其他歌曲"
 }

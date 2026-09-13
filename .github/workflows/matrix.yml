@@ -1,0 +1,135 @@
+name: All supported versions
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      controller: ${{ steps.plan.outputs.controller }}
+      publish: ${{ steps.plan.outputs.publish }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ (github.ref == 'refs/heads/26.2' || github.base_ref == '26.2' || github.ref_type == 'tag') && github.sha || '26.2' }}
+          persist-credentials: false
+      - name: Test automation contracts
+        run: python -m unittest discover -s .github/scripts -p 'test_*.py'
+      - name: Freeze source revisions
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_REQUESTED: ${{ inputs.publish }}
+        run: python .github/scripts/build_release.py plan
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-plan
+          path: build-plan.json
+          if-no-files-found: error
+
+  build:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: ${{ matrix.id }} Dev & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.controller }}
+          path: automation
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Force tests and build both loaders or all plugins
+        env:
+          BUILD_ENTRY: ${{ toJSON(matrix) }}
+          JAVA_TOOL_OPTIONS: '-XX:ActiveProcessorCount=2'
+        run: python automation/.github/scripts/build_release.py build --source source --output artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.id }}
+          path: artifacts/
+          if-no-files-found: error
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ matrix.id }}
+          path: |
+            source/**/build/test-results/**/*.xml
+            source/**/build/reports/tests/**
+          if-no-files-found: ignore
+
+  bundle:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.controller }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: downloads
+      - name: Verify complete artifacts and write checksums
+        run: python .github/scripts/build_release.py bundle --input downloads --output release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: release/
+          if-no-files-found: error
+
+  release:
+    needs: [plan, build, bundle]
+    if: >-
+      needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request' &&
+      ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/26.2' && inputs.publish))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.controller }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: release
+      - name: Publish verified GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: python .github/scripts/build_release.py publish --input release
+      # Modrinth and CurseForge publishing are intentionally disabled until
+      # the projects exist. No platform upload actions or secrets are used.
