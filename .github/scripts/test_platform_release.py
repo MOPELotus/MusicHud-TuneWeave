@@ -163,10 +163,24 @@ class RuntimeArtifactContracts(unittest.TestCase):
 
     def test_runtime_bundle_has_exact_client_and_plugin_builds(self):
         manifest = platform.verify_standard(self.helper.output, 'v1.3.0-beta-3')
-        rows = platform.cf_rows(manifest)
+        rows = platform.cf_rows(manifest, {})
         self.assertEqual(15, len(manifest['artifacts']))
         self.assertEqual(6, len(rows))
         self.assertTrue(all(r['distribution'] == 'cf' and r['branch'] != 'plugin' for r in rows))
+
+    def test_cf_revisions_are_complete_and_bound_to_original_release_sources(self):
+        manifest = platform.verify_standard(self.helper.output, 'v1.3.0-beta-3')
+        selected = {r['branch']: {'base': r['sha'], 'sha': 'b' * 40}
+                    for r in manifest['entries'] if r['publish'] and r['branch'] != 'plugin'}
+        rows = platform.cf_rows(manifest, {manifest['tag']: selected})
+        self.assertTrue(all(r['sha'] == 'b' * 40 and r['release_source_sha'] == 'a' * 40 for r in rows))
+        self.assertTrue(all('-cf.1+' in release.filename(r, 'fabric') for r in rows))
+        selected['26.2']['base'] = 'c' * 40
+        with self.assertRaisesRegex(ValueError, 'does not match'):
+            platform.cf_rows(manifest, {manifest['tag']: selected})
+        del selected['26.2']
+        with self.assertRaisesRegex(ValueError, 'Incomplete'):
+            platform.cf_rows(manifest, {manifest['tag']: selected})
 
     def test_sources_or_intermediate_names_cannot_be_uploaded(self):
         row = self.helper.rows[0]
@@ -236,7 +250,7 @@ class RuntimeArtifactContracts(unittest.TestCase):
         data = platform.curseforge_metadata(row, 'fabric', available)
         self.assertEqual('beta', data['releaseType'])
         self.assertFalse(data['isMarkedForManualRelease'])
-        self.assertIn('-cf+', data['displayName'])
+        self.assertIn('-cf.1+', data['displayName'])
         self.assertEqual(['1.21.6', '1.21.7', '1.21.8', 'Fabric', 'Client'], data['gameVersionNames'])
         self.assertEqual({352491, 306612, 547434}, {d['projectID'] for d in data['relations']['projects']})
         self.assertTrue(all(type(d['projectID']) is int for d in data['relations']['projects']))

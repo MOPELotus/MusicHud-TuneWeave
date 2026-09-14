@@ -88,9 +88,22 @@ def verify_standard(folder, tag):
     return manifest
 
 
-def cf_rows(manifest):
-    return [row | {'distribution': 'cf'} for row in manifest['entries']
+def cf_rows(manifest, overrides=None):
+    if overrides is None:
+        overrides = release.load_json(Path(__file__).parent.parent / 'cf-source-revisions.json')
+    selected = overrides.get(manifest['tag'], {})
+    rows = [row | {'distribution': 'cf'} for row in manifest['entries']
             if row['publish'] and row['branch'] != 'plugin']
+    release.require(not selected or set(selected) == {r['branch'] for r in rows}, 'Incomplete CF source revisions')
+    for row in rows:
+        if row['branch'] in selected:
+            revision = selected[row['branch']]
+            release.require(set(revision) == {'base', 'sha'} and revision['base'] == row['sha'] and
+                            isinstance(revision['sha'], str) and release.SHA.fullmatch(revision['sha']) and
+                            revision['sha'] != row['sha'], 'CF source revision does not match the release')
+            row.update(release_source_sha=row['sha'], sha=revision['sha'])
+            release.validate_row(row)
+    return rows
 
 
 def prepare(tag, output):
@@ -108,7 +121,7 @@ def prepare(tag, output):
     if os.environ.get('GITHUB_OUTPUT'):
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
             stream.write('matrix=' + json.dumps({'include': cf_rows(manifest)}, separators=(',', ':')) + '\n')
-    print('Verified 15 standard deployment JARs; CF builds use the same frozen source commits.')
+    print('Verified 15 standard deployment JARs; CF builds use frozen, reviewed packaging revisions.')
 
 
 def assemble(bundle, downloads, tag):
@@ -293,7 +306,10 @@ def changelog(row, module):
         if row.get('distribution') == 'cf':
             text += ('\n\nCF edition: TuneWeave download/update functionality is removed. '
                      'Connect to an existing service or explicitly configure an existing local executable. '
-                     'Fresh configurations leave the executable path empty and autostart disabled. ')
+                     'Fresh configurations leave the executable path empty and autostart disabled. '
+                     '\n\nCF packaging revision 1 removes the unused LavaPlayer YouTube source implementation '
+                     'and its automatic source-registration helper. HTTP stream and local audio decoding are retained '
+                     'and tested against the final deployment JAR. This corrects the blacklisted-class processing rejection. ')
     else:
         text += ('Requires matching MusicHud TuneWeave clients for music features. '
                  'Install Paper only on a standalone Paper server; on Velocity/BungeeCord networks install '

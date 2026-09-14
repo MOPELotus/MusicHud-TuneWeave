@@ -99,6 +99,34 @@ class ReleaseContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Mixed distributions'):
             release.validate_matrix(self.rows)
 
+    def test_cf_rejects_youtube_classes_nested_archives_and_retained_references(self):
+        for name, content in (
+                ('com/sedmelluq/discord/lavaplayer/source/youtube/YoutubeAccessTokenTracker.class', b'bytecode'),
+                ('retained.class', b'com/sedmelluq/discord/lavaplayer/source/youtube/YoutubeAudioSourceManager'),
+                ('reflection.class', b'com.sedmelluq.discord.lavaplayer.source.youtube.YoutubeAudioSourceManager'),
+                ('com/sedmelluq/discord/lavaplayer/source/AudioSourceManagers.class', b'bytecode')):
+            for nested in (False, True):
+                with self.subTest(name=name, nested=nested):
+                    raw = io.BytesIO()
+                    with zipfile.ZipFile(raw, 'w') as jar:
+                        jar.writestr(name, content)
+                    if nested:
+                        wrapper = io.BytesIO()
+                        with zipfile.ZipFile(wrapper, 'w') as jar:
+                            jar.writestr('META-INF/jars/library.jar', raw.getvalue())
+                        raw = wrapper
+                    with zipfile.ZipFile(raw) as jar, self.assertRaisesRegex(ValueError, 'YouTube'):
+                        release.verify_cf_contents(jar)
+
+    def test_cf_source_override_rejects_unrelated_game_changes(self):
+        row = self.rows[0] | {'distribution': 'cf', 'release_source_sha': 'b' * 40}
+        files = 'gradle/distribution.gradle\ngradle/verify-distribution.gradle\ngradle/CfAudioSmoke.java'
+        with patch.object(release.subprocess, 'run'), patch.object(release, 'run', return_value=files):
+            release.verify_cf_source(self.root, row)
+        with patch.object(release.subprocess, 'run'), patch.object(release, 'run', return_value=files + '\ncommon/src/Main.java'):
+            with self.assertRaisesRegex(ValueError, 'only the reviewed packaging'):
+                release.verify_cf_source(self.root, row)
+
     def test_missing_neoforge_or_modified_jar_fails_before_bundle_creation(self):
         self.fixture()
         row = self.rows[0]

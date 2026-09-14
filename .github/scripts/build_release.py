@@ -75,8 +75,12 @@ def validate_row(row):
         require(isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9.+_-]+', value), 'Invalid property value')
     if 'sha' in row:
         require(SHA.fullmatch(row['sha']) and VERSION.fullmatch(row['version']), 'Invalid revision/version')
-        require(not row['version'].endswith('-cf'), 'Base version must not include the distribution suffix')
+        require(not re.search(r'-cf(?:\.[0-9]+)?$', row['version']), 'Base version must not include the distribution suffix')
         require(re.fullmatch(r'[0-9.-]*', row['range']), 'Invalid Minecraft version range')
+    if 'release_source_sha' in row:
+        require(row.get('distribution') == 'cf' and row['branch'] != 'plugin' and
+                isinstance(row['release_source_sha'], str) and SHA.fullmatch(row['release_source_sha']),
+                'Invalid CF release source revision')
 
 
 def validate_matrix(rows):
@@ -141,7 +145,8 @@ def plan():
 
 
 def artifact_version(row):
-    return row['version'] + ('-cf' if row.get('distribution', 'standard') == 'cf' else '') + ('+' + row['range'] if row['range'] else '')
+    suffix = ('-cf' if row['branch'] == 'plugin' else '-cf.1') if row.get('distribution', 'standard') == 'cf' else ''
+    return row['version'] + suffix + ('+' + row['range'] if row['range'] else '')
 
 
 def filename(row, module):
@@ -153,12 +158,17 @@ def verify_cf_contents(jar, depth=0):
     require(depth <= 8, 'Excessive nested archives')
     forbidden = (b'ApiServerFetcher', b'ApiBinaryUpdateService', b'ApiDownloadSession',
                  b'release-manifest.json', b'NeteaseCloudMusicApiEnhanced/api-enhanced/releases')
+    youtube = (b'com/sedmelluq/discord/lavaplayer/source/youtube/',
+               b'com.sedmelluq.discord.lavaplayer.source.youtube.',
+               b'com/sedmelluq/discord/lavaplayer/source/AudioSourceManagers')
     for entry in jar.infolist():
         if entry.is_dir():
             continue
         content = jar.read(entry)
         require(not any(value in content or value in entry.filename.encode() for value in forbidden),
                 'Acquisition code in CF artifact')
+        require(not any(value in content or value in entry.filename.encode() for value in youtube),
+                'Unused YouTube implementation or reference in CF artifact')
         require(not re.search(r'\.(exe|bat|cmd|ps1|sh)$', entry.filename, re.I), 'Standalone program/script in CF artifact')
         if entry.filename.endswith('.jar'):
             with zipfile.ZipFile(io.BytesIO(content)) as nested:
@@ -193,10 +203,22 @@ def verify_jar(path, row, module):
             require(match and match[1].strip() == expected_version, 'Plugin metadata mismatch')
 
 
+def verify_cf_source(source, row):
+    if 'release_source_sha' not in row:
+        return
+    base = row['release_source_sha']
+    subprocess.run(['git', 'merge-base', '--is-ancestor', base, row['sha']], cwd=source, check=True)
+    paths = set(run('git', 'diff', '--name-only', base, row['sha'], cwd=source).splitlines())
+    packaging = {'gradle/distribution.gradle', 'gradle/verify-distribution.gradle', 'gradle/CfAudioSmoke.java'}
+    require(packaging <= paths and all(p in packaging or p.startswith('.github/') for p in paths),
+            'CF source override must contain only the reviewed packaging fix and automation')
+
+
 def build(source, output):
     row = json.loads(os.environ['BUILD_ENTRY'])
     validate_row(row)
     require(run('git', 'rev-parse', 'HEAD', cwd=source) == row['sha'], 'Checkout differs from frozen plan')
+    verify_cf_source(source, row)
     require(properties((source / 'gradle.properties').read_text())['mod_version'] == row['version'], 'Version changed after planning')
     tasks = ['core:test'] if row['branch'] == 'plugin' else ['common:test']
     tasks += [module + ':build' for module in row['modules']]

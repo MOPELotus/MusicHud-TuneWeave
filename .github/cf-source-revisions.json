@@ -1,0 +1,28 @@
+{
+  "v1.3.0-beta-3": {
+    "26.2": {
+      "base": "dd39dfef77cda33a5341a04f64ae7ff6a74a760e",
+      "sha": "1db856bf2606b337a3ab7f009cae9a7733195ed4"
+    },
+    "26.1": {
+      "base": "eccb8ec3eb9e4e80c83b64a96e03069554ff838a",
+      "sha": "e6cb482cee20ce9ebc7a955964ee2e0552393801"
+    },
+    "1.21.1": {
+      "base": "3fa6fc116b6471d0d42baaf4a7eb9584ccd8344a",
+      "sha": "767ac413b095badcd10fa926914f0b7835a4b08e"
+    },
+    "1.21.6-1.21.8": {
+      "base": "ee74ea88cdfccab2e83f9c677f4c840921c8156e",
+      "sha": "092a06ce4abfa3003773d63ac19362be3935b879"
+    },
+    "1.21.9-1.21.10": {
+      "base": "00223d851a6ac9eb4444817ad53e2ee8bd1fb301",
+      "sha": "d41409dc793a7c3e87c9d1e5a0f4f435d3753f02"
+    },
+    "1.21.11": {
+      "base": "dcbb4a662635bf7b084c9fcfadabe6c69b6b1ea1",
+      "sha": "3c3be7413438d0591276ce1ea82f29a890a2d4aa"
+    }
+  }
+}

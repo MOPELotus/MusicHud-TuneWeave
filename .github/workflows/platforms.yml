@@ -152,6 +152,7 @@ jobs:
         with:
           ref: ${{ matrix.sha }}
           path: source
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
