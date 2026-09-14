@@ -1,0 +1,39 @@
+name: Platform publishing
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Inspect project access and existing files'
+        type: choice
+        options: [inspect]
+        default: inspect
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-publishing
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/26.2'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test automation contracts
+        run: python -m unittest discover -s .github/scripts -p 'test_*.py'
+      - name: Inspect authenticated project metadata
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+          HANGAR_API_TOKEN: ${{ secrets.HANGAR_API_TOKEN }}
+        run: python .github/scripts/platform_release.py inspect
+      - uses: actions/upload-artifact@v4
+        with:
+          name: platform-inspection
+          path: platform-report/
+          if-no-files-found: error
