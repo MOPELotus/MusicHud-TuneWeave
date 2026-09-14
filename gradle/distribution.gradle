@@ -4,13 +4,23 @@ def distribution = providers.gradleProperty('distribution').getOrElse('standard'
 if (!(distribution in ['standard', 'cf'])) {
     throw new GradleException('distribution must be standard or cf')
 }
-if (rootProject.mod_version.endsWith('-cf')) {
+if (rootProject.mod_version ==~ /.*-cf(?:\.[0-9]+)?/) {
     throw new GradleException('Keep mod_version unsuffixed; use -Pdistribution=cf')
 }
 ext.distribution = distribution
-ext.releaseVersion = rootProject.mod_version + (distribution == 'cf' ? '-cf' : '')
+ext.releaseVersion = rootProject.mod_version + (distribution == 'cf' ? '-cf.1' : '')
 
 subprojects {
+    plugins.withId('com.gradleup.shadow') {
+        if (distribution == 'cf' && project.name in ['fabric', 'neoforge']) {
+            tasks.named('shadowJar').configure {
+                // Only HTTP streams and local audio are used. Remove the unused
+                // YouTube implementation and its convenience registration helper.
+                exclude 'com/sedmelluq/discord/lavaplayer/source/youtube/**'
+                exclude 'com/sedmelluq/discord/lavaplayer/source/AudioSourceManagers.class'
+            }
+        }
+    }
     plugins.withId('java') {
         if (project.name in ['core', 'common']) {
             sourceSets.main.java.srcDir("src/${distribution}/java")
