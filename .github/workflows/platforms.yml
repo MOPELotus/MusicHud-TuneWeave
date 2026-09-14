@@ -4,10 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Inspect project access and existing files'
+        description: 'Inspect project access, or prepare verified standard and CF files'
         type: choice
-        options: [inspect]
+        options: [inspect, prepare]
         default: inspect
+      tag:
+        description: 'Existing GitHub Release tag'
+        type: string
+        default: v1.3.0-beta-3
 
 permissions:
   contents: read
@@ -18,7 +22,7 @@ concurrency:
 
 jobs:
   inspect:
-    if: github.ref == 'refs/heads/26.2'
+    if: github.ref == 'refs/heads/26.2' && inputs.mode == 'inspect'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,4 +40,100 @@ jobs:
         with:
           name: platform-inspection
           path: platform-report/
+          if-no-files-found: error
+
+  prepare:
+    if: github.ref == 'refs/heads/26.2' && inputs.mode == 'prepare'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.prepare.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test automation contracts
+        run: python -m unittest discover -s .github/scripts -p 'test_*.py'
+      - name: Verify the published standard release
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: python .github/scripts/platform_release.py prepare --tag "$RELEASE_TAG" --output bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: platform-standard
+          path: bundle/standard/
+          if-no-files-found: error
+
+  cf-build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    name: CF runtime JARs for ${{ matrix.id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: automation
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Force tests and build final CF deployment JARs
+        env:
+          BUILD_ENTRY: ${{ toJSON(matrix) }}
+          JAVA_TOOL_OPTIONS: '-XX:ActiveProcessorCount=2'
+        run: python automation/.github/scripts/build_release.py build --source source --output artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cf-${{ matrix.id }}
+          path: artifacts/
+          if-no-files-found: error
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-tests-${{ matrix.id }}
+          path: |
+            source/**/build/test-results/**/*.xml
+            source/**/build/reports/tests/**
+          if-no-files-found: ignore
+
+  assemble:
+    needs: [prepare, cf-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: platform-standard
+          path: bundle/standard
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cf-*
+          path: cf-builds
+      - name: Verify all platform files against the release source
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: python .github/scripts/platform_release.py assemble --tag "$RELEASE_TAG" --output bundle --input cf-builds
+      - uses: actions/upload-artifact@v4
+        with:
+          name: platform-bundle
+          path: bundle/
           if-no-files-found: error
