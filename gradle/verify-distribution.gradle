@@ -18,7 +18,10 @@ gradle.projectsEvaluated {
                 def file = deploymentTask.archiveFile.get().asFile
                 boolean cf = rootProject.distribution == 'cf'
                 def forbidden = ['ApiServerFetcher', 'ApiBinaryUpdateService', 'ApiDownloadSession',
-                                 'release-manifest.json', 'NeteaseCloudMusicApiEnhanced/api-enhanced/releases']
+                                 'release-manifest.json', 'NeteaseCloudMusicApiEnhanced/api-enhanced/releases',
+                                 'com/sedmelluq/discord/lavaplayer/source/youtube/',
+                                 'com.sedmelluq.discord.lavaplayer.source.youtube.',
+                                 'com/sedmelluq/discord/lavaplayer/source/AudioSourceManagers']
                 def names = []
                 Closure inspect
                 inspect = { byte[] bytes, String container, int depth ->
@@ -32,7 +35,7 @@ gradle.projectsEvaluated {
                             if (cf) {
                                 String text = new String(content, java.nio.charset.StandardCharsets.ISO_8859_1)
                                 if (forbidden.any { name.contains(it) || text.contains(it) }) {
-                                    throw new GradleException("Acquisition code remains in CF: ${container}!/${name}")
+                                    throw new GradleException("Disallowed code remains in CF: ${container}!/${name}")
                                 }
                                 if (name.toLowerCase(Locale.ROOT).matches('.*\\.(exe|bat|cmd|ps1|sh)$')) {
                                     throw new GradleException("Standalone program/script in CF: ${container}!/${name}")
@@ -80,5 +83,27 @@ gradle.projectsEvaluated {
             }
         }
         target.tasks.named('build').configure { dependsOn verification }
+        if (rootProject.distribution == 'cf' && target.name in ['fabric', 'neoforge']) {
+            def smoke = target.tasks.register('verifyCfAudioPlayback') {
+                dependsOn verification
+                inputs.file(deploymentTask.archiveFile)
+                inputs.file(rootProject.file('gradle/CfAudioSmoke.java'))
+                doLast {
+                    def logging = project(':common').configurations.runtimeClasspath.files.findAll {
+                        it.name.startsWith('slf4j-api-')
+                    }
+                    if (logging.size() != 1) throw new GradleException('Expected one SLF4J API for audio smoke check')
+                    def launcher = target.javaToolchains.launcherFor(target.java.toolchain).get()
+                    // The final deployment JAR is the only source of LavaPlayer
+                    // classes; the original dependency must not mask missing code.
+                    providers.exec {
+                        commandLine launcher.executablePath.asFile, '-cp',
+                                ([deploymentTask.archiveFile.get().asFile] + logging).join(File.pathSeparator),
+                                rootProject.file('gradle/CfAudioSmoke.java')
+                    }.result.get().assertNormalExitValue()
+                }
+            }
+            target.tasks.named('build').configure { dependsOn smoke }
+        }
     }
 }
