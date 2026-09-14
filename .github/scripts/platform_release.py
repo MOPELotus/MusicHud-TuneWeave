@@ -318,13 +318,15 @@ def modrinth_metadata(row, module, project, dependency_ids):
                 dependencies.append({'project_id': dependency_ids['forge-config-api-port'], 'dependency_type': 'required'})
     number = release.artifact_version(row) if row['range'] else row['version'] + '+' + module
     release.require(len(number) <= 32, 'Modrinth version number exceeds 32 characters')
-    return {'project_id': project, 'name': f"{row['version']} · {module} · {row['range'] or 'server/proxy'}",
+    data = {'project_id': project, 'name': f"{row['version']} · {module} · {row['range'] or 'server/proxy'}",
             'version_number': number,
             'version_type': 'beta', 'loaders': [module],
             'game_versions': GAME_VERSIONS[row['range']] if row['range'] else PLUGIN_GAMES,
-            'environment': 'client_only_server_optional' if row['range'] else 'dedicated_server_only',
             'dependencies': dependencies, 'changelog': changelog(row, module),
             'featured': True, 'file_parts': ['file'], 'primary_file': 'file'}
+    if row['range']:
+        data['environment'] = 'client_only_server_optional'
+    return data
 
 
 def existing_modrinth_version(versions, path, row, module, config):
@@ -368,7 +370,7 @@ def verify_modrinth_metadata(version, expected):
     release.require(version['loaders'] == expected['loaders'] and
                     set(version['game_versions']) == set(expected['game_versions']) and
                     version['version_type'] == expected['version_type'] and
-                    version['environment'] == expected['environment'] and
+                    ('environment' not in expected or version['environment'] == expected['environment']) and
                     dependency_signature(version['dependencies']) == dependency_signature(expected['dependencies']),
                     'Modrinth version metadata was not applied correctly')
 
@@ -393,7 +395,7 @@ def publish_modrinth(client, manifest, folder, config, report):
                 existing = existing_modrinth_version(versions, path, row, module, config)
                 if existing:
                     updates = {key: data[key] for key in ('version_type', 'dependencies', 'environment', 'changelog')
-                               if existing.get(key) != data[key]}
+                               if key in data and existing.get(key) != data[key]}
                     if dependency_signature(existing['dependencies']) == dependency_signature(data['dependencies']):
                         updates.pop('dependencies', None)
                     if updates:
@@ -401,7 +403,8 @@ def publish_modrinth(client, manifest, folder, config, report):
                                        content_type='application/json')
                     current = client.request('version/' + existing['id'])
                     verify_modrinth_metadata(current, data)
-                    report.record(path.name, 'retained', version_id=current['id'], sha256=release.digest(path))
+                    report.record(path.name, 'retained', version_id=current['id'],
+                                  sha512=current['files'][0]['hashes']['sha512'], release_sha256=release.digest(path))
                     continue
                 body, content_type = multipart('data', data, [('file', path)])
                 report.record(path.name, 'pending', sha256=release.digest(path))
@@ -434,15 +437,18 @@ def curseforge_metadata(row, module, available):
     relations = []
     if row['range']:
         if row['branch'] not in ('26.2', '1.21.9-1.21.10', '1.21.11'):
-            relations.append({'slug': 'modern-ui', 'projectID': '352491', 'type': 'requiredDependency'})
+            relations.append({'slug': 'modern-ui', 'projectID': 352491, 'type': 'requiredDependency'})
         if module == 'fabric':
-            relations.append({'slug': 'fabric-api', 'projectID': '306612', 'type': 'requiredDependency'})
+            relations.append({'slug': 'fabric-api', 'projectID': 306612, 'type': 'requiredDependency'})
             if row['branch'] != '26.2':
-                relations.append({'slug': 'forge-config-api-port', 'projectID': '547434', 'type': 'requiredDependency'})
-    return {'displayName': f"MusicHud TuneWeave {release.artifact_version(row)} - {module}",
+                relations.append({'slug': 'forge-config-api-port', 'projectID': 547434, 'type': 'requiredDependency'})
+    data = {'displayName': f"MusicHud TuneWeave {release.artifact_version(row)} - {module}",
             'releaseType': 'beta', 'gameVersionNames': names,
             'changelog': changelog(row, module), 'changelogType': 'markdown',
-            'isMarkedForManualRelease': False, 'relations': {'projects': relations}}
+            'isMarkedForManualRelease': False}
+    if relations:
+        data['relations'] = {'projects': relations}
+    return data
 
 
 def publish_curseforge(client, manifest, cf, folder, config, report):
@@ -488,6 +494,32 @@ def hangar_session(client):
     client.token = 'HangarAuth ' + token
 
 
+def ensure_hangar_channel(client, project, name):
+    internal = Client('hangar_internal', client.token)
+    try:
+        channels = internal.request('channels/' + str(project['id']))
+    except ApiError as error:
+        if error.status not in (401, 403, 404):
+            raise
+        return  # Let the public upload API validate the channel.
+    if any(channel['name'] == name for channel in channels):
+        return
+    used = {channel['color'].lower() for channel in channels}
+    color = next((color for color in ('#eab308', '#a855f7', '#0ea5e9', '#f97316') if color not in used), None)
+    release.require(color is not None, 'Choose an unused color for the Hangar Beta channel')
+    data = {'name': name, 'description': 'Beta releases of MusicHud TuneWeave.', 'color': color, 'flags': ['UNSTABLE']}
+    try:
+        internal.request('channels/' + str(project['id']) + '/create', method='POST',
+                         data=json.dumps(data).encode(), content_type='application/json')
+    except ApiError as error:
+        if error.status in (401, 403):
+            raise RuntimeError('Hangar API key cannot create the Beta channel (HTTP ' + str(error.status) +
+                               '); create Beta in project Channels, then retry') from None
+        raise
+    channels = internal.request('channels/' + str(project['id']))
+    release.require(any(channel['name'] == name for channel in channels), 'Hangar Beta channel creation was not confirmed')
+
+
 def publish_hangar(client, manifest, folder, config, report):
     hangar_session(client)
     project = client.request('projects/' + config['hangar'])
@@ -507,14 +539,7 @@ def publish_hangar(client, manifest, folder, config, report):
                         'Existing Hangar version differs from release artifacts')
         report.record(row['version'], 'retained', hashes=hashes)
     else:
-        try:
-            channels = Client('hangar_internal', client.token).request('channels/' + str(project['id']))
-        except ApiError as error:
-            if error.status not in (401, 403, 404):
-                raise
-        else:
-            release.require(any(channel['name'] == config['hangar_channel'] for channel in channels),
-                            'Hangar Beta channel is missing; create Beta in project Channels and retry')
+        ensure_hangar_channel(client, project, config['hangar_channel'])
         data = {'version': row['version'], 'channel': config['hangar_channel'],
                 'description': changelog(row, 'paper') + '\n\nAlso includes the dedicated Velocity proxy JAR.',
                 'platformDependencies': {'PAPER': PLUGIN_GAMES, 'VELOCITY': ['3.4']},
@@ -566,7 +591,15 @@ def previous_receipts(platform, tag):
         run = release.api(REPOSITORY, 'actions/runs/' + str(artifact['workflow_run']['id']))
         release.require(run['event'] == 'workflow_dispatch' and run['head_branch'] == '26.2' and
                         run['path'] == '.github/workflows/platforms.yml', 'Untrusted upload receipt source')
-        raw = subprocess.check_output(['gh', 'api', f"repos/{REPOSITORY}/actions/artifacts/{artifact['id']}/zip"])
+        for attempt in range(4):
+            result = subprocess.run(['gh', 'api', f"repos/{REPOSITORY}/actions/artifacts/{artifact['id']}/zip"],
+                                    capture_output=True)
+            if result.returncode == 0:
+                break
+            if attempt == 3:
+                raise RuntimeError('Cannot read previous upload receipts; no new uploads attempted')
+            time.sleep(2 ** attempt)
+        raw = result.stdout
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             release.require(archive.namelist() == ['receipt.json'] and archive.getinfo('receipt.json').file_size < 1_000_000,
                             'Invalid upload receipt archive')

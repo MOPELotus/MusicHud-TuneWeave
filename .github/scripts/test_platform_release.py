@@ -14,6 +14,30 @@ import test_build_release as fixtures
 
 
 class PlatformContracts(unittest.TestCase):
+    def test_hangar_creates_missing_beta_channel_as_unstable(self):
+        client = Mock(token='test-session')
+        internal = Mock()
+        internal.request.side_effect = [[{'name': 'Release', 'color': '#22c55e'}], None,
+                                        [{'name': 'Beta', 'color': '#eab308'}]]
+        with patch.object(platform, 'Client', return_value=internal):
+            platform.ensure_hangar_channel(client, {'id': 7059}, 'Beta')
+        call = internal.request.call_args_list[1]
+        self.assertEqual('channels/7059/create', call.args[0])
+        self.assertEqual(['UNSTABLE'], json.loads(call.kwargs['data'])['flags'])
+
+    def test_hangar_existing_channel_is_not_changed(self):
+        internal = Mock()
+        internal.request.return_value = [{'name': 'Beta', 'color': '#eab308'}]
+        with patch.object(platform, 'Client', return_value=internal):
+            platform.ensure_hangar_channel(Mock(token='test'), {'id': 7059}, 'Beta')
+        self.assertEqual(1, internal.request.call_count)
+
+    def test_hangar_channel_permission_failure_is_actionable(self):
+        internal = Mock()
+        internal.request.side_effect = [[{'name': 'Release', 'color': '#22c55e'}], platform.ApiError('hangar_internal', 403)]
+        with patch.object(platform, 'Client', return_value=internal), self.assertRaisesRegex(RuntimeError, 'cannot create.*HTTP 403'):
+            platform.ensure_hangar_channel(Mock(token='test'), {'id': 7059}, 'Beta')
+
     def test_publication_is_not_allowed_from_pull_requests(self):
         with patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_REF': 'refs/pull/1/merge',
                                      'GITHUB_REPOSITORY': platform.REPOSITORY}):
@@ -191,7 +215,7 @@ class RuntimeArtifactContracts(unittest.TestCase):
         plugin = next(r for r in self.helper.rows if r['id'] == 'plugin')
         data = platform.modrinth_metadata(plugin, 'paper', 'project', deps)
         self.assertEqual([], data['dependencies'])
-        self.assertEqual('dedicated_server_only', data['environment'])
+        self.assertNotIn('environment', data)
         row = next(r for r in self.helper.rows if r['id'] == '26.2')
         data = platform.modrinth_metadata(row, 'fabric', 'project', deps)
         self.assertEqual('client_only_server_optional', data['environment'])
@@ -214,7 +238,12 @@ class RuntimeArtifactContracts(unittest.TestCase):
         self.assertFalse(data['isMarkedForManualRelease'])
         self.assertIn('-cf+', data['displayName'])
         self.assertEqual(['1.21.6', '1.21.7', '1.21.8', 'Fabric', 'Client'], data['gameVersionNames'])
-        self.assertEqual({'352491', '306612', '547434'}, {d['projectID'] for d in data['relations']['projects']})
+        self.assertEqual({352491, 306612, 547434}, {d['projectID'] for d in data['relations']['projects']})
+        self.assertTrue(all(type(d['projectID']) is int for d in data['relations']['projects']))
+        plugin = next(r for r in self.helper.rows if r['id'] == 'plugin')
+        self.assertNotIn('relations', platform.curseforge_metadata(plugin, 'paper', available))
+        external = next(r for r in self.helper.rows if r['id'] == '26.2') | {'distribution': 'cf'}
+        self.assertNotIn('relations', platform.curseforge_metadata(external, 'neoforge', available))
         with self.assertRaisesRegex(ValueError, 'loader tag'):
             platform.curseforge_metadata(row, 'neoforge', available - {'NeoForge'})
 
