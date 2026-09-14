@@ -246,7 +246,8 @@ def bundle(downloads, output):
              '', 'Choose the matching Minecraft version and loader. Install the ModernUI dependency described in the README.',
              'Proxy networks install the plugin only on the proxy; standalone servers use Paper.',
              '', 'All branches were built from the commit IDs in build-manifest.json. SHA256SUMS covers every attached distribution file.',
-             'Modrinth and CurseForge publishing is currently disabled.', '', '| Branch | Commit |', '| --- | --- |']
+             'The Platform publishing workflow uploads verified runtime files to Modrinth, CurseForge and Hangar.',
+             '', '| Branch | Commit |', '| --- | --- |']
     notes += [f'| {b} | `{next(r["sha"] for r in rows if r["branch"] == b)}` |' for b in sorted(BRANCHES)]
     if rows[0].get('distribution') == 'cf':
         notes += ['', 'CF review edition: no TuneWeave downloader or updater. Install TuneWeave separately and configure its local executable or service URL.',

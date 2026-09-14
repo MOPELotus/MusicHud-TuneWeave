@@ -4,23 +4,51 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Inspect project access, or prepare verified standard and CF files'
+        description: 'Inspect access, prepare artifacts, or publish all verified files'
         type: choice
-        options: [inspect, prepare]
+        options: [inspect, prepare, publish]
         default: inspect
       tag:
         description: 'Existing GitHub Release tag'
         type: string
         default: v1.3.0-beta-3
+      target:
+        description: 'Platforms to publish to'
+        type: choice
+        options: [all, modrinth, curseforge, hangar]
+        default: all
+      prepared_run:
+        description: 'Optional successful prepare run ID; reuse its identical artifacts'
+        type: string
+        default: ''
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: platform-publishing
   cancel-in-progress: false
 
 jobs:
+  dispatch:
+    if: github.ref == 'refs/heads/26.2'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.validate.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate dispatch and optional prepared run
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          PLATFORM_TARGET: ${{ inputs.target }}
+          PREPARED_RUN: ${{ inputs.prepared_run }}
+        run: python .github/scripts/platform_release.py validate-dispatch --tag "$RELEASE_TAG" --target "$PLATFORM_TARGET" --prepared-run "$PREPARED_RUN"
+
   inspect:
     if: github.ref == 'refs/heads/26.2' && inputs.mode == 'inspect'
     runs-on: ubuntu-latest
@@ -43,7 +71,8 @@ jobs:
           if-no-files-found: error
 
   prepare:
-    if: github.ref == 'refs/heads/26.2' && inputs.mode == 'prepare'
+    needs: dispatch
+    if: inputs.mode != 'inspect' && inputs.prepared_run == ''
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.prepare.outputs.matrix }}
@@ -64,6 +93,46 @@ jobs:
           name: platform-standard
           path: bundle/standard/
           if-no-files-found: error
+
+  publish:
+    needs: [dispatch, assemble]
+    if: >-
+      always() && needs.dispatch.result == 'success' && inputs.mode == 'publish' &&
+      (needs.assemble.result == 'success' || inputs.prepared_run != '')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.dispatch.outputs.matrix) }}
+    name: Publish ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test publication contracts
+        run: python -m unittest discover -s .github/scripts -p 'test_*.py'
+      - uses: actions/download-artifact@v4
+        with:
+          name: platform-bundle
+          path: bundle
+          run-id: ${{ inputs.prepared_run || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Upload the verified runtime JARs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          PLATFORM: ${{ matrix.platform }}
+          MODRINTH_TOKEN: ${{ matrix.platform == 'modrinth' && secrets.MODRINTH_TOKEN || '' }}
+          CURSEFORGE_TOKEN: ${{ matrix.platform == 'curseforge' && secrets.CURSEFORGE_TOKEN || '' }}
+          HANGAR_API_TOKEN: ${{ matrix.platform == 'hangar' && secrets.HANGAR_API_TOKEN || '' }}
+        run: python .github/scripts/platform_release.py publish --tag "$RELEASE_TAG" --platform "$PLATFORM" --input bundle --output platform-report
+      - name: Preserve upload receipts for verification and retries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-receipt-${{ inputs.tag }}-${{ matrix.platform }}
+          path: platform-report/receipt.json
+          if-no-files-found: warn
+          overwrite: true
 
   cf-build:
     needs: prepare

@@ -1,6 +1,8 @@
 import io
 import json
+import os
 from pathlib import Path
+import tempfile
 import unittest
 import zipfile
 from unittest.mock import Mock, patch
@@ -12,6 +14,45 @@ import test_build_release as fixtures
 
 
 class PlatformContracts(unittest.TestCase):
+    def test_publication_is_not_allowed_from_pull_requests(self):
+        with patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_REF': 'refs/pull/1/merge',
+                                     'GITHUB_REPOSITORY': platform.REPOSITORY}):
+            with self.assertRaisesRegex(ValueError, 'default-branch dispatch'):
+                platform.publish_platform('curseforge', Path('missing'), 'v1.3.0-beta-3', {}, Path('missing'))
+
+    def test_retry_validation_rejects_foreign_or_failed_prepared_run(self):
+        for changes in ({'head_branch': 'plugin'}, {'event': 'pull_request'}, {'conclusion': 'failure'},
+                        {'path': '.github/workflows/other.yml'}):
+            run = {'head_branch': '26.2', 'event': 'workflow_dispatch', 'conclusion': 'success',
+                   'path': '.github/workflows/platforms.yml'} | changes
+            with patch.object(release, 'api', return_value=run), self.assertRaisesRegex(ValueError, 'successful default-branch'):
+                platform.validate_dispatch('v1.3.0-beta-3', 'all', '123')
+        for value in ('../1', '0', '1\n2'):
+            with self.assertRaises(ValueError):
+                platform.validate_dispatch('v1.3.0-beta-3', 'all', value)
+
+    def test_uncertain_and_confirmed_receipts_survive_failed_retry(self):
+        with tempfile.TemporaryDirectory() as folder:
+            receipt = platform.Receipt('curseforge', 'v1.3.0-beta-3', Path(folder))
+            with patch('builtins.print'):
+                receipt.record('file', 'uploaded', sha256='a' * 64, file_id=123)
+                receipt.failure('file', ValueError('different artifact bytes'))
+                self.assertEqual('uploaded', receipt.data['files']['file']['status'])
+                self.assertEqual(123, receipt.data['files']['file']['file_id'])
+                receipt.record('other', 'pending', sha256='b' * 64)
+                receipt.failure('other', platform.ApiError('curseforge', 503))
+                receipt.failure('other', ValueError('cannot retry'))
+                self.assertEqual('uncertain', receipt.data['files']['other']['status'])
+
+    def test_multipart_contains_exact_final_filename_and_file_bytes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'musichud-tuneweave-paper-1.3.0-beta-3.jar'
+            path.write_bytes(b'PK\x03\x04binary\x00payload')
+            data, content_type = platform.multipart('versionUpload', {'version': '1.3.0-beta-3'}, [('files', path)])
+            self.assertIn(('filename="' + path.name + '"').encode(), data)
+            self.assertIn(path.read_bytes(), data)
+            self.assertIn('multipart/form-data; boundary=', content_type)
+
     def test_release_tags_are_bounded(self):
         for tag in ('v1.3.0-beta-3', 'v2.0.0'):
             platform.validate_tag(tag)
@@ -38,6 +79,16 @@ class PlatformContracts(unittest.TestCase):
         with self.assertRaisesRegex(platform.ApiError, '^modrinth API returned HTTP 503$'):
             client.request('version', method='POST', data=b'file')
         self.assertEqual(1, client.opener.open.call_count)
+
+    def test_server_error_diagnostic_redacts_the_credential(self):
+        client = platform.Client('hangar', 'private-token')
+        client.opener = Mock()
+        client.opener.open.side_effect = HTTPError('https://hangar.papermc.io/api/v1/authenticate', 401,
+            'Denied', {}, io.BytesIO(b'{"message":"Invalid apiKey private-token"}'))
+        with self.assertRaises(platform.ApiError) as raised:
+            client.request('authenticate', method='POST', data=b'body', authenticated=False)
+        self.assertNotIn('private-token', str(raised.exception))
+        self.assertIn('[redacted]', str(raised.exception))
 
     def test_redirect_does_not_forward_authorization(self):
         client = platform.Client('curseforge', 'test-token')
@@ -119,6 +170,53 @@ class RuntimeArtifactContracts(unittest.TestCase):
                                  if line.endswith('  build-manifest.json') else line for line in lines) + '\n')
         with self.assertRaisesRegex(ValueError, 'provenance mismatch'):
             platform.verify_standard(self.helper.output, 'v1.3.0-beta-3')
+
+    def test_modrinth_keeps_matching_file_and_rejects_unrecognized_collision(self):
+        row = next(r for r in self.helper.rows if r['id'] == '26.2')
+        path = self.helper.output / release.filename(row, 'fabric')
+        remote = {'id': 'version', 'loaders': ['fabric'], 'game_versions': ['26.2'],
+                  'files': [{'filename': path.name, 'primary': True, 'hashes': {'sha512': platform.file_hash(path)}}]}
+        self.assertIs(remote, platform.existing_modrinth_version([remote], path, row, 'fabric', {}))
+        remote['files'][0]['hashes']['sha512'] = 'a' * 128
+        with self.assertRaisesRegex(ValueError, 'differs from verified'):
+            platform.existing_modrinth_version([remote], path, row, 'fabric', {})
+        config = {'existing_modrinth_files': {path.name: {'version_id': 'version', 'sha512': 'a' * 128}}}
+        self.assertIs(remote, platform.existing_modrinth_version([remote], path, row, 'fabric', config))
+        remote['loaders'] = ['neoforge']
+        with self.assertRaisesRegex(ValueError, 'metadata conflict'):
+            platform.existing_modrinth_version([remote], path, row, 'fabric', config)
+
+    def test_client_and_plugin_dependencies_are_not_confused(self):
+        deps = {'modern-ui': 'modern', 'modernui-mc-mvus': 'mvus', 'fabric-api': 'fabric', 'forge-config-api-port': 'port'}
+        plugin = next(r for r in self.helper.rows if r['id'] == 'plugin')
+        data = platform.modrinth_metadata(plugin, 'paper', 'project', deps)
+        self.assertEqual([], data['dependencies'])
+        self.assertEqual('dedicated_server_only', data['environment'])
+        row = next(r for r in self.helper.rows if r['id'] == '26.2')
+        data = platform.modrinth_metadata(row, 'fabric', 'project', deps)
+        self.assertEqual('client_only_server_optional', data['environment'])
+        self.assertEqual([{'project_id': 'fabric', 'dependency_type': 'required'}], data['dependencies'])
+        self.assertIn('ModernUI-MC/releases/tag/26.2-3.13.0.7', data['changelog'])
+        row = next(r for r in self.helper.rows if r['id'] == '1.21.11')
+        data = platform.modrinth_metadata(row, 'neoforge', 'project', deps)
+        self.assertEqual([{'project_id': 'mvus', 'dependency_type': 'required'}], data['dependencies'])
+        for row in self.helper.rows:
+            for module in row['modules']:
+                data = platform.modrinth_metadata(row, module, 'project', deps)
+                self.assertLessEqual(len(data['version_number']), 32)
+                self.assertLessEqual(len(data['name']), 64)
+
+    def test_curseforge_metadata_is_beta_auto_release_and_correct_loader(self):
+        row = next(r for r in self.helper.rows if r['id'] == '1.21.8') | {'distribution': 'cf'}
+        available = set(platform.PLUGIN_GAMES) | {'Fabric', 'NeoForge', 'Client', 'Server'}
+        data = platform.curseforge_metadata(row, 'fabric', available)
+        self.assertEqual('beta', data['releaseType'])
+        self.assertFalse(data['isMarkedForManualRelease'])
+        self.assertIn('-cf+', data['displayName'])
+        self.assertEqual(['1.21.6', '1.21.7', '1.21.8', 'Fabric', 'Client'], data['gameVersionNames'])
+        self.assertEqual({'352491', '306612', '547434'}, {d['projectID'] for d in data['relations']['projects']})
+        with self.assertRaisesRegex(ValueError, 'loader tag'):
+            platform.curseforge_metadata(row, 'neoforge', available - {'NeoForge'})
 
 
 if __name__ == '__main__':

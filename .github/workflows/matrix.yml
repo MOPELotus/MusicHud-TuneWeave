@@ -135,5 +135,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.plan.outputs.tag }}
         run: python .github/scripts/build_release.py publish --input release
-      # Modrinth and CurseForge publishing are intentionally disabled until
-      # the projects exist. No platform upload actions or secrets are used.
+      # platforms.yml publishes these verified standard files and builds the CF
+      # clients from the source commits recorded in this release's manifest.
