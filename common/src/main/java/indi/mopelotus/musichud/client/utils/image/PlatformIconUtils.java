@@ -36,7 +36,7 @@ public final class PlatformIconUtils {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             transcoder.transcode(new TranscoderInput(input), new TranscoderOutput(output));
             try (Bitmap bitmap = BitmapFactory.decodeByteArray(output.toByteArray(), 0, output.size())) {
-                Image result = Image.createTextureFromBitmap(bitmap);
+                Image result = ClientGraphicsResources.createImage(bitmap);
                 CACHE.put(key, result);
                 return result;
             }
@@ -44,6 +44,10 @@ public final class PlatformIconUtils {
             MusicHud.getLogger(PlatformIconUtils.class).warn("Failed to load {} platform icon", platform.apiName(), error);
             return null;
         }
+    }
+
+    static synchronized void clearCache() {
+        CACHE.clear();
     }
 
     public static TuneWeavePlatform platform(MusicDetail detail) {
