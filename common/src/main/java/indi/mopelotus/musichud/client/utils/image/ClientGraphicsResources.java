@@ -19,7 +19,13 @@ public final class ClientGraphicsResources {
     private static final OwnedResources UI = new OwnedResources(
             error -> MusicHud.LOGGER.warn("Failed to release a TuneWeave UI image", error));
 
+    private static volatile Runnable uiShutdown = () -> {};
+
     private ClientGraphicsResources() {}
+
+    public static void registerUiShutdown(Runnable shutdown) {
+        uiShutdown = shutdown;
+    }
 
     public static Image createImage(Bitmap bitmap) {
         if (UI.isStopped()) return null;
@@ -71,6 +77,8 @@ public final class ClientGraphicsResources {
         RENDER.stop();
         HudRendererManager.shutdown();
         ImageUtils.cleanup();
+        // Some older ModernUI builds do not invoke UIManager.destroy on every Minecraft exit path.
+        uiShutdown.run();
         RENDER.close();
         MusicHud.LOGGER.info("Released TuneWeave render resources");
     }
