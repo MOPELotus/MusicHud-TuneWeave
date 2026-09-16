@@ -11,7 +11,7 @@ on:
       tag:
         description: 'Existing GitHub Release tag'
         type: string
-        default: v1.3.0-beta-3
+        default: ''
       target:
         description: 'Platforms to publish to'
         type: choice
@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   dispatch:
-    if: github.ref == 'refs/heads/26.2'
+    if: github.ref == 'refs/heads/26.3' && inputs.mode != 'inspect'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.validate.outputs.matrix }}
@@ -50,7 +50,7 @@ jobs:
         run: python .github/scripts/platform_release.py validate-dispatch --tag "$RELEASE_TAG" --target "$PLATFORM_TARGET" --prepared-run "$PREPARED_RUN"
 
   inspect:
-    if: github.ref == 'refs/heads/26.2' && inputs.mode == 'inspect'
+    if: github.ref == 'refs/heads/26.3' && inputs.mode == 'inspect'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

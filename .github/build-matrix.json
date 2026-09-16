@@ -132,6 +132,16 @@
     "publish": true
   },
   {
+    "id": "26.3",
+    "branch": "26.3",
+    "modules": [
+      "fabric",
+      "neoforge"
+    ],
+    "properties": {},
+    "publish": true
+  },
+  {
     "id": "1.21.1",
     "branch": "1.21.1",
     "modules": [

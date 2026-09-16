@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ (github.ref == 'refs/heads/26.2' || github.base_ref == '26.2' || github.ref_type == 'tag') && github.sha || '26.2' }}
+          ref: ${{ (github.ref == 'refs/heads/26.3' || github.base_ref == '26.3' || github.ref_type == 'tag') && github.sha || '26.3' }}
           persist-credentials: false
       - name: Test automation contracts
         run: python -m unittest discover -s .github/scripts -p 'test_*.py'
@@ -117,7 +117,7 @@ jobs:
     if: >-
       needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request' &&
       ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/26.2' && inputs.publish))
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/26.3' && inputs.publish))
     runs-on: ubuntu-latest
     permissions:
       contents: write
