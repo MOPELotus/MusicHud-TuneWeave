@@ -68,7 +68,8 @@ public class HudRenderContext {
             @SuppressWarnings({"unchecked", "resource"})
             DynamicUniformStorage<HudUniform> storage = (DynamicUniformStorage<HudUniform>)
                     storageMap.computeIfAbsent(key, k ->
-                            new DynamicUniformStorage<>(uniform.getUBOName(), uniform.getUBOSize(), 256)
+                            indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources.RENDER.create(() ->
+                                    new DynamicUniformStorage<>(uniform.getUBOName(), uniform.getUBOSize(), 256))
                     );
 
             GpuBufferSlice slice = storage.writeUniform(uniform);
