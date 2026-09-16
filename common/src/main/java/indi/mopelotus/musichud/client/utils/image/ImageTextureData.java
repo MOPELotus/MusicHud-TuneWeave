@@ -2,17 +2,12 @@ package indi.mopelotus.musichud.client.utils.image;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import icyllis.modernui.graphics.Bitmap;
-import indi.mopelotus.musichud.beans.music.MusicDetail;
-import indi.mopelotus.musichud.client.audio.NowPlayingInfo;
 import lombok.Getter;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 
 import java.io.Closeable;
 import java.lang.ref.Cleaner;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 
 @Getter
 public final class ImageTextureData implements Closeable {
@@ -26,12 +21,7 @@ public final class ImageTextureData implements Closeable {
     ) {
         this.source = source;
         this.texture = texture;
-        this.cleanable = CLEANER.register(this, () -> {
-            try {
-                //noinspection ResultOfMethodCallIgnored
-                Minecraft.getInstance().submit(texture::close);
-            } catch (Exception ignored) {}
-        });
+        this.cleanable = CLEANER.register(this, () -> ClientGraphicsResources.releaseTexture(texture));
     }
 
     @Override
@@ -42,12 +32,21 @@ public final class ImageTextureData implements Closeable {
     }
 
     public Bitmap convertToBitmap() {
-        NativeImage pixels = texture.getPixels();
-        if (pixels == null) {
-            return null;
-        } else {
-            return ImageUtils.convertNativeImageToBitmap(pixels);
-        }
+        return ClientGraphicsResources.RENDER.access(() -> {
+            NativeImage pixels = texture.getPixels();
+            if (pixels == null) return null;
+            // A UI upload may outlive render-thread shutdown. Return owned pixels, not a borrowed native pointer.
+            try (Bitmap wrapped = ImageUtils.convertNativeImageToBitmap(pixels)) {
+                Bitmap copy = Bitmap.createBitmap(pixels.getWidth(), pixels.getHeight(), Bitmap.Format.RGBA_8888);
+                try {
+                    copy.setPixels(wrapped, 0, 0, 0, 0, pixels.getWidth(), pixels.getHeight());
+                    return copy;
+                } catch (RuntimeException | Error error) {
+                    copy.close();
+                    throw error;
+                }
+            }
+        });
     }
 
     @Override

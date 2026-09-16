@@ -5,6 +5,8 @@
   "compatibilityLevel": "JAVA_21",
   "plugin": "indi.mopelotus.musichud.mixin.MusicHudMixinPlugin",
   "client": [
+    "ClientGraphicsLifecycleMixin",
+    "ModernUiGraphicsLifecycleMixin",
     "GuiRendererHudMixin",
     "GuiFrameHudMixin",
     "VulkanTextureUploadMixin",
