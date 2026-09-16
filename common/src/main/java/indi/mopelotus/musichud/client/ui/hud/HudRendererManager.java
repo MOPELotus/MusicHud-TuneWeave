@@ -64,11 +64,13 @@ public class HudRendererManager {
     private final indi.mopelotus.musichud.client.ui.LatestAsyncLoader<BackgroundData> artwork = new indi.mopelotus.musichud.client.ui.LatestAsyncLoader<>(
             task -> Minecraft.getInstance().execute(task),
             task -> CompletableFuture.delayedExecutor(1, java.util.concurrent.TimeUnit.SECONDS, MusicHud.EXECUTOR).execute(task), 3);
+    private volatile boolean closed;
     private Logger logger;
     private int albumImageThumbnailSize = -1;
 
     protected HudRendererManager() {
         nowPlayingInfo.getLyricLineUpdateListener().add(lyricLine -> {
+            if (closed) return;
             Duration totalDuration = nowPlayingInfo.snapshot().duration();
             long delay = lyricLine == null ? 0 : indi.mopelotus.musichud.client.utils.lyrics.LyricTiming.delayMillis(
                     nowPlayingInfo.getPlayedDuration(), lyricLine.getStartTime());
@@ -114,6 +116,14 @@ public class HudRendererManager {
             }
         }
         return instance;
+    }
+
+    public static void shutdown() {
+        HudRendererManager manager = instance;
+        if (manager == null) return;
+        manager.closed = true;
+        manager.lyrics.cancel();
+        manager.artwork.cancel();
     }
 
     private static void updateStatus(@Nullable StreamAudioPlayer.Status status) {
@@ -301,6 +311,7 @@ public class HudRendererManager {
     }
 
     public void switchMusic(MusicDetail musicDetail) {
+        if (closed) return;
         lyrics.cancel();
         artwork.cancel();
         try {
@@ -348,11 +359,13 @@ public class HudRendererManager {
                         })
                 ).thenApply(imageTextureData -> {
                     BackgroundImages backgroundImages = new BackgroundImages(imageTextures[0], 1f);
-                    return new BackgroundData(backgroundImages, ColorExtractor.extractColors(imageTextures[1].getTexture()));
+                    return new BackgroundData(backgroundImages, indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources.RENDER.access(
+                            () -> ColorExtractor.extractColors(imageTextures[1].getTexture())));
                 });
     }
 
     public void reset() {
+        if (closed) return;
         lyrics.cancel();
         artwork.cancel();
         TITLE_RENDERER.setText(I18n.get(MusicHud.MOD_ID + ".text.idle"));
@@ -384,6 +397,7 @@ public class HudRendererManager {
     }
 
     private synchronized void renderFrame(GuiGraphics graphics, @Nullable DeltaTracker deltaTracker, boolean preview) {
+        if (closed) return;
         try {
             if (!preview && (!clientConfig.getEnable() || !clientConfig.getEnableHud()
                     || Minecraft.getInstance().screen instanceof indi.mopelotus.musichud.client.ui.screen.MusicHudScreen

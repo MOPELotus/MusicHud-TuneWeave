@@ -35,7 +35,7 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.function.Function;
 
 import static indi.mopelotus.musichud.MusicHud.getLogger;
@@ -132,6 +132,9 @@ public class ImageUtils {
     }
 
     private static CompletableFuture<ImageTextureData> downloadTextureAsync(String url, boolean squareCrop) {
+        if (ClientGraphicsResources.RENDER.isStopped()) {
+            return CompletableFuture.failedFuture(new CancellationException("Artwork is shutting down"));
+        }
         Object epoch = cacheEpoch;
         TextureCacheKey cacheKey = new TextureCacheKey(url, squareCrop);
         ImageTextureData cached = cachedTexturesData.getIfPresent(cacheKey);
@@ -276,17 +279,8 @@ public class ImageUtils {
             textureDownloads.clear();
         }
 
-        if (downloadExecutor != null && !downloadExecutor.isShutdown()) {
-            downloadExecutor.shutdown();
-            try {
-                if (!downloadExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                    downloadExecutor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                downloadExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-        }
+        // Never wait on downloads here: they can be waiting for a queued render-thread upload.
+        downloadExecutor.shutdownNow();
 
         LOGGER.debug("Cleaned up all cached textures and shutdown download executor");
     }
@@ -309,15 +303,20 @@ public class ImageUtils {
 
     @NotNull
     private static ImageTextureData getImageTextureData(String data, Bitmap source) {
-        AtomicReference<DynamicTexture> texture = new AtomicReference<>();
-        if (RenderSystem.isOnRenderThread()) {
-            texture.set(new DynamicTexture(() -> "image_" + source.hashCode(), convertBitmapToNativeImage(source)));
-        } else {
-            Minecraft.getInstance().submit(() -> {
-                texture.set(new DynamicTexture(() -> "image_" + source.hashCode(), convertBitmapToNativeImage(source)));
-            }).join();
-        }
-        return new ImageTextureData(data, texture.get());
+        Supplier<ImageTextureData> create = () -> {
+            DynamicTexture texture = ClientGraphicsResources.RENDER.create(() -> {
+                NativeImage pixels = convertBitmapToNativeImage(source);
+                try {
+                    return new DynamicTexture(() -> "image_" + source.hashCode(), pixels);
+                } catch (RuntimeException | Error error) {
+                    pixels.close();
+                    throw error;
+                }
+            });
+            return new ImageTextureData(data, texture);
+        };
+        if (RenderSystem.isOnRenderThread()) return create.get();
+        return ClientGraphicsResources.RENDER.submit(Minecraft.getInstance()::execute, create).join();
     }
 
     private static ImageTextureData getSquareImageTextureData(String data, Bitmap source) {
@@ -364,7 +363,9 @@ public class ImageUtils {
         return cachedIconImageMap.computeIfAbsent(resourceName, (s) -> {
             try (InputStream iconResourceStream = MusicHud.class.getResourceAsStream(s)) {
                 if (iconResourceStream != null) {
-                    return Image.createTextureFromBitmap(BitmapFactory.decodeStream(iconResourceStream));
+                    try (Bitmap bitmap = BitmapFactory.decodeStream(iconResourceStream)) {
+                        return ClientGraphicsResources.createImage(bitmap);
+                    }
                 } else {
                     return null;
                 }
@@ -372,6 +373,10 @@ public class ImageUtils {
                 return null;
             }
         });
+    }
+
+    static void clearIconCache() {
+        cachedIconImageMap.clear();
     }
 
     record PendingKey(String url, Function<InputStream, ?> consumer) {
