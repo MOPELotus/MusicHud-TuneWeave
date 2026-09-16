@@ -4,12 +4,14 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import icyllis.modernui.core.Context;
 import icyllis.modernui.graphics.Image;
+import icyllis.modernui.graphics.Bitmap;
 import icyllis.modernui.graphics.drawable.ImageDrawable;
 import icyllis.modernui.view.ViewTreeObserver;
 import icyllis.modernui.widget.FrameLayout;
 import icyllis.modernui.widget.ImageView;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
+import indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources;
 import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.client.Minecraft;
@@ -41,6 +43,8 @@ public class PlayerHeadView extends FrameLayout {
     @Getter
     private ResourceLocation skin;
     private ResourceLocation lastRenderedSkin;
+    private Image faceImage;
+    private Image hatImage;
     private final ViewTreeObserver.OnPreDrawListener preDrawListener = () -> {
 //        if (RenderSystem.isOnRenderThread()) {
         updateHeadImage();
@@ -84,6 +88,8 @@ public class PlayerHeadView extends FrameLayout {
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         getViewTreeObserver().removeOnPreDrawListener(preDrawListener);
+        clearImages();
+        lastRenderedSkin = null;
     }
 
     public void setPlayerSkinSupplier(@Nullable Supplier<ResourceLocation> playerSkinSupplier) {
@@ -97,12 +103,12 @@ public class PlayerHeadView extends FrameLayout {
     }
 
     private void updateHeadImage() {
+        if (ClientGraphicsResources.RENDER.isStopped()) return;
         if (playerSkinSupplier != null) {
             skin = playerSkinSupplier.get();
         }
         if (skin == null) {
-            faceView.setImageDrawable(null);
-            hatView.setImageDrawable(null);
+            clearImages();
             lastRenderedSkin = null;
             return;
         }
@@ -118,7 +124,7 @@ public class PlayerHeadView extends FrameLayout {
             if (RenderSystem.isOnRenderThread()) {
                 skinImageResult = loadSkinImage();
             } else {
-                skinImageResult = minecraft.submit(this::loadSkinImage).get();
+                skinImageResult = ClientGraphicsResources.RENDER.submit(minecraft::execute, this::loadSkinImage).get();
             }
             skinImage = skinImageResult.skinImage;
             readFromStream = skinImageResult.readFromStream;
@@ -129,30 +135,47 @@ public class PlayerHeadView extends FrameLayout {
                 skinImage.copyRect(faceNat, SKIN_FACE_U, SKIN_FACE_V, 0, 0, HEAD_SIZE, HEAD_SIZE, false, false);
                 skinImage.copyRect(hatNat, SKIN_HAT_U, SKIN_HAT_V, 0, 0, HEAD_SIZE, HEAD_SIZE, false, false);
 
-                var bitmap = ImageUtils.convertNativeImageToBitmap(faceNat);
-                var resources = getContext().getResources();
-                Image faceImage = Image.createTextureFromBitmap(bitmap);
-                bitmap = ImageUtils.convertNativeImageToBitmap(hatNat);
-                Image hatImage = Image.createTextureFromBitmap(bitmap);
-                if (faceImage != null && hatImage != null) {
-                    var faceDrawable = new ImageDrawable(resources, faceImage);
-                    var hatDrawable = new ImageDrawable(resources, hatImage);
+                Image nextFace = null;
+                Image nextHat = null;
+                try (Bitmap faceBitmap = ImageUtils.convertNativeImageToBitmap(faceNat);
+                     Bitmap hatBitmap = ImageUtils.convertNativeImageToBitmap(hatNat)) {
+                    nextFace = ClientGraphicsResources.createImage(faceBitmap);
+                    nextHat = ClientGraphicsResources.createImage(hatBitmap);
+                    if (nextFace == null || nextHat == null) return;
+                    var resources = getContext().getResources();
+                    var faceDrawable = new ImageDrawable(resources, nextFace);
+                    var hatDrawable = new ImageDrawable(resources, nextHat);
                     faceDrawable.setFilter(false);
                     hatDrawable.setFilter(false);
+                    clearImages();
                     faceView.setImageDrawable(faceDrawable);
                     hatView.setImageDrawable(hatDrawable);
+                    faceImage = nextFace;
+                    hatImage = nextHat;
+                    nextFace = nextHat = null;
                     lastRenderedSkin = skin;
+                } finally {
+                    ClientGraphicsResources.releaseImage(nextFace);
+                    ClientGraphicsResources.releaseImage(nextHat);
                 }
             } catch (Exception e) {
-                logger.warn(e);
+                if (!ClientGraphicsResources.RENDER.isStopped()) logger.warn(e);
             }
         } catch (Exception e) {
-            logger.warn(e);
+            if (!ClientGraphicsResources.RENDER.isStopped()) logger.warn(e);
         } finally {
             if (readFromStream && skinImage != null) {
                 skinImage.close();
             }
         }
+    }
+
+    private void clearImages() {
+        faceView.setImageDrawable(null);
+        hatView.setImageDrawable(null);
+        ClientGraphicsResources.releaseImage(faceImage);
+        ClientGraphicsResources.releaseImage(hatImage);
+        faceImage = hatImage = null;
     }
 
     private @NotNull PlayerHeadView.SkinImageResult loadSkinImage() {
@@ -161,7 +184,12 @@ public class PlayerHeadView extends FrameLayout {
         boolean readFromStream = false;
         AbstractTexture texture = minecraft.getTextureManager().getTexture(skin);
         if (texture instanceof DynamicTexture dt) {
-            skinImage = dt.getPixels();
+            NativeImage pixels = dt.getPixels();
+            if (pixels != null) {
+                skinImage = new NativeImage(pixels.getWidth(), pixels.getHeight(), false);
+                skinImage.copyFrom(pixels);
+                readFromStream = true;
+            }
         } else {
             try {
                 var resource = minecraft.getResourceManager()
