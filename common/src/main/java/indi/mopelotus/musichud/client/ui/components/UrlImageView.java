@@ -19,6 +19,7 @@ import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
 import indi.mopelotus.musichud.client.utils.image.ImageTextureData;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
+import indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources;
 import lombok.NonNull;
 import lombok.Setter;
 import net.minecraft.client.resources.language.I18n;
@@ -46,6 +47,8 @@ public class UrlImageView extends FrameLayout {
     private final indi.mopelotus.musichud.client.ui.ImagePublication<ImageTextureData> publication =
             new indi.mopelotus.musichud.client.ui.ImagePublication<>(MuiModApi::postToUiThread, ImageTextureData::close);
     private AnimatorSet activeAnimation;
+    private final java.util.Map<ImageView, Image> ownedImages = new java.util.IdentityHashMap<>();
+    private OnLayoutChangeListener pendingLayoutListener;
     // 滚动监听器
     private final ViewTreeObserver.OnScrollChangedListener scrollListener = this::checkVisibilityAndLoad;
     private final ViewTreeObserver.OnPreDrawListener preDrawListener = () -> {
@@ -158,6 +161,7 @@ public class UrlImageView extends FrameLayout {
         super.onDetachedFromWindow();
         isAttachedToWindow = false;
         cancelLoad();
+        clearImages();
         pendingUrl = currentURLString;
         hasLoadedImage = false;
 
@@ -266,19 +270,26 @@ public class UrlImageView extends FrameLayout {
             try (Bitmap bitmap = value.convertToBitmap()) {
                 if (bitmap == null) throw new IllegalStateException("Missing image pixels");
                 Image image = createTexture(bitmap);
-                if (image != null) createDrawable(image, source);
+                if (image != null) {
+                    try {
+                        createDrawable(image, source);
+                    } finally {
+                        if (!ownedImages.containsValue(image)) ClientGraphicsResources.releaseImage(image);
+                    }
+                }
             }
         }, problem -> { if (isAttachedToWindow) showError(I18n.get(MusicHud.MOD_ID + ".button.loadingError")); }));
     }
 
     private void createDrawable(Image image, String urlString) {
-        if (!urlString.equals(currentURLString)) {
+        if (!urlString.equals(currentURLString) || !isAttachedToWindow) {
+            ClientGraphicsResources.releaseImage(image);
             return;
         }
         float ratio = (float) image.getWidth() / image.getHeight();
         setAspectRatio(squareCrop ? 1.0f : ratio);
 
-        RoundedImageDrawable drawable = new RoundedImageDrawable(
+        RoundedImageDrawable drawable = ClientGraphicsResources.createRoundedDrawable(
                 getContext().getResources(),
                 image
         );
@@ -286,48 +297,56 @@ public class UrlImageView extends FrameLayout {
 
         if (circular) {
             drawable.setCircular(true);
-            setImageWithAnimation(drawable);
+            setImageWithAnimation(drawable, image);
         } else {
             // 使用 OnLayoutChangeListener 确保在布局完成后设置圆角
-            setImageWithAnimation(drawable);
+            setImageWithAnimation(drawable, image);
             int imageHeight = image.getHeight();
             int height = getHeight();
             if (height > 0) {
                 float actualCornerRadius = (float) (cornerRadius * imageHeight) / height;
                 drawable.setCornerRadius(actualCornerRadius);
             }
-            addOnLayoutChangeListener(new OnLayoutChangeListener() {
+            clearLayoutListener();
+            long layoutTicket = publication.current();
+            pendingLayoutListener = new OnLayoutChangeListener() {
                 @Override
                 public void onLayoutChange(View v, int left, int top, int right, int bottom,
                                            int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    if (!publication.isCurrent(layoutTicket) || !isAttachedToWindow) {
+                        removeOnLayoutChangeListener(this);
+                        return;
+                    }
                     int height = bottom - top;
                     if (height > 0) {
                         float actualCornerRadius = (float) (cornerRadius * imageHeight) / height;
                         drawable.setCornerRadius(actualCornerRadius);
                         invalidate();
                         removeOnLayoutChangeListener(this);
+                        if (pendingLayoutListener == this) pendingLayoutListener = null;
                     }
                 }
-            });
+            };
+            addOnLayoutChangeListener(pendingLayoutListener);
         }
     }
 
     private Image createTexture(Bitmap bitmap) {
         if (!squareCrop || bitmap.getWidth() == bitmap.getHeight()) {
-            return Image.createTextureFromBitmap(bitmap);
+            return ClientGraphicsResources.createImage(bitmap);
         }
         int side = Math.min(bitmap.getWidth(), bitmap.getHeight());
         int left = (bitmap.getWidth() - side) / 2;
         int top = (bitmap.getHeight() - side) / 2;
         try (Bitmap cropped = bitmap.subImage(left, top, side, side)) {
-            return Image.createTextureFromBitmap(cropped);
+            return ClientGraphicsResources.createImage(cropped);
         }
     }
 
-    private void setImageWithAnimation(RoundedImageDrawable drawable) {
+    private void setImageWithAnimation(RoundedImageDrawable drawable, Image image) {
         cancelAnimation();
         long ticket = publication.current();
-        nextImageView.setImageDrawable(drawable);
+        replaceImage(nextImageView, drawable, image);
         progressRing.setVisibility(GONE);
 
         ObjectAnimator fadeOut = ObjectAnimator.ofFloat(imageView, View.ALPHA, 1f, 0f);
@@ -346,6 +365,7 @@ public class UrlImageView extends FrameLayout {
                 ImageView temp = imageView;
                 imageView = nextImageView;
                 nextImageView = temp;
+                replaceImage(nextImageView, null, null);
             }
         });
         animatorSet.start();
@@ -360,8 +380,7 @@ public class UrlImageView extends FrameLayout {
     public void clear() {
         cancelLoad();
         currentURLString = null;
-        imageView.setImageDrawable(null);
-        nextImageView.setImageDrawable(null);
+        clearImages();
         progressRing.setVisibility(GONE);
         errorLayout.setVisibility(GONE);
         setLoading(false);
@@ -414,6 +433,26 @@ public class UrlImageView extends FrameLayout {
         return normalized.contains(".hdslb.com/") || normalized.contains(".biliimg.com/");
     }
 
+    private void replaceImage(ImageView target, RoundedImageDrawable drawable, Image image) {
+        var previousDrawable = target.getDrawable();
+        target.setImageDrawable(drawable);
+        if (previousDrawable != drawable) ClientGraphicsResources.releaseDrawable(previousDrawable);
+        Image previous = image == null ? ownedImages.remove(target) : ownedImages.put(target, image);
+        if (previous != image) ClientGraphicsResources.releaseImage(previous);
+    }
+
+    private void clearImages() {
+        replaceImage(imageView, null, null);
+        replaceImage(nextImageView, null, null);
+    }
+
+    private void clearLayoutListener() {
+        if (pendingLayoutListener != null) {
+            removeOnLayoutChangeListener(pendingLayoutListener);
+            pendingLayoutListener = null;
+        }
+    }
+
     private void cancelAnimation() {
         AnimatorSet animation = activeAnimation;
         activeAnimation = null;
@@ -422,6 +461,7 @@ public class UrlImageView extends FrameLayout {
 
     public void cancelLoad() {
         publication.next();
+        clearLayoutListener();
         pendingUrl = null;
         cancelAnimation();
         // Do not cancel a shared download future; its completion still releases owned results.
