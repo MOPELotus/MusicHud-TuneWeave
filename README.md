@@ -30,12 +30,13 @@
 | 1.21.11 | `+1.21.11.jar` | 21 | mVUS `3.12.0.5-build.4+mc1.21.11` |
 | 26.1–26.1.2 | `+26.1-26.1.2.jar` | 25 | 官方 ModernUI `26.1.2-3.13.0.5`，支持该整个范围 |
 | 26.2 | `+26.2.jar` | 25 | 本项目配套 ModernUI `26.2-3.13.0.7` |
+| 26.3 | `+26.3.jar` | 25 | 本项目配套 ModernUI `26.3-3.13.0.7` |
 
 例如，Minecraft 1.21.7 Fabric 使用 `musichud-tuneweave-fabric-<发行版本>+1.21.6-1.21.8.jar`。
 
 ## 客户端依赖
 
-**Fabric：** Fabric Loader、[Fabric API](https://modrinth.com/mod/fabric-api)、对应版本的 ModernUI，以及 MusicHud TuneWeave。26.2 的 Fabric API 最低为 `0.160.0+26.2`；其他版本选择与游戏版本匹配的 Fabric API。
+**Fabric：** Fabric Loader、[Fabric API](https://modrinth.com/mod/fabric-api)、对应版本的 ModernUI，以及 MusicHud TuneWeave。26.2 的 Fabric API 最低为 `0.160.0+26.2`，26.3 最低为 `0.160.5+26.3`；其他版本选择与游戏版本匹配的 Fabric API。
 
 **NeoForge：** NeoForge、对应版本的 ModernUI，以及 MusicHud TuneWeave。
 
@@ -43,9 +44,9 @@ ModernUI 有以下三条来源，按上表选择其中一条，再选择对应�
 
 1. [官方 ModernUI](https://modrinth.com/mod/modern-ui/versions)：用于 1.21.1、1.21.6–1.21.8、26.1–26.1.2。
 2. [ModernUI mVUS](https://modrinth.com/mod/modernui-mc-mvus/versions)：用于 1.21.9–1.21.10、1.21.11。
-3. [MOPELotus ModernUI 分支](https://github.com/MOPELotus/ModernUI-MC/releases)：用于 26.2，提供 Fabric 和 NeoForge 文件。
+3. [MOPELotus ModernUI 分支](https://github.com/MOPELotus/ModernUI-MC/releases)：用于 26.2、26.3，提供 Fabric 和 NeoForge 文件。
 
-**26.2 配套 ModernUI 分支不需要 Forge Config API Port。** 上表其余版本使用的官方 ModernUI / mVUS **Fabric** 文件仍声明了这一依赖，需要额外安装匹配游戏版本的 [Forge Config API Port](https://modrinth.com/mod/forge-config-api-port/versions)。这是 ModernUI 的依赖；MusicHud TuneWeave 自身不依赖它。NeoForge 无需另装 API Port。
+**26.2 / 26.3 配套 ModernUI 分支不需要 Forge Config API Port。** 上表其余版本使用的官方 ModernUI / mVUS **Fabric** 文件仍声明了这一依赖，需要额外安装匹配游戏版本的 [Forge Config API Port](https://modrinth.com/mod/forge-config-api-port/versions)。这是 ModernUI 的依赖；MusicHud TuneWeave 自身不依赖它。NeoForge 无需另装 API Port。
 
 [Mod Menu](https://modrinth.com/mod/modmenu) 为 Fabric 可选依赖。不要同时安装多份 ModernUI，也不要与原版 MusicHud 同时安装。
 
@@ -107,7 +108,7 @@ CF 专版移除了 TuneWeave 下载和更新功能；完整功能请使用普通
 ./gradlew common:test fabric:build neoforge:build -Pdistribution=cf --rerun-tasks
 ```
 
-Windows 使用 `gradlew.bat`。`gradle.properties` 中的 `mod_version` 保持原值；例如 `1.3.0-beta-3` 会生成 `1.3.0-beta-3-cf+26.2`，其他分支使用各自的 Minecraft 版本范围。省略参数或使用 `-Pdistribution=standard` 可构建普通版，无需先执行 `clean`。
+Windows 使用 `gradlew.bat`。`gradle.properties` 中的 `mod_version` 保持原值；例如 `1.3.0-beta-3` 会生成 `1.3.0-beta-3-cf+26.3`，其他分支使用各自的 Minecraft 版本范围。省略参数或使用 `-Pdistribution=standard` 可构建普通版，无需先执行 `clean`。
 
 CF 版不包含 TuneWeave 下载器、更新器或下载界面。用户需自行安装 TuneWeave，再配置本地可执行文件路径并手动启动，或连接已自行运行的服务。新配置默认关闭自动启动且不预设程序路径；用户可主动开启自动启动，已有配置中的明确设置会保留。启动后的日志和 TuneWeave 数据仍写入所选程序所在目录。
 

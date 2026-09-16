@@ -18,9 +18,21 @@ class FabricDependencyMetadataTest {
     }
 
     @Test
+    void minecraftVersionIsRestrictedToTheAdaptedRelease() throws Exception {
+        var metadata = JsonParser.parseString(Files.readString(
+                Path.of(System.getProperty("musichud.test.fabricMetadata")))).getAsJsonObject();
+        var requirement = VersionPredicate.parse(metadata.getAsJsonObject("depends").get("minecraft").getAsString());
+        assertTrue(requirement.test(Version.parse("26.3")));
+        assertTrue(requirement.test(Version.parse("26.3.1")));
+        for (String version : new String[]{"26.2", "26.3-rc.3", "26.4", "27.1", "not-a-version"}) {
+            assertFalse(requirement.test(Version.parse(version)), version);
+        }
+    }
+
+    @Test
     void configuredApiSatisfiesManifestAndSuppliesRequiredRenderingInterface() throws Exception {
         assertTrue(apiRequirement().test(Version.parse(System.getProperty("musichud.test.fabricApiVersion"))));
-        assertTrue(apiRequirement().test(Version.parse("0.160.0+26.2")));
+        assertTrue(apiRequirement().test(Version.parse("0.160.5+26.3")));
         assertNotNull(Class.forName("net.fabricmc.fabric.api.client.rendering.v1.FabricOrderedSubmitNodeCollector",
                 false, getClass().getClassLoader()));
     }
@@ -28,7 +40,7 @@ class FabricDependencyMetadataTest {
     @Test
     void unsupportedAndMalformedApiVersionsCannotPassTheManifestGate() throws Exception {
         var requirement = apiRequirement();
-        for (String version : new String[]{"0.152.1+26.2", "0.159.9+26.2", "0.160.0-beta.1+26.2", "not-a-version"}) {
+        for (String version : new String[]{"0.160.0+26.2", "0.160.4+26.3", "0.160.5-beta.1+26.3", "not-a-version"}) {
             assertFalse(requirement.test(Version.parse(version)), version);
         }
     }

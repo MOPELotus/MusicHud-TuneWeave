@@ -15,14 +15,14 @@ logoFile = "assets/musichud_tuneweave/icon.png"
 [[dependencies.musichud_tuneweave]]
 modId = "neoforge"
 type = "required"
-versionRange = "[26.2.0.0-beta,)"
+versionRange = "[26.3.0.1-beta,26.4)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.musichud_tuneweave]]
 modId = "minecraft"
 type = "required"
-versionRange = "[26.2,)"
+versionRange = "[26.3,26.4)"
 ordering = "NONE"
 side = "BOTH"
 

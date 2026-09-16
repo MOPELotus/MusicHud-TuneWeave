@@ -1,4 +1,5 @@
-#version 150
+#version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform MHBasePosition {
     mat4 u_Translation;
@@ -14,10 +15,10 @@ layout(std140) uniform MHDynamicStatus {
     vec4 u_Dynamic1; // (timestamp, playedProgress, switchProgress)
 };
 
-in vec2 f_Position;
-in vec4 f_Color;
+layout(location = 0) in vec2 f_Position;
+layout(location = 1) in vec4 f_Color;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }

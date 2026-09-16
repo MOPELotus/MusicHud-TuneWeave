@@ -1,6 +1,6 @@
 package indi.mopelotus.musichud.client.ui.hud.pipelines;
 
-import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import indi.mopelotus.musichud.client.ui.hud.metadata.Layout;
 import indi.mopelotus.musichud.client.utils.ui.UniformDataUtils;

@@ -46,11 +46,19 @@ class LoaderMetadataTest {
     }
 
     @Test
+    void rejectsMinecraftAndLoaderVersionsOutsideTheAdaptedRelease() throws Exception {
+        for (String version : List.of("26.2", "26.3-rc3", "26.4", "27.1", "invalid")) {
+            assertFalse(dependencyRange("minecraft").containsVersion(new DefaultArtifactVersion(version)), version);
+        }
+        assertFalse(dependencyRange("neoforge").containsVersion(new DefaultArtifactVersion("26.4.0.0")));
+    }
+
+    @Test
     void neoforgeMinimumAcceptsTheSupportedBetaAndRejectsOlderVersions() throws Exception {
         VersionRange range = dependencyRange("neoforge");
-        assertTrue(range.containsVersion(new DefaultArtifactVersion("26.2.0.0-beta")));
-        assertTrue(range.containsVersion(new DefaultArtifactVersion("26.2.0.0")));
-        assertFalse(range.containsVersion(new DefaultArtifactVersion("26.2.0.0-alpha")));
-        assertFalse(range.containsVersion(new DefaultArtifactVersion("26.1.99")));
+        assertTrue(range.containsVersion(new DefaultArtifactVersion("26.3.0.1-beta")));
+        assertTrue(range.containsVersion(new DefaultArtifactVersion("26.3.0.1")));
+        assertFalse(range.containsVersion(new DefaultArtifactVersion("26.3.0.1-alpha")));
+        assertFalse(range.containsVersion(new DefaultArtifactVersion("26.3.0.0-beta")));
     }
 }

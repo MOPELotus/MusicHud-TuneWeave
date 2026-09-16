@@ -1,0 +1,52 @@
+name: Minecraft 26.3
+
+on:
+  push:
+    branches: ['26.3']
+  pull_request:
+    branches: ['26.3']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: minecraft-26.3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clients:
+    if: github.ref == 'refs/heads/26.3' || github.base_ref == '26.3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Force tests and build both loaders
+        env:
+          JAVA_TOOL_OPTIONS: '-XX:ActiveProcessorCount=2'
+        run: bash gradlew common:test fabric:build neoforge:build --rerun-tasks
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musichud-tuneweave-26.3
+          path: |
+            fabric/build/libs/musichud-tuneweave-fabric-*+26.3.jar
+            neoforge/build/libs/musichud-tuneweave-neoforge-*+26.3.jar
+          if-no-files-found: error
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-26.3
+          path: |
+            **/build/test-results/**/*.xml
+            **/build/reports/tests/**
+          if-no-files-found: ignore

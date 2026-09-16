@@ -1,5 +1,6 @@
 package indi.mopelotus.musichud.client.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.ui.hud.HudEditorBounds;
 import indi.mopelotus.musichud.client.ui.hud.HudRendererManager;
@@ -54,7 +55,7 @@ public final class HudLayoutEditorScreen extends Screen {
 
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) return true;
-        if (event.button() != 0 || !bounds.contains(event.x(), event.y())) return false;
+        if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || !bounds.contains(event.x(), event.y())) return false;
         dragStart = bounds; startX = event.x(); startY = event.y();
         resizing = event.x() >= bounds.x() + bounds.width() - 10 && event.y() >= bounds.y() + bounds.height() - 10;
         return true;

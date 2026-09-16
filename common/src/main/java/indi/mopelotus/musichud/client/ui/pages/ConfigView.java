@@ -43,7 +43,7 @@ import net.minecraft.client.resources.language.I18n;
 import org.apache.commons.lang3.Range;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
+import icyllis.modernui.view.KeyEvent;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
 import java.io.IOException;
@@ -471,7 +471,7 @@ public class ConfigView extends LinearLayout {
                     input.setTextAlignment(TEXT_ALIGNMENT_TEXT_START);
                     input.setText(serverConfig.getServerApiBaseUrl());
                     input.setOnKeyListener((v, c, e) -> {
-                        if (c == GLFW.GLFW_KEY_ENTER) {
+                        if (c == KeyEvent.KEY_ENTER) {
                             input.clearFocus();
                             return true;
                         }
@@ -496,7 +496,7 @@ public class ConfigView extends LinearLayout {
                     input.setTextAlignment(TEXT_ALIGNMENT_TEXT_START);
                     input.setText(serverConfig.getServerApiBinaryExecutablePath());
                     input.setOnKeyListener((v, c, e) -> {
-                        if (c == GLFW.GLFW_KEY_ENTER) {
+                        if (c == KeyEvent.KEY_ENTER) {
                             input.clearFocus();
                             return true;
                         }
@@ -611,7 +611,7 @@ public class ConfigView extends LinearLayout {
                     Files.createDirectories(logDir);
                 } catch (IOException ignored) {
                 }
-                Util.getPlatform().openFile(logDir.toFile());
+                com.mojang.blaze3d.Blaze3D.openUri(logDir.toUri());
                 updateApiLogLabel(apiLogLabel);
             });
 

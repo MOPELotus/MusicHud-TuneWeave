@@ -1,4 +1,5 @@
-#version 150
+#version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform GradientParams {
     mat4 _ModelView;
@@ -10,11 +11,11 @@ layout(std140) uniform GradientParams {
 
 uniform sampler2D Sampler0;
 
-in vec4 vertexColor;
-in vec2 texCoord0;
-in float worldX;
+layout(location = 0) in vec4 vertexColor;
+layout(location = 1) in vec2 texCoord0;
+layout(location = 2) in float worldX;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 float hermiteSmoothstep(float t) {
     return t * t * (3.0 - 2.0 * t);

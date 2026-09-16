@@ -17,7 +17,6 @@ import indi.mopelotus.musichud.client.ui.components.Modal;
 import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
 import indi.mopelotus.musichud.interfaces.ServerConfig;
 import indi.mopelotus.musichud.server.api.*;
-import net.minecraft.util.Util;
 import net.minecraft.client.resources.language.I18n;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
@@ -82,7 +81,7 @@ public final class ApiDistributionUi {
         spannableString.setSpan(new URLSpan(manifestUrl), indexOfUrl, indexOfUrl + manifestUrl.length(), SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
         descriptionUrl.setText(spannableString);
         descriptionUrl.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        descriptionUrl.setOnClickListener(v -> Util.getPlatform().openUri(manifestUrl));
+        descriptionUrl.setOnClickListener(v -> com.mojang.blaze3d.Blaze3D.openUri(java.net.URI.create(manifestUrl)));
 
         Path path = Paths.get(serverConfig.getServerApiBinaryExecutablePath());
         while (!Files.isDirectory(path)) {

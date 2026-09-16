@@ -64,6 +64,9 @@ configurations {
 }
 
 dependencies {
+    // ModernUI Fork supplies TinyFD and its natives at runtime on 26.3.
+    compileOnly "org.lwjgl:lwjgl-tinyfd:3.4.3"
+
     api project(':core')
 
     minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"

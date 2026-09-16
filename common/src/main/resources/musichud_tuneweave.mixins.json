@@ -7,6 +7,7 @@
   "client": [
     "GuiRendererHudMixin",
     "GuiFrameHudMixin",
+    "VulkanTextureUploadMixin",
     "ReactiveMusicCompatMixin",
     "SoundEngineMixin",
     "SoundEngineSppCompatMixin",

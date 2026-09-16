@@ -8,7 +8,7 @@ This is an independently maintained fork of [MusicHud by Ephern / Etern](https:/
 
 ### Installation
 
-Install the file for your Minecraft version and loader, together with its required dependencies. Fabric needs Fabric API and the appropriate ModernUI build. Most supported ModernUI Fabric builds also need Forge Config API Port; the project's 26.2 ModernUI fork does not. NeoForge needs the corresponding ModernUI build. Never install this mod alongside upstream MusicHud or a second edition of MusicHud TuneWeave.
+Install the file for your Minecraft version and loader, together with its required dependencies. Fabric needs Fabric API and the appropriate ModernUI build. Most supported ModernUI Fabric builds also need Forge Config API Port; the project's 26.2 / 26.3 ModernUI fork does not. NeoForge needs the corresponding ModernUI build. Never install this mod alongside upstream MusicHud or a second edition of MusicHud TuneWeave.
 
 Press **M** in a world to open the music interface. Search for music, add tracks to the queue, or use a supported playlist as an idle playback source. Lyrics, account features and available audio quality depend on the music service and the user's access rights.
 

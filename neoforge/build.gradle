@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.141'
+    id 'net.neoforged.moddev' version '2.0.147'
     id 'com.gradleup.shadow'
 }
 
@@ -105,6 +105,9 @@ neoForge {
 }
 
 dependencies {
+    // ModernUI Fork supplies TinyFD and its natives at runtime on 26.3.
+    compileOnly "org.lwjgl:lwjgl-tinyfd:3.4.3"
+
     common(project(':common')) { transitive = false }
     coreLib(project(path: ':core')) { transitive = false }
     shadowBundle(project(':common')) { transitive = false }

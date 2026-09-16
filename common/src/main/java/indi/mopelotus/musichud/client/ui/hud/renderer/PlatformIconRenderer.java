@@ -2,7 +2,7 @@ package indi.mopelotus.musichud.client.ui.hud.renderer;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.FilterMode;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.ui.hud.metadata.Layout;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;

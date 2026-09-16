@@ -1,8 +1,9 @@
 package indi.mopelotus.musichud.client.ui.hud.renderer;
 
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.commands.RenderPass;
 import indi.mopelotus.musichud.client.ui.hud.pipelines.HudRenderState;
 import indi.mopelotus.musichud.client.ui.hud.pipelines.HudUniform;
 import indi.mopelotus.musichud.client.ui.hud.pipelines.RenderStateUtil;
@@ -11,7 +12,7 @@ import lombok.NonNull;
 import lombok.Setter;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.DynamicUniformStorage;
+import net.minecraft.client.renderer.DynamicGpuDataStorageMapped;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fStack;
@@ -25,12 +26,10 @@ public class HudRenderContext {
     @Getter
     private static HudRenderContext current;
 
-    private final Map<StorageKey, DynamicUniformStorage<?>> storageMap = new HashMap<>();
+    private final Map<StorageKey, DynamicGpuDataStorageMapped<?>> storageMap = new HashMap<>();
     private final Map<StorageKey, HudUniform> pendingUniforms = new HashMap<>();
     private final Map<StorageKey, GpuBufferSlice> uniformSlices = new HashMap<>();
 
-    private final Map<StorageKey, HudUniform> lastWrittenUniforms = new HashMap<>();
-    private final Map<StorageKey, GpuBufferSlice> lastSlices = new HashMap<>();
 
     @Getter
     @Setter
@@ -41,7 +40,7 @@ public class HudRenderContext {
     }
 
     public void clearContext() {
-        for (DynamicUniformStorage<?> storage : storageMap.values()) {
+        for (DynamicGpuDataStorageMapped<?> storage : storageMap.values()) {
             storage.endFrame();
         }
         pendingUniforms.clear();
@@ -54,27 +53,16 @@ public class HudRenderContext {
             StorageKey key = entry.getKey();
             HudUniform uniform = entry.getValue();
 
-            // skip re-upload if same uniform data was already written last frame
-            HudUniform lastWritten = lastWrittenUniforms.get(key);
-            if (lastWritten != null && lastWritten.shouldUseBuffer(uniform)) {
-                GpuBufferSlice cachedSlice = lastSlices.get(key);
-                if (cachedSlice != null) {
-                    uniformSlices.put(key, cachedSlice);
-                    lastWrittenUniforms.put(key, uniform);
-                    continue;
-                }
-            }
-
+            // Mapped ring-buffer slices belong to the current frame. Always write
+            // after endFrame(), even when the logical uniform value is unchanged.
             @SuppressWarnings({"unchecked", "resource"})
-            DynamicUniformStorage<HudUniform> storage = (DynamicUniformStorage<HudUniform>)
+            DynamicGpuDataStorageMapped<HudUniform> storage = (DynamicGpuDataStorageMapped<HudUniform>)
                     storageMap.computeIfAbsent(key, k ->
-                            new DynamicUniformStorage<>(uniform.getUBOName(), uniform.getUBOSize(), 256)
+                            new DynamicGpuDataStorageMapped<>(uniform.getUBOName(), uniform.getUBOSize(), GpuBuffer.USAGE_UNIFORM, 256)
                     );
 
-            GpuBufferSlice slice = storage.writeUniform(uniform);
+            GpuBufferSlice slice = storage.writeData(uniform);
             uniformSlices.put(key, slice);
-            lastSlices.put(key, slice);
-            lastWrittenUniforms.put(key, uniform);
         }
     }
 
