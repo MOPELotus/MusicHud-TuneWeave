@@ -2,10 +2,10 @@ name: CI and GitHub Release
 
 on:
   push:
-    branches: ['26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin']
+    branches: ['26.3', '26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin']
     tags: ['v*']
   pull_request:
-    branches: ['26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin']
+    branches: ['26.3', '26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin']
   workflow_dispatch:
     inputs:
       distribution:
@@ -14,7 +14,7 @@ on:
         options: [standard, cf]
         default: standard
       publish:
-        description: 'Publish the version in gradle.properties to GitHub Release (run from 26.2)'
+        description: 'Publish the version in gradle.properties to GitHub Release (run from 26.3)'
         type: boolean
         default: false
 
@@ -28,7 +28,7 @@ concurrency:
 jobs:
   all-branches:
     # The implementation and matrix live only on the default branch.
-    uses: MOPELotus/MusicHud-TuneWeave/.github/workflows/matrix.yml@26.2
+    uses: MOPELotus/MusicHud-TuneWeave/.github/workflows/matrix.yml@26.3
     permissions:
       contents: write
     with:
