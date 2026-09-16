@@ -44,6 +44,36 @@ class PlatformContracts(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'default-branch dispatch'):
                 platform.publish_platform('curseforge', Path('missing'), 'v1.3.0-beta-3', {}, Path('missing'))
 
+    def test_only_new_default_dispatch_can_start_platform_publication(self):
+        for branch in ('26.2', 'plugin', '26.3'):
+            with patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': 'refs/heads/' + branch,
+                                         'GITHUB_REPOSITORY': platform.REPOSITORY}), \
+                 patch.object(platform, 'verify_platform_bundle', side_effect=RuntimeError('verification started')) as verify:
+                with self.assertRaisesRegex(RuntimeError if branch == '26.3' else ValueError,
+                                            'verification started' if branch == '26.3' else 'default-branch dispatch'):
+                    platform.publish_platform('curseforge', Path('missing'), 'v1.3.0-beta-3', {}, Path('missing'))
+                self.assertEqual(branch == '26.3', verify.called)
+
+    def test_prepared_runs_and_receipts_from_both_controller_generations_remain_usable(self):
+        raw = io.BytesIO()
+        data = {'platform': 'curseforge', 'tag': 'v1.3.0-beta-3', 'files': {'file': {'status': 'uploaded', 'file_id': 123}}}
+        with zipfile.ZipFile(raw, 'w') as archive:
+            archive.writestr('receipt.json', json.dumps(data))
+        metadata = {'total_count': 1, 'artifacts': [{'id': 1, 'expired': False, 'workflow_run': {'id': 123}}]}
+        for branch in ('26.2', '26.3'):
+            run = {'head_branch': branch, 'event': 'workflow_dispatch', 'conclusion': 'success',
+                   'path': '.github/workflows/platforms.yml'}
+            with self.subTest(branch=branch), patch.object(release, 'api', return_value=run):
+                platform.validate_dispatch('v1.3.0-beta-3', 'all', '123')
+            # A failed publication can contain successful uploads that must not be repeated.
+            with patch.object(release, 'api', side_effect=[metadata, run | {'conclusion': 'failure'}]), \
+                 patch.object(platform.subprocess, 'run', return_value=Mock(returncode=0, stdout=raw.getvalue())):
+                self.assertEqual(data['files'], platform.previous_receipts('curseforge', data['tag']))
+        with patch.object(release, 'api', side_effect=[metadata, run | {'head_branch': 'plugin'}]), \
+             patch.object(platform.subprocess, 'run') as download, self.assertRaisesRegex(ValueError, 'Untrusted'):
+            platform.previous_receipts('curseforge', data['tag'])
+        download.assert_not_called()
+
     def test_retry_validation_rejects_foreign_or_failed_prepared_run(self):
         for changes in ({'head_branch': 'plugin'}, {'event': 'pull_request'}, {'conclusion': 'failure'},
                         {'path': '.github/workflows/other.yml'}):
@@ -164,9 +194,98 @@ class RuntimeArtifactContracts(unittest.TestCase):
     def test_runtime_bundle_has_exact_client_and_plugin_builds(self):
         manifest = platform.verify_standard(self.helper.output, 'v1.3.0-beta-3')
         rows = platform.cf_rows(manifest, {})
-        self.assertEqual(15, len(manifest['artifacts']))
-        self.assertEqual(6, len(rows))
+        self.assertEqual(17, len(manifest['artifacts']))
+        self.assertEqual(7, len(rows))
         self.assertTrue(all(r['distribution'] == 'cf' and r['branch'] != 'plugin' for r in rows))
+
+    def test_historical_runtime_bundle_preserves_plugin_version_metadata(self):
+        legacy = fixtures.historical_bundle(self.helper.output)
+        manifest = platform.verify_standard(self.helper.output, legacy['tag'])
+        self.assertEqual(15, len(manifest['artifacts']))
+        self.assertEqual(6, len(platform.cf_rows(manifest, {})))
+        row = next(r for r in manifest['entries'] if r['branch'] == 'plugin')
+        available = set(platform.PLUGIN_GAMES) | {'Paper', 'Server'}
+        for current in (False, True):
+            context = self.helper.manifest if current else manifest
+            games = platform.PLUGIN_GAMES if current else platform.LEGACY_PLUGIN_GAMES
+            data = platform.modrinth_metadata(row, 'paper', 'project', {}, context)
+            self.assertEqual(games, data['game_versions'])
+            cf = platform.curseforge_metadata(row, 'paper', available, context)
+            self.assertEqual(games + ['Paper', 'Server'], cf['gameVersionNames'])
+        path = self.helper.output / release.filename(row, 'paper')
+        remote = {'id': 'old', 'loaders': ['paper'], 'game_versions': platform.LEGACY_PLUGIN_GAMES,
+                  'files': [{'filename': path.name, 'primary': True, 'hashes': {'sha512': platform.file_hash(path)}}]}
+        self.assertIs(remote, platform.existing_modrinth_version([remote], path, row, 'paper', {}, manifest))
+        with self.assertRaisesRegex(ValueError, 'metadata conflict'):
+            platform.existing_modrinth_version([remote], path, row, 'paper', {}, self.helper.manifest)
+
+    def test_current_and_historical_cf_bundles_require_every_client_jar(self):
+        original_cf_rows = platform.cf_rows
+        for legacy in (False, True):
+            if legacy:
+                fixtures.historical_bundle(self.helper.output)
+            root = self.helper.root / ('legacy' if legacy else 'current')
+            platform.shutil.copytree(self.helper.output, root / 'standard')
+            downloads = root / 'downloads'
+            downloads.mkdir()
+            manifest = platform.verify_standard(root / 'standard', 'v1.3.0-beta-3')
+            for row in original_cf_rows(manifest, {}):
+                folder = downloads / ('cf-' + row['id'])
+                folder.mkdir()
+                artifacts = []
+                for module in row['modules']:
+                    standard = root / 'standard' / release.filename(row | {'distribution': 'standard'}, module)
+                    path = folder / release.filename(row, module)
+                    with zipfile.ZipFile(standard) as source, zipfile.ZipFile(path, 'w') as target:
+                        for name in source.namelist():
+                            content = source.read(name)
+                            if name in ('META-INF/musichud-distribution.properties', 'fabric.mod.json', 'META-INF/neoforge.mods.toml'):
+                                content = content.replace(row['version'].encode(), (row['version'] + '-cf.1').encode())
+                                content = content.replace(b'distribution=standard', b'distribution=cf')
+                            target.writestr(name, content)
+                    artifacts.append({'module': module, 'name': path.name, 'sha256': release.digest(path)})
+                release.dump(folder / 'build.json', {'entry': row, 'artifacts': artifacts})
+            with self.subTest(legacy=legacy), patch.object(platform, 'cf_rows', side_effect=lambda m: original_cf_rows(m, {})), \
+                 patch('builtins.print'):
+                platform.assemble(root, downloads, manifest['tag'])
+                _, cf = platform.verify_platform_bundle(root, manifest['tag'])
+                self.assertEqual(12 if legacy else 14, len(cf['artifacts']))
+                cf['artifacts'][-1] = cf['artifacts'][0]
+                release.dump(root / 'cf/cf-manifest.json', cf)
+                with self.assertRaisesRegex(ValueError, 'filename mismatch'):
+                    platform.verify_platform_bundle(root, manifest['tag'])
+
+    def test_26_3_metadata_links_fork_without_incorrect_external_dependencies(self):
+        row = next(r for r in self.helper.rows if r['branch'] == '26.3')
+        available = set(platform.PLUGIN_GAMES) | {'Fabric', 'NeoForge', 'Client'}
+        for module in ('fabric', 'neoforge'):
+            data = platform.modrinth_metadata(row, module, 'project', {'fabric-api': 'fabric'})
+            self.assertEqual(['26.3'], data['game_versions'])
+            self.assertEqual([{'project_id': 'fabric', 'dependency_type': 'required'}] if module == 'fabric' else [], data['dependencies'])
+            self.assertIn('ModernUI-MC/releases/tag/26.3-3.13.0.7', data['changelog'])
+            self.assertNotIn('Forge Config API Port', data['changelog'])
+            cf = platform.curseforge_metadata(row | {'distribution': 'cf'}, module, available)
+            self.assertEqual([306612] if module == 'fabric' else [],
+                             [d['projectID'] for d in cf.get('relations', {}).get('projects', [])])
+
+    def test_hangar_uses_current_platform_versions_and_keeps_historical_versions(self):
+        row = next(r for r in self.helper.rows if r['branch'] == 'plugin')
+        downloads = {name: {'fileInfo': {'sha256Hash': release.digest(self.helper.output / release.filename(row, module))}}
+                     for name, module in (('PAPER', 'paper'), ('VELOCITY', 'velocity'))}
+        project = {'namespace': {'owner': 'MOPELotus', 'slug': 'MusicHud-TuneWeave'}, 'visibility': 'PUBLIC'}
+        for legacy in (False, True):
+            manifest = (fixtures.historical_bundle(self.helper.output) if legacy else self.helper.manifest)
+            client = Mock()
+            client.request.side_effect = [project, platform.ApiError('hangar', 404), {'url': 'result'},
+                                          {'downloads': downloads}, project]
+            with patch.object(platform, 'hangar_session'), patch.object(platform, 'ensure_hangar_channel'), \
+                 patch.object(platform, 'multipart', return_value=(b'body', 'test')) as multipart:
+                platform.publish_hangar(client, manifest, self.helper.output,
+                                        {'hangar': 'MOPELotus/MusicHud-TuneWeave', 'hangar_channel': 'Beta'}, Mock(data={}))
+            data = multipart.call_args.args[1]
+            self.assertEqual(platform.LEGACY_PLUGIN_GAMES if legacy else platform.PLUGIN_GAMES,
+                             data['platformDependencies']['PAPER'])
+            self.assertEqual(['3.4'] if legacy else ['3.4', '4.2.0'], data['platformDependencies']['VELOCITY'])
 
     def test_cf_revisions_are_complete_and_bound_to_original_release_sources(self):
         manifest = platform.verify_standard(self.helper.output, 'v1.3.0-beta-3')

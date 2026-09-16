@@ -1,4 +1,5 @@
 import copy
+import base64
 import json
 import io
 import os
@@ -9,6 +10,23 @@ from unittest.mock import patch
 import zipfile
 
 import build_release as release
+
+
+def rewrite_checksums(folder):
+    (folder / 'SHA256SUMS').write_text(''.join(
+        f'{release.digest(path)}  {path.name}\n' for path in sorted(folder.iterdir()) if path.name != 'SHA256SUMS'))
+
+
+def historical_bundle(folder):
+    manifest = release.load_json(folder / 'build-manifest.json')
+    manifest['entries'] = [row for row in manifest['entries'] if row['branch'] != '26.3']
+    for artifact in manifest['artifacts']:
+        if artifact['branch'] == '26.3':
+            (folder / artifact['name']).unlink()
+    manifest['artifacts'] = [a for a in manifest['artifacts'] if a['branch'] != '26.3']
+    release.dump(folder / 'build-manifest.json', manifest)
+    rewrite_checksums(folder)
+    return manifest
 
 
 class ReleaseContracts(unittest.TestCase):
@@ -52,12 +70,12 @@ class ReleaseContracts(unittest.TestCase):
                 artifacts.append({'name': name, 'module': module, 'sha256': release.digest(path)})
             release.dump(folder / 'build.json', {'entry': row, 'artifacts': artifacts})
 
-    def test_complete_matrix_publishes_fifteen_jars_and_checksums(self):
+    def test_complete_matrix_publishes_seventeen_jars_and_checksums(self):
         self.fixture()
         release.bundle(self.downloads, self.output)
         manifest = release.verify_bundle(self.output)
-        self.assertEqual(15, len(list(self.output.glob('*.jar'))))
-        self.assertEqual({'1.21.1', '1.21.8', '1.21.10', '1.21.11', '26.1.2', '26.2', 'plugin'},
+        self.assertEqual(17, len(list(self.output.glob('*.jar'))))
+        self.assertEqual({'1.21.1', '1.21.8', '1.21.10', '1.21.11', '26.1.2', '26.2', '26.3', 'plugin'},
                          {a['endpoint'] for a in manifest['artifacts']})
         self.assertEqual(release.BRANCHES, {a['branch'] for a in manifest['artifacts']})
 
@@ -66,7 +84,7 @@ class ReleaseContracts(unittest.TestCase):
             row['distribution'] = 'cf'
         self.fixture()
         release.bundle(self.downloads, self.output)
-        self.assertEqual(15, len(list(self.output.glob('*-cf*.jar'))))
+        self.assertEqual(17, len(list(self.output.glob('*-cf*.jar'))))
         with patch.object(release.subprocess, 'run') as run:
             with self.assertRaisesRegex(ValueError, 'review artifacts only'):
                 release.publish(self.output)
@@ -178,24 +196,86 @@ class ReleaseContracts(unittest.TestCase):
     def test_pull_requests_and_version_branch_dispatch_cannot_publish(self):
         self.assertFalse(release.release_requested('pull_request', 'refs/pull/1/merge', False))
         self.assertFalse(release.release_requested('push', 'refs/heads/26.2', False))
+        self.assertFalse(release.release_requested('push', 'refs/heads/26.3', False))
+        self.assertTrue(release.release_requested('workflow_dispatch', 'refs/heads/26.3', True))
         self.assertTrue(release.release_requested('push', 'refs/tags/v1.3.0-beta-3', False))
-        for event, ref in [('pull_request', 'refs/heads/26.2'), ('workflow_dispatch', 'refs/heads/plugin')]:
+        for event, ref in [('pull_request', 'refs/heads/26.3'), ('workflow_dispatch', 'refs/heads/26.2'),
+                           ('workflow_dispatch', 'refs/heads/plugin')]:
             with self.assertRaises(ValueError): release.release_requested(event, ref, True)
 
+    def test_plan_freezes_eight_branches_and_uses_new_default_version(self):
+        shas = {branch: f'{index:040x}' for index, branch in enumerate(sorted(release.BRANCHES), 1)}
+        for event, ref, base in [('push', 'refs/heads/26.3', ''), ('push', 'refs/heads/26.2', ''),
+                                 ('pull_request', 'refs/pull/1/merge', '26.3'),
+                                 ('push', 'refs/tags/v1.3.0-beta-4', '')]:
+            source = '26.3' if base or ref.startswith('refs/tags/') else ref.removeprefix('refs/heads/')
+            event_sha = 'f' * 40
+            def api(repo, path):
+                if path.startswith('git/ref/heads/'):
+                    return {'object': {'sha': shas[path.removeprefix('git/ref/heads/')]}}
+                sha = path.split('?ref=')[1]
+                branch = source if sha == event_sha else next(b for b, s in shas.items() if s == sha)
+                version = '1.3.0-beta-4' if branch == '26.3' or ref.startswith('refs/tags/') else '1.3.0-beta-3'
+                values = f'mod_version={version}\nminecraft_version_range={branch if branch != "plugin" else ""}\n'
+                return {'content': base64.b64encode(values.encode()).decode()}
+            env = {'GITHUB_REPOSITORY': 'test/repository', 'GITHUB_EVENT_NAME': event, 'GITHUB_REF': ref,
+                   'GITHUB_BASE_REF': base, 'GITHUB_SHA': event_sha, 'GITHUB_RUN_ID': '123',
+                   'GITHUB_OUTPUT': str(self.root / 'outputs'), 'PUBLISH_REQUESTED': 'false',
+                   'BUILD_DISTRIBUTION': 'standard'}
+            with self.subTest(event=event, ref=ref), patch.dict(os.environ, env), \
+                 patch.object(release, 'api', side_effect=api), patch.object(release, 'run', return_value='c' * 40), \
+                 patch.object(release, 'load_json', return_value=copy.deepcopy(self.rows)), patch.object(release, 'dump') as dump:
+                release.plan()
+                manifest = dump.call_args.args[1]
+                self.assertEqual('v1.3.0-beta-4', manifest['tag'])
+                self.assertEqual(13, len(manifest['entries']))
+                self.assertEqual(ref.startswith('refs/tags/'), manifest['publish'])
+                self.assertEqual('c' * 40, manifest['controller'])
+                for row in manifest['entries']:
+                    self.assertEqual(event_sha if row['branch'] == source else shas[row['branch']], row['sha'])
+
+    def test_historical_bundle_is_readable_but_cannot_be_a_new_release(self):
+        self.fixture()
+        release.bundle(self.downloads, self.output)
+        historical_bundle(self.output)
+        manifest = release.verify_bundle(self.output)
+        self.assertEqual(15, len(manifest['artifacts']))
+        self.assertEqual('a' * 40, release.release_target(manifest))
+        with self.assertRaises(ValueError):
+            release.validate_matrix(manifest['entries'])
+        with patch.object(release, 'api') as api, patch.object(release.subprocess, 'run') as run:
+            with self.assertRaises(ValueError):
+                release.publish(self.output)
+            api.assert_not_called()
+            run.assert_not_called()
+        release.dump(self.downloads / 'build-plan/build-plan.json', manifest)
+        with self.assertRaises(ValueError):
+            release.bundle(self.downloads, self.root / 'new-release')
+
+    def test_historical_validation_still_rejects_incomplete_and_duplicate_matrices(self):
+        legacy = [r for r in self.rows if r['branch'] != '26.3']
+        release.validate_matrix(legacy, allow_legacy=True)
+        for rows in (legacy[:-1], legacy[:-1] + [legacy[0]], self.rows[:-1]):
+            with self.assertRaises(ValueError):
+                release.validate_matrix(rows, allow_legacy=True)
+
     def test_release_stays_draft_until_all_uploads_succeed(self):
+        next(r for r in self.rows if r['branch'] == '26.3')['sha'] = 'b' * 40
         self.fixture()
         release.bundle(self.downloads, self.output)
         env = {'GITHUB_REPOSITORY': 'test/repository', 'RELEASE_TAG': 'v1.3.0-beta-3', 'GITHUB_RUN_ID': '123'}
-        with patch.dict(os.environ, env), patch.object(release, 'api', side_effect=[[], {'sha': 'a' * 40}]), \
+        with patch.dict(os.environ, env), patch.object(release, 'api', side_effect=[[], {'sha': 'b' * 40}]), \
              patch.object(release.subprocess, 'run') as run:
             release.publish(self.output)
             commands = [call.args[0] for call in run.call_args_list]
             self.assertEqual('api', commands[0][1])
+            self.assertIn('sha=' + 'b' * 40, commands[0])
+            self.assertEqual('b' * 40, commands[1][commands[1].index('--target') + 1])
             self.assertIn('--draft', commands[1])
             self.assertEqual('upload', commands[2][2])
             self.assertIn('--draft=false', commands[3])
             self.assertIn('--latest=false', commands[3])
-        with patch.dict(os.environ, env), patch.object(release, 'api', side_effect=[[], {'sha': 'a' * 40}]), \
+        with patch.dict(os.environ, env), patch.object(release, 'api', side_effect=[[], {'sha': 'b' * 40}]), \
              patch.object(release.subprocess, 'run', side_effect=[None, None, RuntimeError('upload failed')]) as run:
             with self.assertRaises(RuntimeError): release.publish(self.output)
             self.assertEqual(3, run.call_count, 'must never publish after partial upload')

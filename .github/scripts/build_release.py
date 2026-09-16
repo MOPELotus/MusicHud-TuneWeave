@@ -15,7 +15,9 @@ import time
 from urllib.parse import quote
 import zipfile
 
-BRANCHES = {'26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin'}
+DEFAULT_BRANCH = '26.3'
+LEGACY_BRANCHES = {'26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin'}
+BRANCHES = LEGACY_BRANCHES | {DEFAULT_BRANCH}
 MODULES = {'fabric', 'neoforge', 'paper', 'velocity', 'bungeecord'}
 VERSION = re.compile(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?\Z')
 SHA = re.compile(r'[0-9a-f]{40}\Z')
@@ -83,23 +85,37 @@ def validate_row(row):
                 'Invalid CF release source revision')
 
 
-def validate_matrix(rows):
-    require(len(rows) == 12, 'Expected eleven client endpoints and one plugin build')
+def validate_matrix(rows, *, allow_legacy=False):
+    # Historical releases remain usable for platform preparation and retries.
+    # New plans, bundles and GitHub releases always require the current matrix.
+    branches = LEGACY_BRANCHES if allow_legacy and {r['branch'] for r in rows} == LEGACY_BRANCHES else BRANCHES
+    require(len(rows) == (12 if branches == LEGACY_BRANCHES else 13), 'Incomplete client endpoint matrix')
     require(len({row['id'] for row in rows}) == len(rows), 'Duplicate build ID')
-    require({row['branch'] for row in rows} == BRANCHES, 'Incomplete branch matrix')
+    require({row['branch'] for row in rows} == branches, 'Incomplete branch matrix')
     for row in rows:
         validate_row(row)
     require(len({row.get('distribution', 'standard') for row in rows}) == 1, 'Mixed distributions')
     published = [row for row in rows if row['publish']]
-    require(len(published) == 7 and {row['branch'] for row in published} == BRANCHES,
+    require(len(published) == len(branches) and {row['branch'] for row in published} == branches,
             'Each branch needs exactly one distribution build')
+
+
+def artifact_count(rows):
+    return sum(len(row['modules']) for row in rows if row['publish'])
+
+
+def release_target(manifest):
+    rows = manifest['entries']
+    validate_matrix(rows, allow_legacy=True)
+    branch = DEFAULT_BRANCH if any(row['branch'] == DEFAULT_BRANCH for row in rows) else '26.2'
+    return next(row['sha'] for row in rows if row['branch'] == branch)
 
 
 def release_requested(event, ref, requested):
     if event == 'push' and ref.startswith('refs/tags/v'):
         return True
     if requested:
-        require(event == 'workflow_dispatch' and ref == 'refs/heads/26.2', 'Manual publishing requires the default branch')
+        require(event == 'workflow_dispatch' and ref == 'refs/heads/' + DEFAULT_BRANCH, 'Manual publishing requires the default branch')
         return True
     return False
 
@@ -115,7 +131,7 @@ def plan():
     validate_matrix(rows)
     source_branch = os.environ.get('GITHUB_BASE_REF') if event == 'pull_request' else ref.removeprefix('refs/heads/')
     if ref.startswith('refs/tags/'):
-        source_branch = '26.2'
+        source_branch = DEFAULT_BRANCH
     revisions = {}
     for branch in sorted(BRANCHES):
         sha = (os.environ['GITHUB_SHA'] if branch == source_branch else
@@ -129,10 +145,10 @@ def plan():
         row.update(revisions[row['branch']])
         row['distribution'] = distribution
     validate_matrix(rows)
-    version = revisions['26.2']['version']
+    version = revisions[DEFAULT_BRANCH]['version']
     tag = 'v' + version + ('-cf' if distribution == 'cf' else '')
     if publish:
-        require(all(row['version'] == version for row in rows), 'Release versions must match on all seven branches')
+        require(all(row['version'] == version for row in rows), 'Release versions must match on all source branches')
         require(not ref.startswith('refs/tags/') or ref == 'refs/tags/' + tag, 'Tag does not match mod_version')
     controller = run('git', 'rev-parse', 'HEAD')
     manifest = {'repository': repo, 'controller': controller, 'tag': tag, 'publish': publish,
@@ -258,7 +274,8 @@ def bundle(downloads, output):
             verify_jar(folder / name, row, expected[name])
             if row['publish']:
                 verified.append((folder / name, artifact | {'branch': row['branch'], 'sha': row['sha'], 'endpoint': row['id']}))
-    require(len(verified) == 15 and len({a['name'] for _, a in verified}) == 15, 'Expected exactly fifteen unique distribution JARs')
+    count = artifact_count(rows)
+    require(len(verified) == count and len({a['name'] for _, a in verified}) == count, 'Incomplete or duplicate distribution JARs')
     output.mkdir(parents=True, exist_ok=False)
     for path, artifact in verified:
         shutil.copy2(path, output / artifact['name'])
@@ -295,8 +312,10 @@ def verify_bundle(folder):
         require((folder / name).is_file() and digest(folder / name) == sha, 'Release checksum mismatch')
     require(listed == {p.name for p in folder.iterdir()} - {'SHA256SUMS'}, 'Unlisted release file')
     manifest = load_json(folder / 'build-manifest.json')
-    validate_matrix(manifest['entries'])
-    require(len(manifest['artifacts']) == 15, 'Incomplete release')
+    validate_matrix(manifest['entries'], allow_legacy=True)
+    expected = {filename(row, module) for row in manifest['entries'] if row['publish'] for module in row['modules']}
+    require(len(manifest['artifacts']) == artifact_count(manifest['entries']) and
+            {a['name'] for a in manifest['artifacts']} == expected, 'Incomplete or duplicate release')
     require({a['name'] for a in manifest['artifacts']} == {n for n in listed if n.endswith('.jar')}, 'Release manifest differs from files')
     for a in manifest['artifacts']:
         require(digest(folder / a['name']) == a['sha256'], 'Manifest checksum mismatch')
@@ -305,13 +324,14 @@ def verify_bundle(folder):
 
 def publish(folder):
     manifest = verify_bundle(folder)
+    validate_matrix(manifest['entries'])
     require(all(row.get('distribution', 'standard') == 'standard' for row in manifest['entries']),
             'CF workflow builds are review artifacts only')
     repo, tag = os.environ['GITHUB_REPOSITORY'], os.environ['RELEASE_TAG']
     require(manifest['repository'] == repo and manifest['publish'] is True and tag == manifest['tag'], 'Release authorization mismatch')
     require(tag.startswith('v') and VERSION.fullmatch(tag[1:]), 'Invalid release tag')
     require(all(row['version'] == tag[1:] for row in manifest['entries']), 'Mixed release versions')
-    target = next(row['sha'] for row in manifest['entries'] if row['branch'] == '26.2')
+    target = release_target(manifest)
     require(str(manifest['run_id']) == os.environ['GITHUB_RUN_ID'], 'Release belongs to another workflow run')
     matching_tags = api(repo, 'git/matching-refs/tags/' + quote(tag, safe=''))
     if any(item['ref'] == 'refs/tags/' + tag for item in matching_tags):

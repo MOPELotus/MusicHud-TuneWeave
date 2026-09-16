@@ -33,9 +33,13 @@ GAME_VERSIONS = {
     '1.21.11': ['1.21.11'],
     '26.1-26.1.2': ['26.1', '26.1.1', '26.1.2'],
     '26.2': ['26.2'],
+    '26.3': ['26.3'],
 }
-PLUGIN_GAMES = ['1.21.1', '1.21.6', '1.21.7', '1.21.8', '1.21.9', '1.21.10',
+LEGACY_PLUGIN_GAMES = ['1.21.1', '1.21.6', '1.21.7', '1.21.8', '1.21.9', '1.21.10',
                 '1.21.11', '26.1', '26.1.1', '26.1.2', '26.2']
+PLUGIN_GAMES = LEGACY_PLUGIN_GAMES + ['26.3']
+MODERNUI_FORKS = {'26.2': '26.2-3.13.0.7', '26.3': '26.3-3.13.0.7'}
+PREPARATION_BRANCHES = {'26.2', release.DEFAULT_BRANCH}
 MAIN_CLASSES = {
     'fabric': 'indi/mopelotus/musichud/fabric/CommonInitializer.class',
     'neoforge': 'indi/mopelotus/musichud/neoforge/CommonInitializer.class',
@@ -43,6 +47,14 @@ MAIN_CLASSES = {
     'velocity': 'indi/mopelotus/musichud/velocity/VelocityInitializer.class',
     'bungeecord': 'indi/mopelotus/musichud/bungeecord/BungeeInitializer.class',
 }
+
+
+def game_versions(row, manifest=None):
+    if row['range']:
+        return GAME_VERSIONS[row['range']]
+    if manifest is not None and not any(r['branch'] == release.DEFAULT_BRANCH for r in manifest['entries']):
+        return LEGACY_PLUGIN_GAMES
+    return PLUGIN_GAMES
 
 
 def validate_tag(tag):
@@ -77,7 +89,8 @@ def verify_standard(folder, tag):
                         for row in rows), 'Expected matching standard release versions')
     expected = {release.filename(row, module): (row, module) for row in rows if row['publish']
                 for module in row['modules']}
-    release.require(len(expected) == 15 and len({a['name'] for a in manifest['artifacts']}) == 15,
+    release.require(len(expected) == release.artifact_count(rows) and
+                    {a['name'] for a in manifest['artifacts']} == set(expected),
                     'Duplicate or missing release artifacts')
     for artifact in manifest['artifacts']:
         release.require(artifact['name'] in expected, 'Unexpected deployment artifact')
@@ -116,12 +129,12 @@ def prepare(tag, output):
                     '--pattern', '*.jar', '--pattern', 'SHA256SUMS', '--pattern', 'build-manifest.json',
                     '--pattern', 'license', '--pattern', 'RELEASE_NOTES.md'], check=True)
     manifest = verify_standard(standard, tag)
-    target = next(row['sha'] for row in manifest['entries'] if row['branch'] == '26.2')
+    target = release.release_target(manifest)
     release.require(release.api(REPOSITORY, 'commits/' + tag)['sha'] == target, 'Release tag/source mismatch')
     if os.environ.get('GITHUB_OUTPUT'):
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
             stream.write('matrix=' + json.dumps({'include': cf_rows(manifest)}, separators=(',', ':')) + '\n')
-    print('Verified 15 standard deployment JARs; CF builds use frozen, reviewed packaging revisions.')
+    print(f"Verified {len(manifest['artifacts'])} standard deployment JARs; CF builds use frozen, reviewed packaging revisions.")
 
 
 def assemble(bundle, downloads, tag):
@@ -148,14 +161,14 @@ def assemble(bundle, downloads, tag):
             artifacts.append(artifact | {'row': row})
     release.dump(folder / 'cf-manifest.json', {'tag': tag, 'artifacts': artifacts})
     verify_platform_bundle(bundle, tag)
-    print('Verified platform bundle: 15 standard JARs and 12 CF client JARs.')
+    print(f"Verified platform bundle: {len(manifest['artifacts'])} standard JARs and {len(artifacts)} CF client JARs.")
 
 
 def verify_platform_bundle(folder, tag):
     manifest = verify_standard(folder / 'standard', tag)
     cf = release.load_json(folder / 'cf/cf-manifest.json')
-    release.require(cf['tag'] == tag and len(cf['artifacts']) == 12, 'Incomplete CF manifest')
     expected = {release.filename(row, m): (row, m) for row in cf_rows(manifest) for m in row['modules']}
+    release.require(cf['tag'] == tag and len(cf['artifacts']) == len(expected), 'Incomplete CF manifest')
     release.require({a['name'] for a in cf['artifacts']} == set(expected), 'CF manifest filename mismatch')
     release.require({p.name for p in (folder / 'cf').iterdir()} == set(expected) | {'cf-manifest.json'},
                     'Unlisted CF files')
@@ -292,16 +305,16 @@ def changelog(row, module):
     text = (f"MusicHud TuneWeave {row['version']} beta for {module}. "
             'Shared playback, music queues, lyrics and HUD improvements.\n\n')
     if module in ('fabric', 'neoforge'):
-        modern = ('https://github.com/MOPELotus/ModernUI-MC/releases/tag/26.2-3.13.0.7'
-                  if row['branch'] == '26.2' else
+        modern = ('https://github.com/MOPELotus/ModernUI-MC/releases/tag/' + MODERNUI_FORKS[row['branch']]
+                  if row['branch'] in MODERNUI_FORKS else
                   'https://modrinth.com/mod/modernui-mc-mvus' if row['branch'] in ('1.21.9-1.21.10', '1.21.11')
                   else 'https://modrinth.com/mod/modern-ui')
         text += f"Requires the matching [ModernUI build]({modern}) for this Minecraft version and loader. "
-        if row['branch'] == '26.2':
-            text += 'Install the 26.2-3.13.0.7 fork manually; it is currently distributed through GitHub. '
+        if row['branch'] in MODERNUI_FORKS:
+            text += f"Install the {MODERNUI_FORKS[row['branch']]} fork manually; it is currently distributed through GitHub. "
         if module == 'fabric':
             text += 'Fabric API is required. '
-            if row['branch'] != '26.2':
+            if row['branch'] not in MODERNUI_FORKS:
                 text += 'ModernUI also requires Forge Config API Port on Fabric. '
         if row.get('distribution') == 'cf':
             text += ('\n\nCF edition: TuneWeave download/update functionality is removed. '
@@ -319,25 +332,25 @@ def changelog(row, module):
     return text + '\n\n[Setup and dependencies](https://github.com/' + REPOSITORY + '/blob/v' + row['version'] + '/README.md)'
 
 
-def modrinth_metadata(row, module, project, dependency_ids):
+def modrinth_metadata(row, module, project, dependency_ids, manifest=None):
     dependencies = []
     if module in ('fabric', 'neoforge'):
         # Modrinth does not persist manually supplied file_name dependencies on
-        # JAR uploads. The external 26.2 ModernUI requirement is linked explicitly
+        # JAR uploads. The external ModernUI fork requirement is linked explicitly
         # in the changelog instead of inventing a project/version relation.
-        if row['branch'] != '26.2':
+        if row['branch'] not in MODERNUI_FORKS:
             dep = 'modernui-mc-mvus' if row['branch'] in ('1.21.9-1.21.10', '1.21.11') else 'modern-ui'
             dependencies.append({'project_id': dependency_ids[dep], 'dependency_type': 'required'})
         if module == 'fabric':
             dependencies.append({'project_id': dependency_ids['fabric-api'], 'dependency_type': 'required'})
-            if row['branch'] != '26.2':
+            if row['branch'] not in MODERNUI_FORKS:
                 dependencies.append({'project_id': dependency_ids['forge-config-api-port'], 'dependency_type': 'required'})
     number = release.artifact_version(row) if row['range'] else row['version'] + '+' + module
     release.require(len(number) <= 32, 'Modrinth version number exceeds 32 characters')
     data = {'project_id': project, 'name': f"{row['version']} · {module} · {row['range'] or 'server/proxy'}",
             'version_number': number,
             'version_type': 'beta', 'loaders': [module],
-            'game_versions': GAME_VERSIONS[row['range']] if row['range'] else PLUGIN_GAMES,
+            'game_versions': game_versions(row, manifest),
             'dependencies': dependencies, 'changelog': changelog(row, module),
             'featured': True, 'file_parts': ['file'], 'primary_file': 'file'}
     if row['range']:
@@ -345,7 +358,7 @@ def modrinth_metadata(row, module, project, dependency_ids):
     return data
 
 
-def existing_modrinth_version(versions, path, row, module, config):
+def existing_modrinth_version(versions, path, row, module, config, manifest=None):
     accepted = config.get('existing_modrinth_files', {}).get(path.name)
     wanted = file_hash(path)
     matches = []
@@ -358,7 +371,7 @@ def existing_modrinth_version(versions, path, row, module, config):
             release.require(remote['hashes'].get('sha512') == wanted or seeded,
                             'Existing Modrinth file differs from verified artifact: ' + path.name)
             release.require(version['loaders'] == [module] and set(version['game_versions']) ==
-                            set(GAME_VERSIONS[row['range']] if row['range'] else PLUGIN_GAMES),
+                            set(game_versions(row, manifest)),
                             'Existing Modrinth loader/game metadata conflict')
             release.require(len(version['files']) == 1 and remote.get('primary'), 'Unexpected additional Modrinth files')
             matches.append(version)
@@ -406,9 +419,9 @@ def publish_modrinth(client, manifest, folder, config, report):
             continue
         for module in row['modules']:
             path = folder / release.filename(row, module)
-            data = modrinth_metadata(row, module, project['id'], dependency_ids)
+            data = modrinth_metadata(row, module, project['id'], dependency_ids, manifest)
             try:
-                existing = existing_modrinth_version(versions, path, row, module, config)
+                existing = existing_modrinth_version(versions, path, row, module, config, manifest)
                 if existing:
                     updates = {key: data[key] for key in ('version_type', 'dependencies', 'environment', 'changelog')
                                if key in data and existing.get(key) != data[key]}
@@ -438,8 +451,8 @@ def publish_modrinth(client, manifest, folder, config, report):
     report.save()
 
 
-def curseforge_metadata(row, module, available):
-    names = list(GAME_VERSIONS[row['range']] if row['range'] else PLUGIN_GAMES)
+def curseforge_metadata(row, module, available, manifest=None):
+    names = list(game_versions(row, manifest))
     loader = {'fabric': 'Fabric', 'neoforge': 'NeoForge', 'paper': 'Paper',
               'velocity': 'Velocity', 'bungeecord': 'BungeeCord'}[module]
     if row['range']:
@@ -452,11 +465,11 @@ def curseforge_metadata(row, module, available):
     release.require(all(name in available for name in names), 'Missing CurseForge game version tag')
     relations = []
     if row['range']:
-        if row['branch'] not in ('26.2', '1.21.9-1.21.10', '1.21.11'):
+        if row['branch'] not in MODERNUI_FORKS and row['branch'] not in ('1.21.9-1.21.10', '1.21.11'):
             relations.append({'slug': 'modern-ui', 'projectID': 352491, 'type': 'requiredDependency'})
         if module == 'fabric':
             relations.append({'slug': 'fabric-api', 'projectID': 306612, 'type': 'requiredDependency'})
-            if row['branch'] != '26.2':
+            if row['branch'] not in MODERNUI_FORKS:
                 relations.append({'slug': 'forge-config-api-port', 'projectID': 547434, 'type': 'requiredDependency'})
     data = {'displayName': f"MusicHud TuneWeave {release.artifact_version(row)} - {module}",
             'releaseType': 'beta', 'gameVersionNames': names,
@@ -487,7 +500,7 @@ def publish_curseforge(client, manifest, cf, folder, config, report):
                 continue
             release.require(not prior or prior['status'] not in ('pending', 'uncertain'),
                             'A previous CF upload needs remote confirmation before retrying')
-            data = curseforge_metadata(row, module, available)
+            data = curseforge_metadata(row, module, available, manifest)
             body, content_type = multipart('metadata', data, [('file', path)])
             report.record(key, 'pending', sha256=digest)
             result = client.request(f'projects/{project}/upload-file', method='POST', data=body, content_type=content_type)
@@ -558,7 +571,8 @@ def publish_hangar(client, manifest, folder, config, report):
         ensure_hangar_channel(client, project, config['hangar_channel'])
         data = {'version': row['version'], 'channel': config['hangar_channel'],
                 'description': changelog(row, 'paper') + '\n\nAlso includes the dedicated Velocity proxy JAR.',
-                'platformDependencies': {'PAPER': PLUGIN_GAMES, 'VELOCITY': ['3.4']},
+                'platformDependencies': {'PAPER': game_versions(row, manifest),
+                                         'VELOCITY': ['3.4', '4.2.0'] if '26.3' in game_versions(row, manifest) else ['3.4']},
                 'pluginDependencies': {'PAPER': [], 'VELOCITY': []},
                 'files': [{'platforms': ['PAPER']}, {'platforms': ['VELOCITY']}]}
         body, content_type = multipart('versionUpload', data, [('files', p) for p in paths])
@@ -605,7 +619,7 @@ def previous_receipts(platform, tag):
     for artifact in sorted(metadata['artifacts'], key=lambda a: a['id']):
         release.require(not artifact['expired'], 'A previous upload receipt expired; confirm published files before retrying')
         run = release.api(REPOSITORY, 'actions/runs/' + str(artifact['workflow_run']['id']))
-        release.require(run['event'] == 'workflow_dispatch' and run['head_branch'] == '26.2' and
+        release.require(run['event'] == 'workflow_dispatch' and run['head_branch'] in PREPARATION_BRANCHES and
                         run['path'] == '.github/workflows/platforms.yml', 'Untrusted upload receipt source')
         for attempt in range(4):
             result = subprocess.run(['gh', 'api', f"repos/{REPOSITORY}/actions/artifacts/{artifact['id']}/zip"],
@@ -628,7 +642,7 @@ def previous_receipts(platform, tag):
 def publish_platform(platform, folder, tag, config, output):
     release.require(platform in ('modrinth', 'curseforge', 'hangar'), 'Missing publishing platform')
     release.require(os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' and
-                    os.environ.get('GITHUB_REF') == 'refs/heads/26.2' and
+                    os.environ.get('GITHUB_REF') == 'refs/heads/' + release.DEFAULT_BRANCH and
                     os.environ.get('GITHUB_REPOSITORY') == REPOSITORY, 'Platform publishing requires default-branch dispatch')
     manifest, cf = verify_platform_bundle(folder, tag)
     previous = previous_receipts(platform, tag) if platform == 'curseforge' else {}
@@ -653,7 +667,7 @@ def validate_dispatch(tag, target, prepared_run):
     if prepared_run:
         release.require(re.fullmatch(r'[1-9][0-9]*', prepared_run), 'Invalid prepared workflow run')
         run = release.api(REPOSITORY, 'actions/runs/' + prepared_run)
-        release.require(run['event'] == 'workflow_dispatch' and run['head_branch'] == '26.2' and
+        release.require(run['event'] == 'workflow_dispatch' and run['head_branch'] in PREPARATION_BRANCHES and
                         run['path'] == '.github/workflows/platforms.yml' and run['conclusion'] == 'success',
                         'Prepared bundle must come from a successful default-branch platform workflow')
     platforms = ['modrinth', 'curseforge', 'hangar'] if target == 'all' else [target]
@@ -665,7 +679,7 @@ def validate_dispatch(tag, target, prepared_run):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['inspect', 'prepare', 'assemble', 'publish', 'validate-dispatch'])
-    parser.add_argument('--tag', default='v1.3.0-beta-3')
+    parser.add_argument('--tag', default='')
     parser.add_argument('--input', type=Path, default=Path('cf-builds'))
     parser.add_argument('--platform', choices=['modrinth', 'curseforge', 'hangar'])
     parser.add_argument('--target', default='all')
