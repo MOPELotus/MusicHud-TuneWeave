@@ -386,6 +386,7 @@ public class HudRendererManager {
     private synchronized void renderFrame(GuiGraphicsExtractor graphics, @Nullable DeltaTracker deltaTracker, boolean preview) {
         try {
             if (!preview && (!clientConfig.getEnable() || !clientConfig.getEnableHud()
+                    || Minecraft.getInstance().gui.screen() instanceof indi.mopelotus.musichud.client.ui.screen.MusicHudScreen
                     || Minecraft.getInstance().gui.screen() instanceof indi.mopelotus.musichud.client.ui.screen.HudLayoutEditorScreen)) {
                 return;
             }
