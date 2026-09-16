@@ -93,7 +93,9 @@ ModernUI 有以下三条来源，按上表选择其中一条，再选择对应�
 
 ## 获取更新与反馈
 
-GitHub Release 汇总六个客户端版本组的双加载器 JAR，以及三个服务端/代理插件，共 15 个部署文件，并附带 `SHA256SUMS` 与构建来源清单。Modrinth、CurseForge 暂未启用本项目的自动发布。
+全量 CI 和发布流程由默认分支 `26.3` 管理。当前矩阵覆盖七个客户端版本组的双加载器 JAR，以及 `plugin` 分支的三个跨版本插件，共 17 个部署文件，并附带 `SHA256SUMS` 与构建来源清单。
+
+GitHub Release 在推送匹配版本标签，或从 `26.3` 手动运行 CI 并选择 `publish` 时发布。Modrinth、CurseForge、Hangar 使用独立的 `Platform publishing` 工作流：从 `26.3` 运行，填写已发布的 GitHub Release 标签，先 `prepare` 再 `publish`。该流程也保留对旧版 15 文件发布包的校验和重试支持。
 
 Actions 中的 `release-bundle` 可用于获取开发构建。报告问题时请提供 Minecraft、加载器、MusicHud、ModernUI 和 TuneWeave 的版本，以及复现步骤和相关日志片段；发送前请移除账号凭证。
 
