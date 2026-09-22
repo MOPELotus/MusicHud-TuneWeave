@@ -28,4 +28,16 @@ class AudioOutputPolicyTest {
         policy.device(17, 3);
         assertEquals(surround, policy.format(surround, AudioOutputMode.MULTICHANNEL, true, true));
     }
+    @Test void discreteOnlyNeverSilentlyFallsBackToStereo() {
+        var policy = new AudioOutputPolicy(); policy.device(17, 2);
+        int surround = OpenAlFormatSelector.select(6, false);
+        assertEquals(surround, policy.format(surround, AudioOutputMode.DISCRETE_ONLY, true, false));
+        assertThrows(IllegalStateException.class, () -> policy.format(surround, AudioOutputMode.DISCRETE_ONLY, false, false));
+        var rejected = new OpenAlFailure(OpenAlFailure.Kind.OPERATION, "alBufferData", 0xA002, 17, 2);
+        for (int i = 0; i < 3; i++) policy.rejected(rejected, surround);
+        assertThrows(IllegalStateException.class, () -> policy.format(surround, AudioOutputMode.DISCRETE_ONLY, true, false));
+        int stereo = OpenAlFormatSelector.select(2, false);
+        assertEquals(stereo, policy.format(stereo, AudioOutputMode.DISCRETE_ONLY, false, false));
+        assertEquals(AudioOutputMode.DISCRETE_ONLY, AudioOutputMode.parse(" discrete_only "));
+    }
 }

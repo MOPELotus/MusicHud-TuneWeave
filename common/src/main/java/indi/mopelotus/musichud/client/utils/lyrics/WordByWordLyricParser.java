@@ -22,7 +22,7 @@ public class WordByWordLyricParser {
     /** Accept both NetEase YRC (three numeric fields) and QQ QRC (two fields). */
     private static final Pattern phraseTimestampPattern = Pattern.compile(
             "\\((\\d+),(\\d+)(?:,\\d+)?\\)");
-    private static final Duration emptyLineIgnoreDuration = Duration.ofSeconds(5);
+    private static final Duration emptyLineIgnoreDuration = Duration.ofSeconds(10);
     private static final Logger logger = MusicHud.getLogger(FullLineLyricParser.class);
 
     public static ArrayDeque<LyricLine> parse(MusicDetail musicDetail) {

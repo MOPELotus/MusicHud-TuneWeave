@@ -56,7 +56,7 @@ public abstract class AbstractIdlePlaySourceLayerState implements IIdlePlaySourc
 
     @Override
     public void remove(MusicCollection collection) {
-        boolean removed = sources.removeIf(c -> c.getId() == collection.getId());
+        boolean removed = sources.removeIf(c -> c.getId() == collection.getId() && c.getClass() == collection.getClass());
         if (removed) {
             notifyRemove(collection);
             notifyChange(collection);

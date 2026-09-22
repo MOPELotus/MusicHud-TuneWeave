@@ -66,6 +66,78 @@ public class LocalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
     private long loadGeneration;
     private final java.util.Map<IdlePlaySource, Object> pendingAdds = new java.util.HashMap<>();
 
+    private final java.util.Map<IdlePlaySource, IdlePlaySource> loadErrors = new java.util.HashMap<>();
+    private final java.util.Map<IdlePlaySource, CompletableFuture<Boolean>> recoveries = new java.util.HashMap<>();
+    private final Set<Consumer<IdlePlaySource>> errorListeners = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private IdlePlaySource sourceOf(MusicCollection collection) {
+        return new IdlePlaySource(collection.getId(), collection.getClass(), getPlayMode(collection))
+                .withReference(collection instanceof Playlist p ? p.getSourceRef() : ((Album) collection).getSourceRef());
+    }
+
+    private CompletableFuture<? extends MusicCollection> loadSource(IdlePlaySource source) {
+        return referenceLoader != null && !source.getSourceReference().isBlank()
+                ? referenceLoader.apply(source.getType(), source.getSourceReference())
+                : load(source.getType(), source.getId());
+    }
+
+    private void markError(IdlePlaySource source) {
+        loadErrors.put(source, source);
+        errorListeners.forEach(listener -> listener.accept(source));
+    }
+
+    private void clearError(IdlePlaySource source) {
+        if (loadErrors.remove(source) != null) errorListeners.forEach(listener -> listener.accept(source));
+    }
+
+    @Override public synchronized boolean isInLoadError(Class<?> type, long id) {
+        return loadErrors.containsKey(new IdlePlaySource(id, type));
+    }
+
+    @Override public indi.mopelotus.musichud.interfaces.Unregister onLoadErrorChanged(Consumer<IdlePlaySource> listener) {
+        errorListeners.add(listener);
+        return () -> errorListeners.remove(listener);
+    }
+
+    @Override public synchronized CompletableFuture<Boolean> recover(Class<?> type, long id) {
+        IdlePlaySource key = new IdlePlaySource(id, type);
+        if (recoveries.containsKey(key)) return recoveries.get(key);
+        IdlePlaySource source = loadErrors.get(key);
+        if (source == null) return CompletableFuture.completedFuture(false);
+        long generation = loadGeneration;
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        recoveries.put(key, result);
+        try {
+            executor.execute(() -> {
+                synchronized (LocalIdlePlaySourceState.this) {
+                    if (generation != loadGeneration || recoveries.get(key) != result) return;
+                }
+                try {
+                    loadSource(source).whenComplete((collection, error) -> {
+                        synchronized (LocalIdlePlaySourceState.this) {
+                            if (generation != loadGeneration || recoveries.get(key) != result) return;
+                            recoveries.remove(key);
+                            if (error == null) {
+                                try { validate(source, collection); install(collection); result.complete(true); }
+                                catch (Exception failure) { markError(source); result.complete(false); }
+                            } else { markError(source); result.complete(false); }
+                        }
+                    });
+                } catch (Exception failure) {
+                    synchronized (LocalIdlePlaySourceState.this) {
+                        if (recoveries.get(key) != result) return;
+                        recoveries.remove(key);
+                        result.complete(false);
+                    }
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException failure) {
+            recoveries.remove(key);
+            result.complete(false);
+        }
+        return result;
+    }
+
     @Override
     public synchronized void loadFromConfig() {
         if (!loaded) {
@@ -73,24 +145,24 @@ public class LocalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
             long generation = ++loadGeneration;
             Set<IdlePlaySource> idlePlaySources = Set.copyOf(configuredSources.get());
             if (!idlePlaySources.isEmpty()) {
-                executor.execute(() -> {
+                try { executor.execute(() -> {
                     for (IdlePlaySource idlePlaySource : idlePlaySources) {
                         try {
-                            var loading = referenceLoader != null && !idlePlaySource.getSourceReference().isBlank()
-                                    ? referenceLoader.apply(idlePlaySource.getType(), idlePlaySource.getSourceReference())
-                                    : load(idlePlaySource.getType(), idlePlaySource.getId());
+                            var loading = loadSource(idlePlaySource);
                             loading.thenAcceptAsync(musicCollection -> {
                                 synchronized (LocalIdlePlaySourceState.this) {
                                     // A failed sibling makes the batch retryable, but must not
                                     // discard successful sources still wanted by the user.
                                     if (generation != loadGeneration
                                             || configuredSources.get().stream().noneMatch(idlePlaySource::equals)) return;
+                                    validate(idlePlaySource, musicCollection);
                                     add(musicCollection);
                                 }
                             }, executor).exceptionally(error -> {
                                 synchronized (LocalIdlePlaySourceState.this) {
-                                    if (generation == loadGeneration && loaded) {
+                                    if (generation == loadGeneration) {
                                         loaded = false;
+                                        if (configuredSources.get().contains(idlePlaySource)) markError(idlePlaySource);
                                     }
                                 }
                                 logger.warn("Failed to restore idle play source {}", idlePlaySource, error);
@@ -98,14 +170,18 @@ public class LocalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
                             });
                         } catch (Exception e) {
                             synchronized (LocalIdlePlaySourceState.this) {
-                                if (generation == loadGeneration && loaded) {
+                                if (generation == loadGeneration) {
                                     loaded = false;
+                                    if (configuredSources.get().contains(idlePlaySource)) markError(idlePlaySource);
                                 }
                             }
                             logger.error("Failed to load idle play source playlist with idlePlaySource:{}", idlePlaySource, e);
                         }
                     }
-                });
+                }); } catch (java.util.concurrent.RejectedExecutionException error) {
+                    loaded = false;
+                    idlePlaySources.forEach(this::markError);
+                }
             }
         }
     }
@@ -121,20 +197,31 @@ public class LocalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
     @Override
     public synchronized void add(MusicCollection idlePlaySourceCollection) {
         if (idlePlaySourceCollection.getMusicDetails().size() < idlePlaySourceCollection.getMusicTrackCount()) {
-            IdlePlaySource key = new IdlePlaySource(idlePlaySourceCollection.getId(), idlePlaySourceCollection.getClass());
+            IdlePlaySource key = sourceOf(idlePlaySourceCollection);
             Object request = new Object();
             pendingAdds.put(key, request);
-            load(key.getType(), key.getId()).whenComplete((complete, error) -> {
+            CompletableFuture<? extends MusicCollection> loading;
+            try { loading = loadSource(key); }
+            catch (Exception failure) { pendingAdds.remove(key); markError(key); return; }
+            loading.whenComplete((complete, error) -> {
                 synchronized (LocalIdlePlaySourceState.this) {
                     if (pendingAdds.get(key) != request) return;
                     pendingAdds.remove(key);
-                    if (error != null) { logger.warn("Failed to load idle source", error); return; }
-                    install(complete);
+                    if (error != null) { markError(key); logger.warn("Failed to load idle source", error); return; }
+                    try { validate(key, complete); install(complete); }
+                    catch (Exception failure) { markError(key); logger.warn("Failed to publish idle source", failure); }
                 }
             });
             return;
         }
         install(idlePlaySourceCollection);
+    }
+
+    private static void validate(IdlePlaySource source, MusicCollection collection) {
+        if (collection == null || source.getId() != collection.getId() || source.getType() != collection.getClass()
+                || collection.getMusicDetails().size() < collection.getMusicTrackCount()) {
+            throw new IllegalStateException("Incomplete or mismatched idle source details");
+        }
     }
 
     private void install(MusicCollection idlePlaySourceCollection) {
@@ -150,6 +237,7 @@ public class LocalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
             saveConfig.run();
         }
         send.accept(new AddToIdlePlaySourceMessage(idlePlaySource, collection));
+        clearError(idlePlaySource);
     }
 
     @Override public synchronized indi.mopelotus.musichud.beans.api.IdlePlayMode getPlayMode(MusicCollection collection) {
@@ -165,11 +253,16 @@ public class LocalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
         configuredSources.get().add(source);
         saveConfig.run();
         add(collection);
+        notifyChange(collection);
     }
 
     @Override
     public synchronized void remove(MusicCollection collection) {
-        pendingAdds.remove(new IdlePlaySource(collection.getId(), collection.getClass()));
+        IdlePlaySource key = sourceOf(collection);
+        pendingAdds.remove(key);
+        var recovery = recoveries.remove(key);
+        if (recovery != null) recovery.complete(false);
+        clearError(key);
         sources.removeIf(c -> c.getId() == collection.getId() && c.getClass() == collection.getClass());
         notifyRemove(collection);
         notifyChange(collection);
@@ -182,6 +275,12 @@ public class LocalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
     @Override
     public synchronized void reset() {
         pendingAdds.clear();
+        var canceled = java.util.List.copyOf(recoveries.values());
+        recoveries.clear();
+        canceled.forEach(future -> future.complete(false));
+        var errors = java.util.List.copyOf(loadErrors.keySet());
+        loadErrors.clear();
+        errors.forEach(source -> errorListeners.forEach(listener -> listener.accept(source)));
         loadGeneration++;
         loaded = false;
     }

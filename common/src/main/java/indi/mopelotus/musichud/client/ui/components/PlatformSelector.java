@@ -12,7 +12,7 @@ import icyllis.modernui.widget.LinearLayout;
 import icyllis.modernui.widget.ImageView;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.utils.image.PlatformIconUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import net.minecraft.client.resources.language.I18n;
@@ -49,9 +49,9 @@ public final class PlatformSelector extends LinearLayout {
         setOrientation(HORIZONTAL);
         setGravity(Gravity.CENTER);
         setPadding(dp(2), dp(2), dp(2), dp(2));
-        setBackground(ButtonInsetBackgroundFactory.builder()
+        InsetBackgroundFactory.builder()
                 .backgroundColor(Theme.GHOST_BUTTON_STATES)
-                .cornerRadius(dp(6)).inset(dp(1)).build().newBackgroundDrawable());
+                .cornerRadius(dp(6)).inset(dp(1)).build().applyBackgroundTo(this);
         for (TuneWeavePlatform platform : platforms) {
             CheckableImageButton button = new CheckableImageButton(context);
             button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -62,10 +62,10 @@ public final class PlatformSelector extends LinearLayout {
                                 context.getResources(), image, dp(20), dp(20)), dp(3)));
             }
             button.setTooltipText(I18n.get(MusicHud.MOD_ID + ".platform." + platform.apiName()));
-            button.setBackground(ButtonInsetBackgroundFactory.builder()
+            InsetBackgroundFactory.builder()
                     .backgroundColor(SEGMENT_STATES)
-                    .padding(new ButtonInsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4)))
-                    .cornerRadius(dp(4)).inset(0).build().newBackgroundDrawable());
+                    .padding(new InsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4)))
+                    .cornerRadius(dp(4)).inset(0).build().applyBackgroundTo(button);
             button.setOnClickListener(view -> select(platform, true));
             button.setContentDescription(I18n.get(MusicHud.MOD_ID + ".platform." + platform.apiName()));
             buttons.put(platform, button);
@@ -103,10 +103,10 @@ public final class PlatformSelector extends LinearLayout {
         }
         button.setTooltipText(label);
         button.setContentDescription(label);
-        button.setBackground(ButtonInsetBackgroundFactory.builder()
+        InsetBackgroundFactory.builder()
                 .backgroundColor(SEGMENT_STATES)
-                .padding(new ButtonInsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4)))
-                .cornerRadius(dp(4)).inset(0).build().newBackgroundDrawable());
+                .padding(new InsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4)))
+                .cornerRadius(dp(4)).inset(0).build().applyBackgroundTo(button);
         button.setOnClickListener(view -> {
             selected = null;
             buttons.values().forEach(platformButton -> platformButton.setChecked(false));

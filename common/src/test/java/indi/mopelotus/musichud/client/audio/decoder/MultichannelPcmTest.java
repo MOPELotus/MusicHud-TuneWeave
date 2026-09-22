@@ -13,6 +13,7 @@ class MultichannelPcmTest {
             try (var input = getClass().getResourceAsStream("/audio/pcm24-surround-" + channels + ".flac");
                  var decoder = new FlacPcmDecoder(input, floating, true)) {
                 int frameSize = channels * (floating ? 4 : 2);
+                assertFalse(decoder.hasDownmixedChannels());
                 assertEquals(frameSize, decoder.getFrameSize());
                 assertEquals(channels, indi.mopelotus.musichud.client.audio.OpenAlFormatSelector.channels(decoder.getFormat()));
                 ByteArrayOutputStream all = new ByteArrayOutputStream(); byte[] chunk;
@@ -26,7 +27,10 @@ class MultichannelPcmTest {
                 assertEquals(10, decoder.getPositionMillis());
             }
             var wav = new WavPcmDecoder(new ByteArrayInputStream(wave(channels, PcmChannelLayout.flacDefault(channels), new byte[channels * 3])), floating, true);
-            try (wav) { assertEquals(channels * (floating ? 4 : 2), wav.readChunk(64).length); }
+            try (wav) {
+                assertFalse(wav.hasDownmixedChannels());
+                assertEquals(channels * (floating ? 4 : 2), wav.readChunk(64).length);
+            }
         }
     }
     @Test void everyStandardSpeakerRoutesToTheCorrectSideWithoutClipping() throws Exception {
@@ -58,6 +62,8 @@ class MultichannelPcmTest {
             for (int c = 0; c < channels; c++) raw[(c * channels + c) * 3 + 2] = 64;
             try (var wav = new WavPcmDecoder(new ByteArrayInputStream(wave(channels, PcmChannelLayout.flacDefault(channels), raw)), floating);
                  var flac = new FlacPcmDecoder(getClass().getResourceAsStream("/audio/pcm24-surround-" + channels + ".flac"), floating)) {
+                assertTrue(wav.hasDownmixedChannels());
+                assertTrue(flac.hasDownmixedChannels());
                 byte[] result = drain(wav);
                 assertArrayEquals(result, drain(flac));
                 assertEquals((channels + 480) * (floating ? 8 : 4), result.length);

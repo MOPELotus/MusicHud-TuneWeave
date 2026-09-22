@@ -115,6 +115,9 @@ final class FlacPcmDecoder implements AudioDecoder {
     }
 
     private static int metadataLength(byte[] header) { return (header[1] & 255) << 16 | (header[2] & 255) << 8 | header[3] & 255; }
+    @Override public boolean hasDownmixedChannels() {
+        return output.channels > 2 && indi.mopelotus.musichud.client.audio.OpenAlFormatSelector.channels(output.format()) <= 2;
+    }
     @Override public int getFormat() { return output.format(); }
     @Override public int getSampleRate() { return output.sampleRate; }
     @Override public int getFrameSize() { return output.frameSize(); }

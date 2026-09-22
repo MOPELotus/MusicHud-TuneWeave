@@ -18,6 +18,9 @@ public interface AudioDecoder extends AutoCloseable {
 
     int getFrameSize();
 
+    /** True when a known source speaker layout required a stereo fold-down. */
+    default boolean hasDownmixedChannels() { return false; }
+
     default SampleEncoding getSampleEncoding() {
         return SampleEncoding.PCM_S16_LE;
     }

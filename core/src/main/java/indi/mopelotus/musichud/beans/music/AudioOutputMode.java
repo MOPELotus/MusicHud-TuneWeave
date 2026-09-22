@@ -4,7 +4,7 @@ import java.util.Locale;
 
 /** Local device preference; this is never part of the public playback session. */
 public enum AudioOutputMode {
-    MULTICHANNEL, STEREO;
+    MULTICHANNEL, STEREO, DISCRETE_ONLY;
 
     public static AudioOutputMode parse(String value) {
         if (value == null) return MULTICHANNEL;

@@ -136,6 +136,8 @@ dependencies {
         exclude group: "org.commonmark"
     }
 
+    additionalRuntimeClasspath(implementation("net.jthink:jaudiotagger:3.0.1"))
+    shadowBundle "net.jthink:jaudiotagger:3.0.1"
     // NeoForge 1.21.8 and below require plain Java libraries on the legacy game classpath.
     additionalRuntimeClasspath(implementation("dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version") {
         // Minecraft owns the host Jackson version; keep it separate from the shadow bundle.

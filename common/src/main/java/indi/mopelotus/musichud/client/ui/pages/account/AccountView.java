@@ -6,6 +6,13 @@ import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.view.Gravity;
 import icyllis.modernui.view.View;
 import icyllis.modernui.widget.Button;
+import icyllis.modernui.widget.ImageButton;
+import icyllis.modernui.widget.ImageView;
+import icyllis.modernui.view.ViewGroup;
+import icyllis.modernui.text.SpannableString;
+import icyllis.modernui.text.Spanned;
+import icyllis.modernui.graphics.drawable.InsetDrawable;
+import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import icyllis.modernui.widget.LinearLayout;
 import icyllis.modernui.widget.ProgressBar;
 import icyllis.modernui.widget.TextView;
@@ -30,7 +37,7 @@ import indi.mopelotus.musichud.client.ui.pages.PodcastRadioView;
 import indi.mopelotus.musichud.client.ui.pages.UniPlaylistView;
 import indi.mopelotus.musichud.client.ui.components.UrlImageView;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.interfaces.IClientLoginService;
 import indi.mopelotus.musichud.interfaces.Unregister;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
@@ -54,7 +61,6 @@ public class AccountView extends LinearLayout {
     private final TuneWeaveClientService tuneWeave = TuneWeaveClientService.getInstance();
     private TuneWeavePlatform selectedPlatform = tuneWeave.defaultPlatform();
     private boolean showingUniPlaylists;
-    private boolean showingRecentHistory;
     private final CallbackGeneration callbacks = new CallbackGeneration();
     private final Map<ElementKey, View> elementMap = new HashMap<>();
     private FlexWrapLayout myPlaylistCards;
@@ -146,6 +152,32 @@ public class AccountView extends LinearLayout {
         });
     }
 
+    private void buildCard(Context context, InsetBackgroundFactory background, ViewGroup target,
+                           String key, String icon, View.OnClickListener onClick) {
+        Button button = new Button(context);
+        button.setTextSize(Theme.TEXT_SIZE_LARGE);
+        SpannableString label = new SpannableString("  " + I18n.get(MusicHud.MOD_ID + key));
+        Image image = ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/" + icon);
+        if (image != null) label.setSpan(ImageUtils.getIconSpan(image), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        button.setText(label);
+        background.applyBackgroundTo(button);
+        button.setOnClickListener(onClick);
+        target.addView(button, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+    }
+
+    private void buildIcon(Context context, InsetBackgroundFactory background, ViewGroup target,
+                           String key, String icon, View.OnClickListener onClick) {
+        ImageButton button = new ImageButton(context);
+        background.applyBackgroundTo(button);
+        button.setTooltipText(I18n.get(MusicHud.MOD_ID + key));
+        button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        Image image = ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/" + icon);
+        if (image != null) button.setImageDrawable(new InsetDrawable(
+                new ScaledImageDrawable(context.getResources(), image, dp(12), dp(16)), dp(3)));
+        button.setOnClickListener(onClick);
+        target.addView(button, new LayoutParams(WRAP_CONTENT, dp(40)));
+    }
+
     private void unregisterCollectionListeners() {
         if (playlistAddRegister != null) {
             playlistAddRegister.unregister();
@@ -213,7 +245,7 @@ public class AccountView extends LinearLayout {
 
         tuneWeave.setDefaultPlatform(selectedPlatform);
         if (showingUniPlaylists) {
-            addView(new UniPlaylistView(context), new LayoutParams(MATCH_PARENT, 0, 1));
+            addView(new UniPlaylistView(context), new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
             return;
         }
         if (!tuneWeave.hasCredential(selectedPlatform)) {
@@ -240,13 +272,13 @@ public class AccountView extends LinearLayout {
 
         UrlImageView avatar = new UrlImageView(context);
         avatar.setCircular(true);
-        LayoutParams layoutParams = new LayoutParams(dp(68), dp(68));
+        LayoutParams layoutParams = new LayoutParams(dp(80), dp(80));
         avatar.setLayoutParams(layoutParams);
         topPanel.addView(avatar);
         avatar.loadUrl(avatarUrl == null || avatarUrl.isBlank() ? MusicHud.ICON_BASE64 : avatarUrl);
 
-        LayoutParams infoLp1 = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-        infoLp1.setMargins(dp(16), 0, 0, 0);
+        LayoutParams infoLp1 = new LayoutParams(0, WRAP_CONTENT, 1);
+        infoLp1.setMargins(dp(8), 0, 0, 0);
         LinearLayout infoLayout = new LinearLayout(context);
         infoLayout.setOrientation(VERTICAL);
         infoLayout.setGravity(Gravity.CENTER_VERTICAL);
@@ -268,99 +300,36 @@ public class AccountView extends LinearLayout {
         id.setText(displayId);
         infoLayout.addView(id, idLayoutParams);
 
-        ButtonInsetBackgroundFactory backgroundFactory = ButtonInsetBackgroundFactory.builder()
-                .inset(0).cornerRadius(dp(4))
-                .padding(new ButtonInsetBackgroundFactory.Padding(0, dp(2), 0, dp(2)))
-                .build();
-
-        LinearLayout buttonsLayout = new LinearLayout(context);
-        buttonsLayout.setOrientation(LinearLayout.HORIZONTAL);
-        infoLayout.addView(buttonsLayout);
-
-        Button refreshButton = new Button(context);
-        refreshButton.setTextColor(Theme.PRIMARY_COLOR);
-        refreshButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        refreshButton.setText(I18n.get(MusicHud.MOD_ID + ".button.refresh"));
-        var background1 = backgroundFactory.newBackgroundDrawable();
-        refreshButton.setBackground(background1);
-        LayoutParams params = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
-        params.setMargins(0, 0, dp(8), 0);
-        refreshButton.setLayoutParams(params);
-        refreshButton.setOnClickListener(b -> {
-            refresh(true);
-        });
-        buttonsLayout.addView(refreshButton);
-
-        if (selectedPlatform != TuneWeavePlatform.BILIBILI) {
-            Button managePlaylistsButton = new Button(context);
-            managePlaylistsButton.setText(I18n.get(MusicHud.MOD_ID + ".button.managePlaylists"));
-            managePlaylistsButton.setTextColor(Theme.PRIMARY_COLOR);
-            managePlaylistsButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
-            managePlaylistsButton.setBackground(backgroundFactory.newBackgroundDrawable());
-            managePlaylistsButton.setOnClickListener(button -> RouterContainer.getInstance().pushNavigate(
-                    new PlatformPlaylistManagerView(context)));
-            LayoutParams manageParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
-            manageParams.setMargins(0, 0, dp(8), 0);
-            buttonsLayout.addView(managePlaylistsButton, manageParams);
-        }
-
-        if (TuneWeaveClientService.getInstance().defaultPlatform() == TuneWeavePlatform.NETEASE) {
-            Button cloudButton = new Button(context);
-            cloudButton.setText(I18n.get(MusicHud.MOD_ID + ".button.cloud"));
-            cloudButton.setTextColor(Theme.PRIMARY_COLOR);
-            cloudButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
-            cloudButton.setBackground(backgroundFactory.newBackgroundDrawable());
-            cloudButton.setOnClickListener(button -> RouterContainer.getInstance().pushNavigate(new CloudView(context)));
-            LayoutParams cloudParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
-            cloudParams.setMargins(0, 0, dp(8), 0);
-            buttonsLayout.addView(cloudButton, cloudParams);
-
-            Button programsButton = new Button(context);
-            programsButton.setText(I18n.get(MusicHud.MOD_ID + ".button.programs"));
-            programsButton.setTextColor(Theme.PRIMARY_COLOR);
-            programsButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
-            programsButton.setBackground(backgroundFactory.newBackgroundDrawable());
-            programsButton.setOnClickListener(button -> RouterContainer.getInstance().pushNavigate(
-                    new PodcastRadioView(context)));
-            LayoutParams programsParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
-            programsParams.setMargins(0, 0, dp(8), 0);
-            buttonsLayout.addView(programsButton, programsParams);
-        }
-
-        Button historyButton = new Button(context);
-        historyButton.setText(I18n.get(MusicHud.MOD_ID + ".text.history.title"));
-        historyButton.setTextColor(Theme.PRIMARY_COLOR);
-        historyButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        historyButton.setBackground(backgroundFactory.newBackgroundDrawable());
-        historyButton.setOnClickListener(view -> {
+        InsetBackgroundFactory cardBackground = InsetBackgroundFactory.builder()
+                .backgroundColor(Theme.GHOST_BUTTON_STATES).inset(dp(1)).cornerRadius(dp(4))
+                .padding(new InsetBackgroundFactory.Padding(dp(8), dp(6), dp(8), dp(6))).build();
+        FlexWrapLayout buttons = new FlexWrapLayout(context);
+        buttons.setAnimationsEnabled(false);
+        infoLayout.addView(buttons, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        buildCard(context, cardBackground, buttons, ".button.history", "rotate_ccw_clock.png", view -> {
             if (!callbacks.isCurrent(generation)) return;
-            showingRecentHistory = true;
-            refresh(false);
+            RouterContainer router = RouterContainer.getInstance();
+            if (router != null) router.pushNavigate(new RecentHistoryView(context, selectedPlatform));
         });
-        infoLayout.addView(historyButton, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-
-        Button logoutButton = new Button(context);
-        logoutButton.setText(I18n.get(MusicHud.MOD_ID + ".button.logout"));
-        logoutButton.setTextColor(Theme.PRIMARY_COLOR);
-        logoutButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        var background2 = backgroundFactory.newBackgroundDrawable();
-        logoutButton.setBackground(background2);
-        logoutButton.setOnClickListener(b -> {
-            clientLoginService.logout();
-        });
-        buttonsLayout.addView(logoutButton, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        if (selectedPlatform == TuneWeavePlatform.NETEASE) {
+            buildCard(context, cardBackground, buttons, ".button.cloud", "cloud.png", view ->
+                    RouterContainer.getInstance().pushNavigate(new CloudView(context)));
+            buildCard(context, cardBackground, buttons, ".button.programs", "radio.png", view ->
+                    RouterContainer.getInstance().pushNavigate(new PodcastRadioView(context)));
+        }
+        if (selectedPlatform != TuneWeavePlatform.BILIBILI) {
+            buildCard(context, cardBackground, buttons, ".button.managePlaylists", "list_music.png", view ->
+                    RouterContainer.getInstance().pushNavigate(new PlatformPlaylistManagerView(context)));
+        }
+        InsetBackgroundFactory iconBackground = InsetBackgroundFactory.builder()
+                .backgroundColor(Theme.GHOST_BUTTON_STATES).inset(dp(1)).cornerRadius(dp(4))
+                .padding(new InsetBackgroundFactory.Padding(dp(6), dp(6), dp(6), dp(6))).build();
+        buildIcon(context, iconBackground, buttons, ".button.refresh", "rotate_cw.png", view -> refresh(true));
+        buildIcon(context, iconBackground, buttons, ".button.logout", "log_out.png", view -> clientLoginService.logout());
 
         LayoutParams topPanelLayoutParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
         topPanelLayoutParams.setMargins(0, dp(32), 0, dp(32));
         addView(topPanel, topPanelLayoutParams);
-        if (showingRecentHistory) {
-            addView(new RecentHistoryView(context, selectedPlatform, () -> {
-                if (!callbacks.isCurrent(generation)) return;
-                showingRecentHistory = false;
-                refresh(false);
-            }), new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-            return;
-        }
 
         LinearLayout content = new LinearLayout(context);
         content.setOrientation(VERTICAL);

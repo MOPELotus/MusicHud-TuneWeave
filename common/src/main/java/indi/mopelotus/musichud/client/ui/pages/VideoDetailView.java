@@ -27,7 +27,7 @@ import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.components.UrlImageView;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.List;
@@ -127,8 +127,8 @@ public final class VideoDetailView extends LinearLayout {
             LinearLayout row = new LinearLayout(getContext());
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(10), dp(8), dp(10), dp(8));
-            row.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(6)).inset(dp(1))
-                    .build().newBackgroundDrawable());
+            InsetBackgroundFactory.builder().cornerRadius(dp(6)).inset(dp(1))
+                    .build().applyBackgroundTo(row);
             TextView number = new TextView(getContext());
             number.setText(part.page() + ".");
             number.setTextColor(Theme.SECONDARY_TEXT_COLOR);
@@ -173,8 +173,8 @@ public final class VideoDetailView extends LinearLayout {
             button.setImageDrawable(new InsetDrawable(new ScaledImageDrawable(
                     getContext().getResources(), image, dp(16), dp(16)), dp(5)));
         }
-        button.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
-                .build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
+                .build().applyBackgroundTo(button);
         var binding = tasks.capture();
         button.setOnClickListener(view -> {
             if (key.endsWith(".back") || key.endsWith(".refresh")

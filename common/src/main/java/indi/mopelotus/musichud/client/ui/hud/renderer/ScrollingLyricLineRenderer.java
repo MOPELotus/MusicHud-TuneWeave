@@ -1,6 +1,7 @@
 package indi.mopelotus.musichud.client.ui.hud.renderer;
 
 import icyllis.modernui.mc.FontResourceManager;
+import indi.mopelotus.musichud.client.utils.ui.SpringInterpolator;
 import icyllis.modernui.mc.text.ModernStringSplitter;
 import icyllis.modernui.mc.text.TextLayoutEngine;
 import indi.mopelotus.musichud.MusicHud;
@@ -35,7 +36,8 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
     private boolean isTransitioning = false;
     private float transitionProgress = 1.0f;
     private long transitionStartTime = 0;
-    private long transitionDuration = 800;
+    private static final int TRANSITION_DURATION = 300;
+    private static final SpringInterpolator INTERPOLATOR = new SpringInterpolator(0.3f, 1);
     private int cachedContainerWidth;
     @Setter
     private int lineSpacing = 0;
@@ -62,8 +64,7 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
     public void clear() {
         setLines(
                 new Line(null, "", 0, 0, 0),
-                new Line(null, "", 0, 0, 0),
-                0
+                new Line(null, "", 0, 0, 0)
         );
     }
 
@@ -72,10 +73,8 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
      *
      * @param line1             第一行的文本和颜色
      * @param line2             第二行的文本和颜色
-     * @param transitionDuration 切换动画时长（毫秒）
      */
-    public void setLines(Line line1, Line line2,
-                         long transitionDuration) {
+    public void setLines(Line line1, Line line2) {
         // 如果已经处于切换中，先强制结束当前切换，把next变成current
         if (isTransitioning) {
             currentLine1.copyFrom(nextLine1);
@@ -102,7 +101,6 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
         // 开始切换动画
         isTransitioning = true;
         transitionProgress = 0.0f;
-        this.transitionDuration = transitionDuration;
         transitionStartTime = System.currentTimeMillis();
     }
 
@@ -175,7 +173,7 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
         // 更新切换动画
         if (isTransitioning) {
             long elapsed = now - transitionStartTime;
-            if (elapsed >= transitionDuration) {
+            if (elapsed >= TRANSITION_DURATION) {
                 transitionProgress = 1.0f;
                 isTransitioning = false;
                 currentLine1.copyFrom(nextLine1);
@@ -187,7 +185,7 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
                 nextLine1.reset(null);
                 nextLine2.reset(null);
             } else {
-                transitionProgress = (float) elapsed / transitionDuration;
+                transitionProgress = (float) elapsed / TRANSITION_DURATION;
                 transitionProgress = Math.min(1.0f, transitionProgress);
             }
         }
@@ -225,7 +223,7 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
         context.pushScissor((int) x, (int) y, (int) (x + layout.getWidth()), (int) (y + layout.getHeight()));
         try {
             if (isTransitioning && nextLine1.line != null && nextLine2.line != null) {
-                float easedProgress = Easing.EASE_IN_OUT_QUINT.getInterpolation(transitionProgress);
+                float easedProgress = INTERPOLATOR.getInterpolation(transitionProgress);
                 float oldYOffset = -easedProgress * layout.getHeight();
                 if (currentLine1.line != null && currentLine1.line.lyricLine != null) {
                     if (currentLine1.line.lyricLine.isWordByWord()) {
