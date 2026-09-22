@@ -119,7 +119,7 @@ public class MusicCollectionCard extends LinearLayout {
             {
                 playedCountView = new TextView(context);
                 playedCountView.setTextSize(Theme.TEXT_SIZE_NORMAL);
-                playedCountView.setText(buildCountText(indi.mopelotus.musichud.client.utils.CountFormatter.formatCount(playlist.getPlayedCount()), ICON_AUDIO_LINES));
+                playedCountView.setText(buildCountText(indi.mopelotus.musichud.client.utils.CountFormatter.formatCount(playlist.getDisplayPlayedCount()), ICON_AUDIO_LINES));
                 texts.addView(playedCountView, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT, 0));
             }
         } else if (musicCollection instanceof Album album) {
@@ -262,7 +262,8 @@ public class MusicCollectionCard extends LinearLayout {
 
     private static String playlistIcon(Playlist playlist) {
         return tuneWeave.isFavoritePlaylist(playlist)
-                ? "/assets/musichud_tuneweave/textures/gui/icons/heart_filled.png" : ICON_LIST_MUSIC;
+                ? "/assets/musichud_tuneweave/textures/gui/icons/heart_filled.png"
+                : playlist.isPersonalized() ? "/assets/musichud_tuneweave/textures/gui/icons/radio.png" : ICON_LIST_MUSIC;
     }
 
     private void bindTracksListener() {
@@ -290,7 +291,7 @@ public class MusicCollectionCard extends LinearLayout {
         if (collection instanceof Playlist playlist) {
             musicTrackCountView.setText(buildCountText(String.valueOf(playlist.getMusicTrackCount()), playlistIcon(playlist)));
             if (playedCountView != null) {
-                playedCountView.setText(buildCountText(indi.mopelotus.musichud.client.utils.CountFormatter.formatCount(playlist.getPlayedCount()), ICON_AUDIO_LINES));
+                playedCountView.setText(buildCountText(indi.mopelotus.musichud.client.utils.CountFormatter.formatCount(playlist.getDisplayPlayedCount()), ICON_AUDIO_LINES));
             }
         } else if (collection instanceof Album album) {
             musicTrackCountView.setText(buildCountText(String.valueOf(album.getMusicTrackCount()), ICON_DISC_ALBUM));

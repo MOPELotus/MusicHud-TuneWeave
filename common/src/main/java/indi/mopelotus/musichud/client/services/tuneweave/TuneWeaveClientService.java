@@ -138,6 +138,10 @@ public final class TuneWeaveClientService {
         return gateway.hasCredential(platform);
     }
 
+    public TuneWeaveMembership loadMembership(TuneWeavePlatform platform) {
+        return scoped(() -> account.loadMembership(platform));
+    }
+
     public TuneWeaveSession cachedSession(TuneWeavePlatform platform) {
         return authentication.cachedSession(platform);
     }

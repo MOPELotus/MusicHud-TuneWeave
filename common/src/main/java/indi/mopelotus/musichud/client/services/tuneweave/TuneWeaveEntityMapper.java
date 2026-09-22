@@ -209,11 +209,28 @@ final class TuneWeaveEntityMapper {
                 string(object, "name", reference), cover.isBlank() ? MusicHud.ICON_BASE64 : cover,
                 integer(object, "track_count", integer(object, "item_count", 0)),
                 0, creator);
-        playlist.setDisplayPlayedCount(longValue(object, "play_count", 0));
+        JsonObject metadata = object.has("extensions") && object.get("extensions").isJsonObject()
+                ? object.getAsJsonObject("extensions") : new JsonObject();
+        playlist.setDisplayPlayedCount(displayCount(object.has("play_count") ? object : metadata));
+        playlist.setPersonalized(platform == TuneWeavePlatform.NETEASE && personalizedPlaylist(metadata));
         playlist.setPrivacy(playlistPrivacy(object));
         playlist.setDescription(string(object, "description", ""));
         cachePlaylist(playlist);
         return playlist;
+    }
+
+    private static boolean personalizedPlaylist(JsonObject metadata) {
+        try { return metadata.get("special_type").getAsBigDecimal().intValueExact() == 100; }
+        catch (RuntimeException absentOrInvalid) { return false; }
+    }
+
+    private static long displayCount(JsonObject metadata) {
+        JsonElement raw = metadata.get("play_count");
+        if (raw == null || !raw.isJsonPrimitive()) return 0;
+        try {
+            return raw.getAsBigDecimal().toBigIntegerExact().max(java.math.BigInteger.ZERO)
+                    .min(java.math.BigInteger.valueOf(Long.MAX_VALUE)).longValue();
+        } catch (RuntimeException invalid) { return 0; }
     }
 
     static indi.mopelotus.musichud.beans.music.Privacy playlistPrivacy(JsonObject value) {

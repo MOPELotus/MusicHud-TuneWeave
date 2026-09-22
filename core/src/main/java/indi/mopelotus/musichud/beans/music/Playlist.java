@@ -65,6 +65,9 @@ public class Playlist implements MusicCollection {
     public String getDescription() { return Objects.requireNonNullElse(description, ""); }
     public void setDescription(String value) { description = Objects.requireNonNullElse(value, ""); }
 
+    private transient boolean personalized;
+    public boolean isPersonalized() { return personalized; }
+    public void setPersonalized(boolean value) { personalized = value; }
     private transient long displayPlayedCount = -1;
     public long getDisplayPlayedCount() { return Math.max(playedCount, displayPlayedCount); }
     public void setDisplayPlayedCount(long value) {
@@ -133,7 +136,7 @@ public class Playlist implements MusicCollection {
 
     @Override
     public String getNameI18nKey() {
-        return MusicHud.MOD_ID + ".text.playlist";
+        return MusicHud.MOD_ID + (personalized ? ".text.recommendlist" : ".text.playlist");
     }
 
     @Override
@@ -217,6 +220,7 @@ public class Playlist implements MusicCollection {
         playlist.sourceRef = sourceRef;
         playlist.description = description;
         playlist.displayPlayedCount = displayPlayedCount;
+        playlist.personalized = personalized;
         return playlist;
     }
 
