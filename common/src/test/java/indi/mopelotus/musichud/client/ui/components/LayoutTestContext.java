@@ -10,8 +10,7 @@ final class LayoutTestContext extends Context {
         // Construction initializes layout policy only; run() would create a graphics device.
         if (icyllis.modernui.ModernUI.getInstance() == null) new icyllis.modernui.ModernUI();
     }
-    private final Resources resources = new Resources(icyllis.modernui.resources.AssetManager.getSystem(),
-            new icyllis.modernui.util.DisplayMetrics(), new icyllis.modernui.resources.Configuration());
+    private final Resources resources = new Resources();
     private final Resources.Theme theme = resources.newTheme();
 
     @Override public Resources getResources() { return resources; }
