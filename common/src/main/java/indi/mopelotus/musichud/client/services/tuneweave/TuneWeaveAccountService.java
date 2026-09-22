@@ -52,6 +52,19 @@ final class TuneWeaveAccountService {
         this.entities = Objects.requireNonNull(entities);
     }
 
+    TuneWeaveMembership loadMembership(TuneWeavePlatform platform) {
+        try {
+            Map<String, String> query = platform == TuneWeavePlatform.NETEASE
+                    ? Map.of("platform", platform.apiName(), "backend", "client")
+                    : Map.of("platform", platform.apiName());
+            return TuneWeaveMembership.parse(gateway.requestForPlatform(platform, "GET", "/v1/account/membership",
+                    query, null).data());
+        } catch (TuneWeaveApiClient.TuneWeaveException error) {
+            if ("capability_not_supported".equals(error.getCode())) return TuneWeaveMembership.NONE;
+            throw error;
+        }
+    }
+
     UserCategoryPlaylists loadPlaylists() {
         return loadPlaylists(gateway.defaultPlatform());
     }

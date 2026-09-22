@@ -381,7 +381,7 @@ public class MusicCollectionDetailView extends LinearLayout {
 
     private void updatePlaylistTrackCountView(Playlist playlist) {
         SpannableString text = new SpannableString("  " + playlist.getMusicTrackCount());
-        String iconPath = TuneWeaveClientService.getInstance().isFavoritePlaylist(playlist) ? "heart_filled.png" : "list_music.png";
+        String iconPath = TuneWeaveClientService.getInstance().isFavoritePlaylist(playlist) ? "heart_filled.png" : playlist.isPersonalized() ? "radio.png" : "list_music.png";
         Image icon = ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/" + iconPath);
         if (icon != null) {
             ImageSpan iconSpan = ImageUtils.getIconSpan(icon);

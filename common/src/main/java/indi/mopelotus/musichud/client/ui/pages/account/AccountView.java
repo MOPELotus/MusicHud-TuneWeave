@@ -300,6 +300,38 @@ public class AccountView extends LinearLayout {
         id.setText(displayId);
         infoLayout.addView(id, idLayoutParams);
 
+        LinearLayout membership = new LinearLayout(context);
+        membership.setGravity(Gravity.CENTER_VERTICAL);
+        membership.setVisibility(GONE);
+        infoLayout.addView(membership, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        TuneWeavePlatform membershipPlatform = selectedPlatform;
+        Object membershipAccount = indi.mopelotus.musichud.client.services.music.MusicEntityCache.captureGeneration();
+        try {
+            CompletableFuture.supplyAsync(tuneWeave.prepareAccountRequest(membershipPlatform,
+                    () -> tuneWeave.loadMembership(membershipPlatform)), MusicHud.EXECUTOR).thenAccept(value -> post(generation, () -> {
+                if (membershipAccount != indi.mopelotus.musichud.client.services.music.MusicEntityCache.captureGeneration()) return;
+                if (value.level() == null && value.active() == null && value.iconUrl().isBlank()) return;
+                if (!value.iconUrl().isBlank()) {
+                    UrlImageView icon = new UrlImageView(context);
+                    icon.setAspectRatio(0);
+                    icon.setSquareCrop(false);
+                    icon.setCornerRadius(0);
+                    membership.addView(icon, new LayoutParams(dp(48), dp(20)));
+                    icon.loadUrl(value.iconUrl());
+                }
+                TextView badge = new TextView(context);
+                badge.setTextSize(Theme.TEXT_SIZE_SMALL);
+                badge.setTextColor(Boolean.TRUE.equals(value.active()) ? Theme.PRIMARY_COLOR : Theme.SECONDARY_TEXT_COLOR);
+                String label = value.level() == null ? "" : I18n.get(MusicHud.MOD_ID + ".text.membershipLevel", value.level());
+                if (value.active() != null) label += (label.isBlank() ? "" : " · ")
+                        + I18n.get(MusicHud.MOD_ID + (value.active() ? ".text.membershipActive" : ".text.membershipInactive"));
+                badge.setText(label);
+                membership.addView(badge, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+                membership.setVisibility(VISIBLE);
+            })).exceptionally(error -> null);
+        } catch (RuntimeException unavailable) { /* Optional metadata must not block account collections. */ }
+
+
         InsetBackgroundFactory cardBackground = InsetBackgroundFactory.builder()
                 .backgroundColor(Theme.GHOST_BUTTON_STATES).inset(dp(1)).cornerRadius(dp(4))
                 .padding(new InsetBackgroundFactory.Padding(dp(8), dp(6), dp(8), dp(6))).build();
