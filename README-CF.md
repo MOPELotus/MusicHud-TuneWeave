@@ -8,7 +8,9 @@ This is an independently maintained fork of [MusicHud by Ephern / Etern](https:/
 
 ### Installation
 
-Install the file for your Minecraft version and loader, together with its required dependencies. Fabric needs Fabric API and the appropriate ModernUI build. Most supported ModernUI Fabric builds also need Forge Config API Port; the project's 26.2 ModernUI fork does not. NeoForge needs the corresponding ModernUI build. Never install this mod alongside upstream MusicHud or a second edition of MusicHud TuneWeave.
+Install the file for your Minecraft version and loader, together with its required dependencies. Fabric needs Fabric API and the appropriate ModernUI build. Most supported ModernUI Fabric builds also need Forge Config API Port; the project's 26.2 / 26.3 ModernUI fork does not. NeoForge needs the corresponding ModernUI build. Never install this mod alongside upstream MusicHud or a second edition of MusicHud TuneWeave.
+
+For Minecraft 26.2 / 26.3, use the matching [ModernUI 3.13.0.9 release](https://github.com/MOPELotus/ModernUI-MC/releases). Choose either the standard `-universal.jar` or the MiSans `-universal-misans.jar` for your loader; replace the old ModernUI JAR and never install both editions. Standard supports custom fonts without a MiSans installer. MiSans retains its font installer and weight controls; missing fonts require an explicit download and restart. Both editions include the same marquee/render/input fixes and use separate client configuration files, importing the old `client.toml` on first use. See the [font edition guide](https://github.com/MOPELotus/ModernUI-MC/blob/26.3-3.13.0.9/docs/font-editions.md). This font choice is independent of the MusicHud standard/CF distribution.
 
 Press **M** in a world to open the music interface. Search for music, add tracks to the queue, or use a supported playlist as an idle playback source. Lyrics, account features and available audio quality depend on the music service and the user's access rights.
 
