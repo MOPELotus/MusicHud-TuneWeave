@@ -13,7 +13,7 @@ public final class HudLayoutEditorScreen extends MusicHudScreen {
 
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        if (minecraft.level == null) super.renderBackground(graphics, mouseX, mouseY, delta);
+        if (minecraft.level == null) renderPanorama(graphics, delta);
     }
 
     @Override
