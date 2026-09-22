@@ -158,4 +158,36 @@ public interface ClientConfig {
     boolean getEnableMarqueeText();
 
     void setEnableMarqueeText(boolean aBoolean);
+
+    // Reset values are shared by the configuration backend and the upstream preference controls.
+    default boolean getDefaultEnable() { return true; }
+    default boolean getDefaultShowTranslatedCnLyrics() { return true; }
+    default boolean getDefaultDisableVanillaMusic() { return true; }
+    default boolean getDefaultHideHudWhenNotPlaying() { return true; }
+    default boolean getDefaultEnableHud() { return true; }
+    default boolean getDefaultEnableMarqueeText() { return true; }
+    default boolean getDefaultEnableLyricsSidebar() { return true; }
+    default boolean getDefaultMixWithVanillaSoundVolume() { return true; }
+    default int getDefaultSoundVolume() { return 100; }
+    default int getDefaultSoundVolumeInterval() { return 10; }
+    default Quality getDefaultPrimaryChosenQuality() { return Quality.LOSSLESS; }
+    default ScrobbleMode getDefaultScrobbleMode() { return ScrobbleMode.ONLY_SELF; }
+    default double getDefaultMainScreenAdditionalBackgroundDarken() { return 0.5; }
+    default double getDefaultHudBackgroundMixAlpha() { return 0.5; }
+    default String getDefaultHudVerticalPosition() { return "TOP"; }
+    default String getDefaultHudHorizontalPosition() { return "LEFT"; }
+    default int getDefaultHudOffsetX() { return 16; }
+    default int getDefaultHudOffsetY() { return 16; }
+    default int getDefaultHudWidth() { return 152; }
+    default int getDefaultHudHeight() { return 52; }
+    default int getDefaultHudCornerRadius() { return 8; }
+    default boolean getDefaultEnabledInIntegratedServer() { return true; }
+    default boolean getDefaultEnableAutoConnect() { return true; }
+    default boolean getDefaultEnableIsolatedMode() { return true; }
+    default AutoConnectServerFilterType getDefaultConnectServerFilterType() { return AutoConnectServerFilterType.BLACK_LIST; }
+    default List<String> getDefaultBlackList() { return List.of(); }
+    default List<String> getDefaultWhiteList() { return List.of(); }
+
+    boolean getEnableLyricsSidebar();
+    void setEnableLyricsSidebar(boolean enabled);
 }

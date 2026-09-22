@@ -18,7 +18,7 @@ import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.ToastUtil;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.interfaces.IClientMusicService;
 import net.minecraft.client.resources.language.I18n;
 
@@ -58,12 +58,12 @@ public class ArtistDetailView extends LinearLayout {
             RouterContainer.getInstance().popNavigate();
             backButton.setOnClickListener(null);
         });
-        Drawable drawable = ButtonInsetBackgroundFactory.builder()
+        InsetBackgroundFactory drawable = InsetBackgroundFactory.builder()
                 .inset(0)
                 .cornerRadius(dp(8))
-                .padding(new ButtonInsetBackgroundFactory.Padding(dp(16), 0, dp(16), 0))
-                .build().newBackgroundDrawable();
-        backButton.setBackground(drawable);
+                .padding(new InsetBackgroundFactory.Padding(dp(16), 0, dp(16), 0))
+                .build();
+        drawable.applyBackgroundTo(backButton);
         LayoutParams backButtonParams = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT);
         backButtonParams.setMargins(0, 0, dp(4), 0);
         topBar.addView(backButton, backButtonParams);
@@ -104,14 +104,14 @@ public class ArtistDetailView extends LinearLayout {
         productionCountsParams.setMargins(0, 0, dp(16), 0);
         row1.addView(productionCounts, productionCountsParams);
 
-        ButtonInsetBackgroundFactory backgroundFactory = ButtonInsetBackgroundFactory.builder()
+        InsetBackgroundFactory backgroundFactory = InsetBackgroundFactory.builder()
                 .backgroundColor(Theme.GHOST_BUTTON_STATES)
                 .inset(0)
                 .cornerRadius(dp(4))
-                .padding(new ButtonInsetBackgroundFactory.Padding(dp(2), dp(2), dp(2), dp(2)))
+                .padding(new InsetBackgroundFactory.Padding(dp(2), dp(2), dp(2), dp(2)))
                 .build();
         ToggleSubscribeButton toggleSubscribeButton = new ToggleSubscribeButton(context);
-        toggleSubscribeButton.setBackground(backgroundFactory.newBackgroundDrawable());
+        backgroundFactory.applyBackgroundTo(toggleSubscribeButton);
         row1.addView(toggleSubscribeButton, new LayoutParams(dp(28), dp(28), 0));
         var subscribeState = musicService.getArtistSubscribedState(artist);
         toggleSubscribeButton.bindState(subscribeState);
@@ -275,11 +275,11 @@ public class ArtistDetailView extends LinearLayout {
         var musicLayout = new MusicListItem(context);
         musicLayout.setShowPusherInfo(false);
         musicLayout.bindData(musicDetail);
-        var background = ButtonInsetBackgroundFactory.builder()
+        InsetBackgroundFactory background = InsetBackgroundFactory.builder()
                 .cornerRadius(dp(12))
                 .inset(dp(1))
-                .padding(new ButtonInsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4))).build().newBackgroundDrawable();
-        musicLayout.setBackground(background);
+                .padding(new InsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4))).build();
+        background.applyBackgroundTo(musicLayout);
 
         musicLayout.setClickable(true);
         String artistsName = musicDetail.getArtists().stream()

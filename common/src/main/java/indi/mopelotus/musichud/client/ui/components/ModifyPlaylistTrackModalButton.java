@@ -28,7 +28,7 @@ import indi.mopelotus.musichud.client.services.music.MusicService;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.client.utils.ui.Easing;
 import indi.mopelotus.musichud.interfaces.IClientLoginService;
 import indi.mopelotus.musichud.interfaces.Unregister;
@@ -142,10 +142,10 @@ public class ModifyPlaylistTrackModalButton extends ImageButton {
         retryButton.setText(I18n.get(MusicHud.MOD_ID + ".button.retry"));
         retryButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
         retryButton.setTextColor(Theme.PRIMARY_COLOR);
-        var retryBackground = ButtonInsetBackgroundFactory.builder()
-                .padding(new ButtonInsetBackgroundFactory.Padding(retryButton.dp(2), retryButton.dp(1), retryButton.dp(2), retryButton.dp(1)))
-                .cornerRadius(retryButton.dp(4)).inset(dp(1)).build().newBackgroundDrawable();
-        retryButton.setBackground(retryBackground);
+        InsetBackgroundFactory retryBackground = InsetBackgroundFactory.builder()
+                .padding(new InsetBackgroundFactory.Padding(retryButton.dp(2), retryButton.dp(1), retryButton.dp(2), retryButton.dp(1)))
+                .cornerRadius(retryButton.dp(4)).inset(dp(1)).build();
+        retryBackground.applyBackgroundTo(retryButton);
         LinearLayout.LayoutParams retryParams = new LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
         retryParams.setMargins(0, dp(4), 0, 0);
         errorLayout.addView(retryButton, retryParams);

@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 
-import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Objects;
 import java.util.Set;
 
@@ -16,11 +16,11 @@ import java.util.Set;
 public class ProfileConfigData {
     private static volatile ProfileConfigData instance;
     Profile profile;
-    Set<IdlePlaySource> idlePlaySources = new HashSet<>();
+    Set<IdlePlaySource> idlePlaySources = ConcurrentHashMap.newKeySet();
     private static final ClientConfig clientConfig = ClientConfig.getInstance();
 
     @SneakyThrows
-    public void saveToConfig() {
+    public synchronized void saveToConfig() {
         clientConfig.setClientAccountConfig(this);
         clientConfig.save();
     }
@@ -32,6 +32,9 @@ public class ProfileConfigData {
                 if (instance == null) {
                     ProfileConfigData clientAccountConfig = clientConfig.getClientAccountConfig();
                     instance = Objects.requireNonNullElseGet(clientAccountConfig, ProfileConfigData::new);
+                    Set<IdlePlaySource> loaded = instance.idlePlaySources;
+                    instance.idlePlaySources = ConcurrentHashMap.newKeySet();
+                    if (loaded != null) instance.idlePlaySources.addAll(loaded);
                 }
             }
         }

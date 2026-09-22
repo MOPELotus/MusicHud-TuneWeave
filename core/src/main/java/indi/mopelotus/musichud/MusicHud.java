@@ -42,7 +42,12 @@ public final class MusicHud {
     @Setter
     private static Path configDirectory = Path.of("config");
     private static long initAtMillis;
-    private static Level logLevel = Level.INFO;
+    private static final Level logLevel = configuredLogLevel();
+
+    private static Level configuredLogLevel() {
+        String value = System.getProperty("musichud-tuneweave.log.level", "INFO");
+        return Level.toLevel(value.toUpperCase(java.util.Locale.ROOT), Level.INFO);
+    }
 
     public static Logger getLogger(Class<?> clazz) {
         Logger logger = LogManager.getLogger(LOGGER_BASE_NAME + "/" + clazz.getSimpleName());
@@ -53,10 +58,6 @@ public final class MusicHud {
     public static void init() {
         if (currentEnvironment == null) {
             throw new IllegalStateException("Current environment is not set");
-        }
-        String sysLogLevel = System.getProperty("musichud-tuneweave.log.level");
-        if (sysLogLevel != null && !sysLogLevel.isEmpty()) {
-            logLevel = Level.valueOf(sysLogLevel.toUpperCase());
         }
         Configurator.setLevel(LOGGER, logLevel);
         LOGGER.debug("Initialized in environment: {}", currentEnvironment);

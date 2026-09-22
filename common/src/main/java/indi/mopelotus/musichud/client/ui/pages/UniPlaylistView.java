@@ -28,11 +28,13 @@ import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveUniImportSourc
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveUniPlaylist;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.components.Modal;
+import indi.mopelotus.musichud.client.ui.components.FlexWrapLayout;
+import indi.mopelotus.musichud.client.ui.components.CollectionPreviewCard;
 import indi.mopelotus.musichud.client.ui.components.PlatformSelector;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import net.minecraft.client.resources.language.I18n;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
@@ -52,7 +54,7 @@ import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 public final class UniPlaylistView extends LinearLayout {
     private final ScopedViewTasks tasks = ClientViewTasks.create();
     private final TuneWeaveClientService tuneWeave = TuneWeaveClientService.getInstance();
-    private final LinearLayout list;
+    private final FlexWrapLayout list;
     private final TextView progress;
 
     public UniPlaylistView(Context context) {
@@ -89,12 +91,8 @@ public final class UniPlaylistView extends LinearLayout {
         hintParams.setMargins(0, dp(4), 0, dp(16));
         addView(hint, hintParams);
 
-        ScrollView scroll = new ScrollView(context);
-        scroll.setFillViewport(true);
-        list = new LinearLayout(context);
-        list.setOrientation(VERTICAL);
-        scroll.addView(list, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        addView(scroll, new LayoutParams(MATCH_PARENT, 0, 1));
+        list = new FlexWrapLayout(context);
+        addView(list, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
         progress = new TextView(context);
         progress.setTextSize(Theme.TEXT_SIZE_NORMAL);
         progress.setTextColor(Theme.SECONDARY_TEXT_COLOR);
@@ -120,34 +118,19 @@ public final class UniPlaylistView extends LinearLayout {
         }
         progress.setVisibility(View.GONE);
         for (TuneWeaveUniPlaylist playlist : playlists) {
-            LinearLayout row = new LinearLayout(getContext());
-            row.setOrientation(VERTICAL);
-            row.setPadding(dp(12), dp(10), dp(12), dp(10));
-            row.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(6)).inset(dp(1)).build().newBackgroundDrawable());
-            TextView name = new TextView(getContext());
-            name.setText(playlist.name());
-            name.setTextSize(Theme.TEXT_SIZE_LARGE);
-            name.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
-            row.addView(name, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-            TextView description = new TextView(getContext());
-            description.setText(playlist.description().isBlank() ? I18n.get(MusicHud.MOD_ID + ".text.uniPlaylist.noDescription") : playlist.description());
-            description.setTextSize(Theme.TEXT_SIZE_NORMAL);
-            description.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-            row.addView(description, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-            LinearLayout buttons = new LinearLayout(getContext());
-            buttons.setGravity(Gravity.RIGHT);
-            buttons.addView(actionButton(getContext(), "open", v -> {
+            var binding = tasks.capture();
+            CollectionPreviewCard card = new CollectionPreviewCard(getContext(), MusicHud.ICON_BASE64,
+                    playlist.name(), playlist.description(), Integer.toString(playlist.itemCount()));
+            card.setOnClickListener(view -> {
+                if (!tasks.isCurrent(binding)) return;
                 RouterContainer router = RouterContainer.getInstance();
                 if (router != null) router.pushNavigate(new UniPlaylistDetailView(getContext(), playlist));
-            }), actionParams());
-            buttons.addView(actionButton(getContext(), "edit", v -> showEditDialog(playlist)),
-                    actionParams());
-            buttons.addView(actionButton(getContext(), "export", v -> export(playlist)), actionParams());
-            buttons.addView(actionButton(getContext(), "delete", v -> confirmDelete(playlist)), actionParams());
-            row.addView(buttons, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-            LayoutParams rowParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-            rowParams.setMargins(0, 0, 0, dp(8));
-            list.addView(row, rowParams);
+            });
+            card.getActions().addView(actionButton(getContext(), "edit", v -> showEditDialog(playlist)), actionParams());
+            card.getActions().addView(actionButton(getContext(), "export", v -> export(playlist)), actionParams());
+            card.getActions().addView(actionButton(getContext(), "delete", v -> confirmDelete(playlist)), actionParams());
+            list.addView(card);
+
         }
     }
 
@@ -184,7 +167,7 @@ public final class UniPlaylistView extends LinearLayout {
                     context.getResources(), image, dp(16), dp(16)), dp(5)));
         }
         if ("open".equals(action)) button.setRotation(180);
-        button.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1)).build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1)).build().applyBackgroundTo(button);
         var binding = tasks.capture();
         button.setOnClickListener(view -> {
             if (key.endsWith(".back") || key.endsWith(".refresh")

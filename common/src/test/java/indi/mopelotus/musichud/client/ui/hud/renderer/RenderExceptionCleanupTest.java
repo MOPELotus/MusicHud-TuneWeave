@@ -146,11 +146,16 @@ class RenderExceptionCleanupTest {
             Class<?> line = loadClass(RENDER + "ScrollingLyricLineRenderer$Line");
             var constructor = line.getConstructor(lyric, String.class, int.class, int.class, long.class);
             Object l = constructor.newInstance(lyric.getConstructor(boolean.class).newInstance(wordByWord), "abc", 1, 2, 0L);
-            renderer.getClass().getMethod("setLines", line, line, long.class).invoke(renderer, l, l, 0L);
+            renderer.getClass().getMethod("setLines", line, line).invoke(renderer, l, l);
+            var started = renderer.getClass().getDeclaredField("transitionStartTime");
+            started.setAccessible(true);
+            started.setLong(renderer, System.currentTimeMillis() - 1000);
             render(renderer); // Complete the first line transition using the production state machine.
             if (transition) {
                 Object next = constructor.newInstance(lyric.getConstructor(boolean.class).newInstance(false), "next", 1, 2, 0L);
-                renderer.getClass().getMethod("setLines", line, line, long.class).invoke(renderer, next, next, 1_000_000L);
+                renderer.getClass().getMethod("setLines", line, line).invoke(renderer, next, next);
+                // Keep the incoming transition active throughout this exception-path test.
+                started.setLong(renderer, System.currentTimeMillis() + 1_000_000);
             }
             field("draws", 0);
             return renderer;

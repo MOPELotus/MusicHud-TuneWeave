@@ -60,7 +60,17 @@ public class Playlist implements MusicCollection {
     @Setter
     String sourceRef = "";
 
-    private boolean nullFiltered = false;
+    // Local display metadata; intentionally absent from Minecraft packet codecs.
+    private transient String description = "";
+    public String getDescription() { return Objects.requireNonNullElse(description, ""); }
+    public void setDescription(String value) { description = Objects.requireNonNullElse(value, ""); }
+
+    private transient long displayPlayedCount = -1;
+    public long getDisplayPlayedCount() { return Math.max(playedCount, displayPlayedCount); }
+    public void setDisplayPlayedCount(long value) {
+        displayPlayedCount = Math.max(0, value);
+        playedCount = (int) Math.min(Integer.MAX_VALUE, displayPlayedCount);
+    }
 
     protected Playlist(
             long id,
@@ -149,10 +159,10 @@ public class Playlist implements MusicCollection {
     }
 
     public String getThumbnailCoverUrl(int size) {
-        if (coverImgUrl.startsWith("data:image")) {
+        if (getCoverImgUrl().startsWith("data:image")) {
             return coverImgUrl;
         } else {
-            return MusicCollection.thumbnailUrl(coverImgUrl, size);
+            return MusicCollection.thumbnailUrl(getCoverImgUrl(), size);
         }
     }
 
@@ -164,30 +174,19 @@ public class Playlist implements MusicCollection {
         return Objects.requireNonNullElse(privacy, Privacy.PUBLIC);
     }
 
-    public ObservableSequencedSet<MusicDetail> getTracks() {
-        if (tracks == null) {
-            tracks = new ObservableSequencedSet<>(0);
-            return tracks;
-        }
-        if (!nullFiltered) {
-            filterTracksNullItem();
-            nullFiltered = true;
-        }
+    public synchronized ObservableSequencedSet<MusicDetail> getTracks() {
+        if (tracks == null) tracks = new ObservableSequencedSet<>(0);
+        if (tracks.contains(null)) tracks.remove(null);
         return tracks;
-    }
-
-    private void filterTracksNullItem() {
-        tracks = tracks.stream().filter(Objects::nonNull)
-                .collect(ObservableSequencedSet::new, Set::add, ObservableSequencedSet::addAll);
     }
 
     @Override
     public boolean equals(Object obj) {
         return obj instanceof Playlist playlist
                 && playlist.id == id
-                && playlist.name.equals(name)
-                && playlist.coverImgUrl.equals(coverImgUrl)
-                && playlist.pusherInfo.equals(pusherInfo);
+                && Objects.equals(playlist.name, name)
+                && Objects.equals(playlist.coverImgUrl, coverImgUrl)
+                && Objects.equals(playlist.pusherInfo, pusherInfo);
     }
 
     @Override
@@ -207,14 +206,17 @@ public class Playlist implements MusicCollection {
         playlist.id = id;
         playlist.name = name;
         playlist.coverImgId = coverImgId;
+        playlist.coverImgId_str = coverImgId_str;
         playlist.coverImgUrl = coverImgUrl;
-        playlist.tracks = tracks;
+        playlist.tracks = new ObservableSequencedSet<>(new LinkedHashSet<>(getTracks()));
         playlist.creator = creator;
         playlist.privacy = privacy;
         playlist.musicTrackCount = musicTrackCount;
         playlist.playedCount = playedCount;
         playlist.pusherInfo = pusherInfo;
         playlist.sourceRef = sourceRef;
+        playlist.description = description;
+        playlist.displayPlayedCount = displayPlayedCount;
         return playlist;
     }
 

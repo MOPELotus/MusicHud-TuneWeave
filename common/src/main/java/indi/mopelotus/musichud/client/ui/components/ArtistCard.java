@@ -11,7 +11,7 @@ import icyllis.modernui.widget.TextView;
 import indi.mopelotus.musichud.beans.music.Artist;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 
 public class ArtistCard extends LinearLayout {//TODO
     public static final int imageSize = 100;
@@ -55,11 +55,11 @@ public class ArtistCard extends LinearLayout {//TODO
         productionsCounts.setTextAlignment(TEXT_ALIGNMENT_CENTER);
         texts.addView(productionsCounts);
 
-        var background = ButtonInsetBackgroundFactory.builder()
+        InsetBackgroundFactory background = InsetBackgroundFactory.builder()
                 .cornerRadius(dp(12))
                 .inset(dp(1))
-                .padding(new ButtonInsetBackgroundFactory.Padding(dp(8), dp(8), dp(8), dp(8))).build().newBackgroundDrawable();
-        setBackground(background);
+                .padding(new InsetBackgroundFactory.Padding(dp(8), dp(8), dp(8), dp(8))).build();
+        background.applyBackgroundTo(this);
 
         setClickable(true);
         setOnClickListener((view) -> {

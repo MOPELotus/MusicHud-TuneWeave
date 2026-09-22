@@ -19,7 +19,9 @@ public interface VanillaServerNetworkService extends IServerNetworkService {
             if (receiver != null) {
                 var admission = indi.mopelotus.musichud.client.services.ConnectionManager.getInstance()
                         .captureClientPayload(false, player, payload);
-                MusicHud.EXECUTOR.execute(() -> indi.mopelotus.musichud.network.ClientPacketContext.receive(
+                // One FIFO client queue preserves response/push order without taking the
+                // connection lock while a server sender still holds its state lock.
+                net.minecraft.client.Minecraft.getInstance().schedule(() -> indi.mopelotus.musichud.network.ClientPacketContext.receive(
                         admission, () -> receiver.receive(payload, player)));
             } else {
                 throw new IllegalStateException();

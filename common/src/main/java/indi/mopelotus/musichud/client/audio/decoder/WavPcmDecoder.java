@@ -95,6 +95,9 @@ final class WavPcmDecoder implements AudioDecoder {
     }
     private static String tag(byte[] data, int offset) { return new String(data, offset, 4, StandardCharsets.US_ASCII); }
     private static long unsigned(byte[] data, int offset) { return Integer.toUnsignedLong(ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getInt(offset)); }
+    @Override public boolean hasDownmixedChannels() {
+        return output.channels > 2 && indi.mopelotus.musichud.client.audio.OpenAlFormatSelector.channels(output.format()) <= 2;
+    }
     @Override public int getFormat() { return output.format(); }
     @Override public int getSampleRate() { return output.sampleRate; }
     @Override public int getFrameSize() { return output.frameSize(); }

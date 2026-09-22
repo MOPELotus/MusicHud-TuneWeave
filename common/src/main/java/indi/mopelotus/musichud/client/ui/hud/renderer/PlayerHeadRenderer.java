@@ -35,6 +35,8 @@ public class PlayerHeadRenderer implements HudRenderer {
         skinResource = newSkin;
     }
 
+    public boolean isVisible() { return skinResource != null; }
+
     public void configure(Layout layout) {
         this.layout = layout;
     }
@@ -47,7 +49,7 @@ public class PlayerHeadRenderer implements HudRenderer {
         try {
             if (playerSkinSupplier != null) {
                 ResourceLocation skin = playerSkinSupplier.get();
-                if (skinResource != skin) {
+                if (!java.util.Objects.equals(skinResource, skin)) {
                     if (currentTimeMillis - lastUpdateTime > TRANSITION_DURATION) {
                         previousSkinResource = skinResource;
                     } else {

@@ -61,6 +61,7 @@ public class ConnectionManager implements IConnectionManager {
         public void mode(ConnectionMode next) {
             connectionActions.invalidate();
             mode = next;
+            if (next != ConnectionMode.DISCONNECTED) lastMode = next;
             connectGeneration.incrementAndGet();
             indi.mopelotus.musichud.network.PayloadFragments.resetClient();
         }
@@ -132,6 +133,7 @@ public class ConnectionManager implements IConnectionManager {
     private double lastPressTime;
     @Getter
     private volatile ConnectionMode mode = ConnectionMode.DISCONNECTED;
+    private volatile ConnectionMode lastMode = ConnectionMode.ISOLATED;
 
     public static ConnectionManager getInstance() {
         if (instance == null) {
@@ -152,6 +154,7 @@ public class ConnectionManager implements IConnectionManager {
         indi.mopelotus.musichud.network.PayloadFragments.resetClient();
         if (clientConfig.getEnable()) {
             mode = ConnectionMode.EXTERNAL;
+            lastMode = ConnectionMode.EXTERNAL;
             MusicHud.setConnectStatus(MusicHud.ConnectStatus.NOT_CONNECTED);
             handshake.begin();
             scheduleConnectTimeoutFallback();
@@ -291,7 +294,7 @@ public class ConnectionManager implements IConnectionManager {
 
     @Override
     public void connectAsPrevious() {
-        if (mode == ConnectionMode.EXTERNAL) {
+        if (lastMode == ConnectionMode.EXTERNAL) {
             IConnectionManager.getInstance().connectToExternalServer();
         } else {
             IConnectionManager.getInstance().launchIsolated();

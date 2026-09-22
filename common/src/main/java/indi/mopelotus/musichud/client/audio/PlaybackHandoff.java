@@ -72,7 +72,8 @@ final class PlaybackHandoff<L extends PlaybackHandoff.Lane> {
     private void fade(long ticket, long started) {
         synchronized (this) {
             if (generation != ticket || current == null) return;
-            float fraction = (float) Math.clamp((nanoTime.getAsLong() - started) / 150_000_000.0, 0, 1);
+            double progress = Math.clamp((nanoTime.getAsLong() - started) / 1_000_000_000.0, 0, 1);
+            float fraction = (float) ((1 - Math.cos(progress * Math.PI)) / 2);
             current.gain(fraction);
             if (retiring != null) retiring.gain(1 - fraction);
             if (fraction >= 1) {

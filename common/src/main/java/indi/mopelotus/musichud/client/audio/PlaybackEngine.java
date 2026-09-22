@@ -53,6 +53,7 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
 
     PlaybackEngine(ClientConfig clientConfig) { this.clientConfig = Objects.requireNonNull(clientConfig); }
     private final AtomicReference<Status> status = new AtomicReference<>(Status.IDLE);
+    private EarlyEofRecovery earlyEofRecovery = new EarlyEofRecovery();
     private final AtomicLong playbackGeneration = new AtomicLong();
     @Getter
     private final Set<Consumer<Status>> statusChangeListener = ConcurrentHashMap.newKeySet();
@@ -92,6 +93,7 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
             replacement.recovery = new Recovery(currentPlaybackSession, listeningLedger.playedMillis(generation),
                     scrobbleGate.isClaimed(generation), preparedScrobble);
         }
+        if (expected.sessionId().equals(session().sessionId())) replacement.earlyEofRecovery = earlyEofRecovery;
         // Recovery is not a new scrobble boundary. Preserve its original account capture in the replacement.
         preparedScrobble = null;
         recovery = null;
@@ -125,6 +127,7 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
             return CompletableFuture.failedFuture(
                     new IllegalArgumentException("Public playback session is not active"));
         }
+        earlyEofRecovery.activate(playbackSession.sessionId());
         boolean newSession = !playbackSession.sessionId().equals(currentPlaybackSession.sessionId());
         if (newSession || !playbackSession.resourceInfo().getResolvedTrackReference().equals(currentPlaybackSession.resourceInfo().getResolvedTrackReference())) {
             submitScrobble(playbackGeneration.get());
@@ -236,13 +239,23 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                         lastGain = gain;
                         PlayingStatusRenderer.getInstance().updateStatus(null);
                     }
-                    result = controller.tick(position, clientConfig.getAudioOutputMode(), gain);
+                    var outputMode = clientConfig.getAudioOutputMode();
+                    if (outputMode == indi.mopelotus.musichud.beans.music.AudioOutputMode.DISCRETE_ONLY
+                            && currentDecoder != null && currentDecoder.hasDownmixedChannels())
+                        throw new IllegalStateException("The source layout cannot be rendered as discrete multichannel audio");
+                    result = controller.tick(position, outputMode, gain);
                     switch (result) {
                         case PLAYING -> {
                             setStatus(Status.PLAYING);
                             started.complete(serverStartTime);
-                            if (!began && clientConfig.getDisableVanillaMusic())
-                                Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
+                            if (!began && clientConfig.getDisableVanillaMusic()) {
+                                Minecraft.getInstance().execute(() -> {
+                                    synchronized (PlaybackEngine.this) {
+                                        if (!disposed && generation == playbackGeneration.get() && playing == playingFuture)
+                                            Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
+                                    }
+                                });
+                            }
                             began = true;
                         }
                         case BUFFERING -> setStatus(Status.BUFFERING);
@@ -345,12 +358,14 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                     if (status.get() != Status.ERROR && status.get() != Status.RETRYING) setStatus(Status.BUFFERING);
                 }
 
+                PlaybackDownloadProgress progress = new PlaybackDownloadProgress();
                 if (forceSyncInternal) {
-                    syncPlaying(currentDownloadFuture, decoder, generation);
+                    syncPlaying(currentDownloadFuture, decoder, generation, progress, decoderToken);
                 }
 
                 int initialBuffers = 0;
                 while (!currentDownloadFuture.isDone() && currentDownloadFuture == downloadFuture && initialBuffers < BUFFER_COUNT * 2) {
+                    progress.beforeRead(pcm.empty(decoderToken));
                     byte[] audioData = decoder.readChunk(BUFFER_SIZE);
                     if (audioData == null) break;
                     if (currentDownloadFuture.isDone() || currentDownloadFuture != downloadFuture) break;
@@ -360,14 +375,16 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                     synchronized (this) {
                         if (generation != playbackGeneration.get() || currentDownloadFuture != downloadFuture) return;
                         playedBytes += audioData.length;
+                        progress.enqueued();
                     }
                     initialBuffers++;
                 }
 
                 while (!currentDownloadFuture.isDone() && currentDownloadFuture == downloadFuture) {
                     // 保持解码器头与墙钟对齐（无论下载缓冲是否充足）
-                    syncPlaying(currentDownloadFuture, decoder, generation);
+                    syncPlaying(currentDownloadFuture, decoder, generation, progress, decoderToken);
 
+                    progress.beforeRead(pcm.empty(decoderToken));
                     byte[] audioData = decoder.readChunk(BUFFER_SIZE);
                     if (audioData == null) break;
 
@@ -378,11 +395,28 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                     synchronized (this) {
                         if (generation != playbackGeneration.get() || currentDownloadFuture != downloadFuture) return;
                         playedBytes += audioData.length;
+                        progress.enqueued();
                     }
                 }
 
                 if (generation != playbackGeneration.get() || currentDownloadFuture != downloadFuture
                         || currentDownloadFuture.isCancelled() || Thread.currentThread().isInterrupted()) return;
+                long expectedDuration = musicResourceInfo.getTime() > 0 ? musicResourceInfo.getTime()
+                        : currentMusicDetail.getDurationMillis();
+                if (!localDirectPlayback && PlaybackDownloadProgress.truncated(
+                        playedBytes / decoder.getFrameSize(), decoder.getSampleRate(), expectedDuration)) {
+                    synchronized (this) {
+                        if (generation != playbackGeneration.get() || currentDownloadFuture != downloadFuture) return;
+                        if (earlyEofRecovery.claim(localPlaybackSession.sessionId(), localPlaybackSession.revision())) {
+                            LOGGER.warn("Audio stream ended early; requesting public resource refresh for revision {}",
+                                    localPlaybackSession.revision());
+                            IClientNetworkService.getInstance().sendToServer(new PlaybackResourceFailureMessage(
+                                    localPlaybackSession.sessionId(), localPlaybackSession.revision()));
+                        }
+                    }
+                    // Retain decoded audio while the server coordinates a new public revision.
+                    // Bad duration metadata cannot cause an unbounded refresh loop.
+                }
                 LOGGER.debug("Audio download completed");
                 pcm.finish(decoderToken, null);
                 currentDownloadFuture.complete(null);
@@ -471,7 +505,8 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
         });
     }
 
-    private void syncPlaying(CompletableFuture<?> download, AudioDecoder decoder, long generation) {
+    private void syncPlaying(CompletableFuture<?> download, AudioDecoder decoder, long generation,
+                             PlaybackDownloadProgress progress, PcmPlaybackBuffer.Token token) {
         ZonedDateTime startTime = serverStartTime;
         if (startTime == null) return;
         int frameSize = decoder.getFrameSize();
@@ -481,6 +516,7 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
             if (remaining <= 0) return;
             // Do not decode an unbounded allocation after a long pause, and never request a partial frame.
             long request = Math.min(remaining, BUFFER_SIZE / frameSize) * frameSize;
+            progress.beforeRead(pcm.empty(token));
             byte[] chunk = decoder.readChunk(request);
             if (chunk == null) return;
             synchronized (this) {

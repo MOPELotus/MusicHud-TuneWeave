@@ -85,6 +85,19 @@ final class PcmPlaybackBuffer {
     synchronized boolean finished(Token expected) { return current(expected) && ended; }
     synchronized boolean empty(Token expected) { return current(expected) && pending.isEmpty() && device.isEmpty(); }
     synchronized Throwable failure(Token expected) { return current(expected) ? failure : null; }
+    synchronized boolean readyAfterUnderrun(Token expected) {
+        if (!current(expected)) return false;
+        if (ended) return true;
+        Chunk first = pending.peekFirst();
+        if (first == null) return false;
+        // The queue is bounded by chunks. Half its capacity must be enough to
+        // resume even at very high sample rates or with small decoder chunks.
+        if (pending.size() >= Math.max(1, capacity / 2)) return true;
+        double millis = 0;
+        for (Chunk chunk : pending) millis += chunk.frames() * 1000.0 / chunk.sampleRate();
+        return millis >= 3000;
+    }
+
     synchronized int queuedChunks() { return pending.size() + device.size(); }
 
     synchronized void abandon(Token expected, Throwable error) {

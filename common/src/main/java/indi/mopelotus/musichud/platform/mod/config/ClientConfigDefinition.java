@@ -22,36 +22,37 @@ public class ClientConfigDefinition implements ClientConfig {
     @Getter
     private static final ClientConfigDefinition instance = new ClientConfigDefinition();
 
-    private boolean enable = true;
-    private boolean showTranslatedCnLyrics = true;
-    private boolean disableVanillaMusic = true;
-    private boolean hideHudWhenNotPlaying = true;
-    private boolean enableHud = true;
-    private boolean enableMarqueeText = true;
-    private boolean mixWithVanillaSoundVolume = true;
+    private boolean enable = getDefaultEnable();
+    private boolean showTranslatedCnLyrics = getDefaultShowTranslatedCnLyrics();
+    private boolean disableVanillaMusic = getDefaultDisableVanillaMusic();
+    private boolean hideHudWhenNotPlaying = getDefaultHideHudWhenNotPlaying();
+    private boolean enableHud = getDefaultEnableHud();
+    private boolean enableLyricsSidebar = getDefaultEnableLyricsSidebar();
+    private boolean enableMarqueeText = getDefaultEnableMarqueeText();
+    private boolean mixWithVanillaSoundVolume = getDefaultMixWithVanillaSoundVolume();
     private boolean muted;
-    private int soundVolume = 100;
-    private int soundVolumeInterval = 10;
-    private Quality primaryChosenQuality = Quality.LOSSLESS;
-    private volatile ScrobbleMode scrobbleMode = ScrobbleMode.ONLY_SELF;
+    private int soundVolume = getDefaultSoundVolume();
+    private int soundVolumeInterval = getDefaultSoundVolumeInterval();
+    private Quality primaryChosenQuality = getDefaultPrimaryChosenQuality();
+    private volatile ScrobbleMode scrobbleMode = getDefaultScrobbleMode();
     private volatile AudioOutputMode audioOutputMode = AudioOutputMode.MULTICHANNEL;
-    private double mainScreenAdditionalBackgroundDarken = 0.5;
-    private double hudBackgroundMixAlpha = 0.5;
-    private String hudVerticalPosition = "TOP";
-    private String hudHorizontalPosition = "LEFT";
-    private int hudOffsetX = 16;
-    private int hudOffsetY = 16;
-    private int hudWidth = 152;
-    private int hudHeight = 52;
-    private int hudCornerRadius = 8;
+    private double mainScreenAdditionalBackgroundDarken = getDefaultMainScreenAdditionalBackgroundDarken();
+    private double hudBackgroundMixAlpha = getDefaultHudBackgroundMixAlpha();
+    private String hudVerticalPosition = getDefaultHudVerticalPosition();
+    private String hudHorizontalPosition = getDefaultHudHorizontalPosition();
+    private int hudOffsetX = getDefaultHudOffsetX();
+    private int hudOffsetY = getDefaultHudOffsetY();
+    private int hudWidth = getDefaultHudWidth();
+    private int hudHeight = getDefaultHudHeight();
+    private int hudCornerRadius = getDefaultHudCornerRadius();
     private String clientAccountConfig = "";
     private String tuneWeaveBaseUrl = "http://127.0.0.1:7832";
     private String tuneWeaveCredentials = "{}";
     private String defaultMusicPlatform = "netease";
-    private boolean enabledInIntegratedServer = true;
-    private boolean enableAutoConnect = true;
-    private boolean enableIsolatedMode = true;
-    private AutoConnectServerFilterType connectServerFilterType = AutoConnectServerFilterType.BLACK_LIST;
+    private boolean enabledInIntegratedServer = getDefaultEnabledInIntegratedServer();
+    private boolean enableAutoConnect = getDefaultEnableAutoConnect();
+    private boolean enableIsolatedMode = getDefaultEnableIsolatedMode();
+    private AutoConnectServerFilterType connectServerFilterType = getDefaultConnectServerFilterType();
     private String autoConnectBlackList = "[]";
     private String autoConnectWhiteList = "[]";
     @Setter
@@ -69,6 +70,7 @@ public class ClientConfigDefinition implements ClientConfig {
         disableVanillaMusic = SimpleTomlConfig.getBoolean(values, "disableVanillaMusic", disableVanillaMusic);
         hideHudWhenNotPlaying = SimpleTomlConfig.getBoolean(values, "hideHudWhenNotPlaying", hideHudWhenNotPlaying);
         enableHud = SimpleTomlConfig.getBoolean(values, "enableHud", enableHud);
+        enableLyricsSidebar = SimpleTomlConfig.getBoolean(values, "enableLyricsSidebar", getDefaultEnableLyricsSidebar());
         enableMarqueeText = SimpleTomlConfig.getBoolean(values, "enableMarqueeText", enableMarqueeText);
         mixWithVanillaSoundVolume = SimpleTomlConfig.getBoolean(values, "mixWithVanillaSoundVolume", mixWithVanillaSoundVolume);
         muted = SimpleTomlConfig.getBoolean(values, "muted", SimpleTomlConfig.getBoolean(values, "Muted", muted));
@@ -126,6 +128,12 @@ public class ClientConfigDefinition implements ClientConfig {
     public void setHideHudWhenNotPlaying(boolean hideHudWhenNotPlaying) {
         this.hideHudWhenNotPlaying = hideHudWhenNotPlaying;
     }
+
+    @Override
+    public boolean getEnableLyricsSidebar() { return enableLyricsSidebar; }
+
+    @Override
+    public void setEnableLyricsSidebar(boolean enabled) { enableLyricsSidebar = enabled; }
 
     @Override
     public void setEnableHud(boolean enableHud) {
@@ -446,12 +454,13 @@ public class ClientConfigDefinition implements ClientConfig {
                 new SimpleTomlConfig.Entry("disableVanillaMusic", "Disable vanilla game music", disableVanillaMusic),
                 new SimpleTomlConfig.Entry("hideHudWhenNotPlaying", "Hide HUD when not playing music", hideHudWhenNotPlaying),
                 new SimpleTomlConfig.Entry("enableHud", "Enable HUD", enableHud),
+                new SimpleTomlConfig.Entry("enableLyricsSidebar", "Show lyrics alongside other pages", enableLyricsSidebar),
                 new SimpleTomlConfig.Entry("enableMarqueeText", "Enable marquee animation on overflow text", enableMarqueeText),
                 new SimpleTomlConfig.Entry("mixWithVanillaSoundVolume", "Mix MusicHud TuneWeave volume with vanilla music volume", mixWithVanillaSoundVolume),
                 new SimpleTomlConfig.Entry("muted", "Record muted switch", muted),
                 new SimpleTomlConfig.Entry("soundVolume", "Sound volume for MusicHud TuneWeave audio", soundVolume),
                 new SimpleTomlConfig.Entry("soundVolumeInterval", "Sound volume interval for hot key adjustment", soundVolumeInterval),
-                new SimpleTomlConfig.Entry("audioOutputMode", "Device output: MULTICHANNEL or STEREO downmix", audioOutputMode.name()),
+                new SimpleTomlConfig.Entry("audioOutputMode", "Device output: MULTICHANNEL, STEREO downmix, or DISCRETE_ONLY without stereo fallback", audioOutputMode.name()),
                 new SimpleTomlConfig.Entry("primaryChosenQuality", "Primary chosen quality", primaryChosenQuality.name()),
                 new SimpleTomlConfig.Entry("scrobbleMode", "Listening history after 30 seconds: NONE|ONLY_SELF|ALL", scrobbleMode.name()),
                 new SimpleTomlConfig.Entry("mainScreenAdditionalBackgroundDarken", "Main screen additional background darken rate", mainScreenAdditionalBackgroundDarken),

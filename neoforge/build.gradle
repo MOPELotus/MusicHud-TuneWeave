@@ -134,6 +134,8 @@ dependencies {
         exclude group: "org.commonmark"
     }
 
+    implementation "net.jthink:jaudiotagger:3.0.1"
+    shadowBundle "net.jthink:jaudiotagger:3.0.1"
     implementation("dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version") {
         // NeoForge pins Minecraft's Jackson APIs; do not upgrade its host classpath.
         exclude group: "com.fasterxml.jackson.core"
