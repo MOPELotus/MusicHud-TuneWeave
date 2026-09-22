@@ -1,30 +1,29 @@
 package indi.mopelotus.musichud.client.ui.components;
 
+import icyllis.modernui.animation.Animator;
+import icyllis.modernui.animation.AnimatorListener;
 import icyllis.modernui.animation.ObjectAnimator;
 import icyllis.modernui.core.Choreographer;
 import icyllis.modernui.core.Context;
 import icyllis.modernui.core.Core;
-import icyllis.modernui.graphics.BlendMode;
-import icyllis.modernui.graphics.Canvas;
-import icyllis.modernui.graphics.LinearGradient;
-import icyllis.modernui.graphics.Paint;
-import icyllis.modernui.graphics.Shader;
+import icyllis.modernui.graphics.*;
 import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.mc.ScrollController;
 import icyllis.modernui.mc.ui.ClampingScrollView;
-import icyllis.modernui.view.MeasureSpec;
 import icyllis.modernui.view.MotionEvent;
 import icyllis.modernui.view.View;
+import icyllis.modernui.view.ViewGroup;
 import icyllis.modernui.widget.FrameLayout;
 import icyllis.modernui.widget.LinearLayout;
 import indi.mopelotus.musichud.MusicHud;
-import indi.mopelotus.musichud.client.ui.dto.LyricLine;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
 import indi.mopelotus.musichud.client.audio.NowPlayingInfo;
+import indi.mopelotus.musichud.client.ui.dto.LyricLine;
 import indi.mopelotus.musichud.client.ui.hud.HudRendererManager;
 import indi.mopelotus.musichud.client.utils.ui.Easing;
 import indi.mopelotus.musichud.client.utils.ui.SpringInterpolator;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.Setter;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -32,7 +31,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -43,6 +41,11 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
     public static final float MAX_DELAY_MILLIS = 500;
     public static final float STAGGERED_BASE_DURATION_MILLIS = 600;
     public static final int MANUAL_SCROLL_FADE_DURATION = 250;
+    private static final float SPACER_HEIGHT_RATIO = 0.7f;
+    private static final int SWITCH_DURATION = 350;
+    private static final SpringInterpolator SWITCH_INTERPOLATOR =
+            new SpringInterpolator((float) SWITCH_DURATION / 1000, 1);
+    private View bottomSpacer;
     private static final SpringInterpolator STAGGER_INTERPOLATOR = new SpringInterpolator(STAGGERED_BASE_DURATION_MILLIS * 0.001f, 1);
     private static Logger logger;
     private final Set<LyricLineView> animatingLyricViews = new HashSet<>();
@@ -69,6 +72,10 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
     private boolean continueUpdate = false;
     private long updateGeneration;
     private long rowsGeneration;
+    private boolean followingSuspended;
+    private ObjectAnimator switchAnimator;
+    private ObjectAnimator alphaAnimator;
+    private Collection<LyricLine> requestedLyrics;
     private long lyricAnimationStartAtMillis;
     @Setter
     @Getter
@@ -94,6 +101,11 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
     private float[] staggerFromOffsets;
     private long lastFrameTimeNanos;
     private volatile MusicDetail musicDetail;
+    // Lyrics collection currently built into the container; only assigned on successful build.
+    private Collection<LyricLine> currentLyrics;
+    private boolean pendingResyncToCurrent;
+    // True while a finger is on the view; programmatic/layout scroll changes must not count as manual.
+    private boolean pointerDown;
     private final Consumer<LyricLine> lyricLineUpdateListener = this::highlightLine;
     private final Runnable autoRecenterRunnable = new Runnable() {
         @Override
@@ -122,13 +134,18 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
 
 
         addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-            if (scrollStatus == ScrollStatus.IDLE || scrollStatus == ScrollStatus.MANUAL) {
+            int width = right - left;
+            int height = bottom - top;
+            int lastWidth = oldRight - oldLeft;
+            int lastHeight = oldBottom - oldTop;
+            if ((width != lastWidth || height != lastHeight)
+                && (scrollStatus == ScrollStatus.IDLE || scrollStatus == ScrollStatus.MANUAL)) {
                 recenter();
             }
         });
 
         setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-            post(() -> {
+            postCurrentRows(() -> {
                 if (scrollY != oldScrollY && currentScrollPosition != scrollY) {
                     currentScrollPosition = scrollY;
                     checkManualScrolling();
@@ -141,37 +158,84 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
         });
     }
 
-    public void switchLyrics(MusicDetail musicDetail, Collection<LyricLine> lyrics) {
-        if (this.musicDetail == musicDetail && lyrics != null
-                && lyricLineViewList.size() == lyrics.size()
-                && new ArrayList<>(lyricLines.keySet()).equals(new ArrayList<>(lyrics))) return;
-        this.musicDetail = musicDetail;
-        rowsGeneration++;
-        try {
-            if (scrollController != null) {
-                scrollController.abortAnimation();
-            }
-            justHighlightedLyricLine = null;
-            lastHighlightedLyricLine = null;
-            animatingLyricViews.clear();
-            staggeredActive = false;
+    public void switchLyrics(MusicDetail detail, Collection<LyricLine> lyrics) {
+        List<LyricLine> next = lyrics == null ? List.of() : List.copyOf(lyrics);
+        if (musicDetail == detail && Objects.equals(requestedLyrics, next)) return;
+        musicDetail = detail;
+        requestedLyrics = next;
+        long expectedRows = ++rowsGeneration;
+        cancelSwitchAnimation();
+        cancelAlphaAnimation();
+        stopUpdateLoop();
+        removeCallbacks(autoRecenterRunnable);
+        if (container.getChildCount() == 0 || !isAttachedToWindow() || followingSuspended) {
+            replaceRows(next);
             container.setTranslationX(0);
-            container.removeAllViews();
-            buildLyricRows(lyrics);
-            if (!continueUpdate && isAttachedToWindow()) {
-                startUpdateLoop();
-            }
-        } catch (Exception e) {
-            if (logger == null) {
-                logger = MusicHud.getLogger(HudRendererManager.class);
-            }
-            logger.error("While switch lyrics", e);
+            return;
         }
+        ObjectAnimator slideOut = ObjectAnimator.ofFloat(container, View.TRANSLATION_X,
+                container.getTranslationX(), -getWidth());
+        switchAnimator = slideOut;
+        slideOut.setInterpolator(SWITCH_INTERPOLATOR);
+        slideOut.setDuration(SWITCH_DURATION);
+        slideOut.addListener(new AnimatorListener() {
+            @Override public void onAnimationEnd(@NonNull Animator animation) {
+                if (switchAnimator != animation || expectedRows != rowsGeneration) return;
+                switchAnimator = null;
+                replaceRows(next);
+                container.setTranslationX(getWidth());
+                ObjectAnimator slideIn = ObjectAnimator.ofFloat(container, View.TRANSLATION_X, 0);
+                switchAnimator = slideIn;
+                slideIn.setInterpolator(SWITCH_INTERPOLATOR);
+                slideIn.setDuration(SWITCH_DURATION);
+                slideIn.addListener(new AnimatorListener() {
+                    @Override public void onAnimationEnd(@NonNull Animator animation) {
+                        if (switchAnimator == animation) switchAnimator = null;
+                    }
+                });
+                slideIn.start();
+            }
+        });
+        slideOut.start();
+    }
+
+    public boolean isShowing(MusicDetail detail, Collection<LyricLine> lyrics) {
+        return musicDetail == detail && Objects.equals(requestedLyrics,
+                lyrics == null ? List.of() : List.copyOf(lyrics));
+    }
+
+    private void replaceRows(Collection<LyricLine> lyrics) {
+        justHighlightedLyricLine = null;
+        lastHighlightedLyricLine = null;
+        resetStaggerState();
+        container.removeAllViews();
+        bottomSpacer = null;
+        buildLyricRows(lyrics);
+    }
+
+    private void cancelSwitchAnimation() {
+        ObjectAnimator animation = switchAnimator;
+        switchAnimator = null;
+        if (animation != null) animation.cancel();
+    }
+
+    private void cancelAlphaAnimation() {
+        ObjectAnimator animation = alphaAnimator;
+        alphaAnimator = null;
+        if (animation != null) animation.cancel();
+    }
+
+    private void postCurrentRows(Runnable action) {
+        long expectedRows = rowsGeneration;
+        post(() -> {
+            if (expectedRows == rowsGeneration && isAttachedToWindow() && !followingSuspended) action.run();
+        });
     }
 
     private void buildLyricRows(Collection<LyricLine> lyrics) {
         lyricLines.clear();
         lyricLineViewList.clear();
+        currentLyrics = lyrics;
 
         if (lyrics == null) return;
         Context context = getContext();
@@ -184,20 +248,28 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
             lyricLineViewList.add(row);
         }
 
-        container.addView(new RatedHeightView(context, 0.7f, () -> this));
+        bottomSpacer = new View(context);
+        container.addView(bottomSpacer, new LayoutParams(MATCH_PARENT, 0));
 
-        long expectedRows = rowsGeneration;
-        post(() -> {
-            if (expectedRows != rowsGeneration || !isAttachedToWindow()) return;
+        postCurrentRows(() -> {
             requestLayout();
             for (LyricLineView line : lyricLineViewList) {
                 line.setTranslationY(line.getTargetOffset(nowPlayingInfo.getCurrentLyricLine()));
             }
-            initializeScrollToCurrentLyric();
+            postCurrentRows(this::resyncToCurrentLyric);
         });
     }
 
-    private void initializeScrollToCurrentLyric() {
+    public void resyncToCurrentLyric() {
+        if (!isAttachedToWindow() || followingSuspended) return;
+        if (!isContentLaidOut()) {
+            // Rows were rebuilt while the view was GONE / not yet measured; child tops are
+            // still 0, so defer until the next real layout pass instead of computing a wrong jump.
+            pendingResyncToCurrent = true;
+            requestLayout();
+            return;
+        }
+        pendingResyncToCurrent = false;
         LyricLine current = nowPlayingInfo.getCurrentLyricLine();
         if (current != null) {
             LyricLineView target = lyricLines.get(current);
@@ -212,18 +284,27 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
         } else if (!lyricLines.isEmpty()) {
             jumpToTop();
         }
+        startUpdateLoop();
 
-        ObjectAnimator alpha = ObjectAnimator.ofFloat(this, View.ALPHA, 0, 1f);
+        cancelAlphaAnimation();
+        ObjectAnimator alpha = ObjectAnimator.ofFloat(this, View.ALPHA, getAlpha(), 1f);
+        alphaAnimator = alpha;
         alpha.setDuration(300);
         alpha.setInterpolator(Easing.EASE_OUT_QUAD);
         alpha.start();
+    }
+
+    private boolean isContentLaidOut() {
+        // The first lyric row has real height only after a layout pass; a stale scroll-view
+        // height or previously laid out container cannot be trusted after a rebuild.
+        return lyricLineViewList.isEmpty() || lyricLineViewList.getFirst().getHeight() > 0;
     }
 
     void highlightLine(@Nullable LyricLine lyricLine) {
         if (Objects.equals(musicDetail, nowPlayingInfo.getCurrentlyPlayingMusicDetail())) {
             long expectedRows = rowsGeneration;
             MuiModApi.postToUiThread(() -> {
-                if (!isAttachedToWindow() || expectedRows != rowsGeneration
+                if (expectedRows != rowsGeneration || !isAttachedToWindow() || followingSuspended
                         || musicDetail != nowPlayingInfo.getCurrentlyPlayingMusicDetail()) return;
                 if (lyricLine == null) {
                     justHighlightedLyricLine = null;
@@ -253,19 +334,20 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
     private void recenter() {
         LyricLine targetLine = justHighlightedLyricLine;
         if (targetLine == null) return;
-        lastHighlightedLyricLine = justHighlightedLyricLine;
-        if (scrollStatus == ScrollStatus.RECENTER) return;
-        scrollStatus = ScrollStatus.RECENTER;
-
+        // Resolve the target before switching state: entering RECENTER without a valid
+        // target would leave the state machine stuck (no scroll is started to complete it).
         LyricLineView target = lyricLines.get(targetLine);
-        if (target != null) {
-            scrollToLyric(target);
-        }
+        if (target == null) return;
+        if (scrollStatus == ScrollStatus.RECENTER) return;
+        lastHighlightedLyricLine = justHighlightedLyricLine;
+        scrollStatus = ScrollStatus.RECENTER;
+        scrollFinished = false;
+        scrollToLyric(target);
     }
 
     private void jumpToTop() {
         if (scrollController == null) return;
-        scrollController.abortAnimation();
+        resetStaggerState();
         int maxScroll = Math.max(0, container.getHeight() - getHeight());
         scrollController.setMaxScroll(maxScroll);
         scrollController.scrollTo(0, 0);
@@ -279,19 +361,22 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
         int targetTop = target.getScrollPosition(this);
         int scrollViewHeight = getHeight();
         if (scrollViewHeight <= 0) {
-            post(() -> jumpToLyric(target));
+            pendingResyncToCurrent = true;
+            requestLayout();
             return;
         }
         int targetScrollY = targetTop - dp(80);
         int maxScroll = Math.max(0, container.getHeight() - scrollViewHeight);
         targetScrollY = Math.clamp(targetScrollY, 0, maxScroll);
 
-        scrollController.abortAnimation();
+        resetStaggerState();
         scrollController.setMaxScroll(maxScroll);
         scrollController.scrollTo(targetScrollY, 0);
         scrollController.setStartValue(currentScrollPosition);
         scrollController.abortAnimation();
         currentScrollPosition = targetScrollY;
+        // Keep the loop's settle check consistent with the controller value we just forced.
+        lastTargetScrollPosition = targetScrollY;
     }
 
     private void scrollToLyric(LyricLineView target) {
@@ -300,7 +385,8 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
 
         int scrollViewHeight = getHeight();
         if (scrollViewHeight <= 0) {
-            post(() -> scrollToLyric(target));
+            pendingResyncToCurrent = true;
+            requestLayout();
             return;
         }
         int maxScroll = Math.max(0, container.getHeight() - scrollViewHeight);
@@ -341,13 +427,15 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
 
     private void checkManualScrolling() {
         if (scrollStatus == ScrollStatus.IDLE) {
-            markManual();
+            // Only an active finger drag counts; programmatic jumps, aborts and layout-driven
+            // scroll corrections must not switch to MANUAL and cancel the edge fade.
+            if (pointerDown) {
+                markManual();
+            }
         } else if (scrollStatus == ScrollStatus.MANUAL) {
             lastUserScrollTime = MuiModApi.getElapsedTime();
         }
     }
-
-
 
     private void markManual() {
         scrollStatus = ScrollStatus.MANUAL;
@@ -364,7 +452,13 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
         int action = ev.getActionMasked();
-        if (action == MotionEvent.ACTION_DOWN && scrollStatus == ScrollStatus.FOLLOW_LYRICS) {
+        if (action == MotionEvent.ACTION_DOWN) {
+            pointerDown = true;
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            pointerDown = false;
+        }
+        if (action == MotionEvent.ACTION_DOWN
+                && (scrollStatus == ScrollStatus.FOLLOW_LYRICS || scrollStatus == ScrollStatus.RECENTER)) {
             markManual();
         }
         return super.onTouchEvent(ev);
@@ -372,7 +466,10 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent ev) {
-        if (ev.getAction() == MotionEvent.ACTION_SCROLL && scrollStatus == ScrollStatus.FOLLOW_LYRICS) {
+        if (ev.getAction() == MotionEvent.ACTION_SCROLL
+                && (scrollStatus == ScrollStatus.IDLE
+                    || scrollStatus == ScrollStatus.FOLLOW_LYRICS
+                    || scrollStatus == ScrollStatus.RECENTER)) {
             markManual();
         }
         return super.onGenericMotionEvent(ev);
@@ -391,15 +488,18 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        nowPlayingInfo.getLyricLineUpdateListener().remove(lyricLineUpdateListener);
         nowPlayingInfo.getLyricLineUpdateListener().add(lyricLineUpdateListener);
-        if (!continueUpdate) startUpdateLoop();
-        initializeScrollToCurrentLyric();
+        if (!Objects.equals(currentLyrics, requestedLyrics)) replaceRows(requestedLyrics);
+        postCurrentRows(this::resyncToCurrentLyric);
     }
 
     @Override
     protected void onDetachedFromWindow() {
-        rowsGeneration++;
+        ++rowsGeneration;
+        cancelSwitchAnimation();
+        cancelAlphaAnimation();
+        container.setTranslationX(0);
+        pointerDown = false;
         super.onDetachedFromWindow();
         stopUpdateLoop();
         removeCallbacks(autoRecenterRunnable);
@@ -410,42 +510,51 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
     }
 
     private void startUpdateLoop() {
-        updateGeneration++;
-        continueUpdate = true;
-        scrollFinished = false;
-        updateLoop();
+        if (!continueUpdate && !followingSuspended && isAttachedToWindow()) {
+            ++updateGeneration;
+            continueUpdate = true;
+            scrollFinished = false;
+            updateLoop();
+        }
     }
 
     private void updateLoop() {
         long expectedUpdate = updateGeneration;
-        Choreographer.getInstance().postFrameCallback((choreographer, frameTimeNanos) -> {
-            if (continueUpdate && expectedUpdate == updateGeneration && isAttachedToWindow()) {
-                if (scrollController.isScrolling()) {
-                    scrollController.update(MuiModApi.getElapsedTime());
-                    scrollFinished = false;
-                }
-                if (((!scrollController.isScrolling() && !scrollFinished) || scrollController.getCurrValue() == lastTargetScrollPosition)
-                        && (scrollStatus == ScrollStatus.FOLLOW_LYRICS || scrollStatus == ScrollStatus.RECENTER)) {
-                    scrollFinished = true;
-                    if (!staggeredActive || animatingLyricViews.isEmpty()) {
-                        scrollStatus = ScrollStatus.IDLE;
-                    } else {
-                        staggeringEndListener = () -> {
-                            scrollStatus = ScrollStatus.IDLE;
-                        };
+        try {
+            Choreographer.getInstance().postFrameCallback((choreographer, frameTimeNanos) -> {
+                if (continueUpdate && expectedUpdate == updateGeneration && isAttachedToWindow() && !followingSuspended) {
+                    if (scrollController.isScrolling()) {
+                        scrollController.update(MuiModApi.getElapsedTime());
+                        scrollFinished = false;
                     }
-                }
-                updateTranslations(frameTimeNanos);
+                    if (((!scrollController.isScrolling() && !scrollFinished) || scrollController.getCurrValue() == lastTargetScrollPosition)
+                            && (scrollStatus == ScrollStatus.FOLLOW_LYRICS || scrollStatus == ScrollStatus.RECENTER)) {
+                        scrollFinished = true;
+                        if (!staggeredActive || animatingLyricViews.isEmpty()) {
+                            scrollStatus = ScrollStatus.IDLE;
+                        } else {
+                            staggeringEndListener = () -> {
+                                scrollStatus = ScrollStatus.IDLE;
+                            };
+                        }
+                    }
+                    updateTranslations(frameTimeNanos);
 
-                invalidate();
-                updateLoop();
+                    invalidate();
+                    updateLoop();
+                }
+            });
+        } catch (IllegalStateException e) {
+            if (continueUpdate) {
+                throw e;
             }
-        });
+        }
     }
 
     private void stopUpdateLoop() {
-        updateGeneration++;
+        ++updateGeneration;
         continueUpdate = false;
+        resetStaggerState();
     }
 
     private void calcLoggedDelay(int targetIndex) {
@@ -650,31 +759,74 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
         }
     }
 
-    enum ScrollStatus {
-        IDLE, MANUAL, RECENTER, FOLLOW_LYRICS
-    }
-
-    public static class RatedHeightView extends View {
-        private final Supplier<View> targetSupplier;
-        private final float heightPercent;
-
-        public RatedHeightView(Context context, float heightRate, Supplier<View> targetSupplier) {
-            super(context);
-            this.heightPercent = heightRate;
-            this.targetSupplier = targetSupplier;
-        }
-
-        @Override
-        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            View parent = targetSupplier.get();
-            if (parent != null) {
-                int parentHeight = parent.getHeight();
-                int targetHeight = (int) (parentHeight * heightPercent);
-                int width = MeasureSpec.getSize(widthMeasureSpec);
-                setMeasuredDimension(width, targetHeight);
-            } else {
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        super.onLayout(changed, left, top, right, bottom);
+        int viewport = bottom - top;
+        if (viewport > 0 && bottomSpacer != null && bottomSpacer.getParent() == container) {
+            int target = (int) (viewport * SPACER_HEIGHT_RATIO);
+            ViewGroup.LayoutParams lp = bottomSpacer.getLayoutParams();
+            if (lp.height != target) {
+                lp.height = target;
+                bottomSpacer.requestLayout();
             }
         }
+        if (pendingResyncToCurrent) {
+            pendingResyncToCurrent = false;
+            postCurrentRows(this::resyncToCurrentLyric);
+        }
+    }
+
+    public void refreshLinesStyle() {
+        lyricLineViewList.forEach(LyricLineView::refreshSubLyricLine);
+        postCurrentRows(this::recenter);
+    }
+
+    public void reinitialize() {
+        followingSuspended = false;
+        if (container == null || lyricLineViewList.isEmpty()) {
+            return;
+        }
+        resetStaggerState();
+        scrollStatus = ScrollStatus.IDLE;
+        lastAutoScrollTime = MuiModApi.getElapsedTime();
+        postCurrentRows(() -> {
+            requestLayout();
+            postCurrentRows(this::resyncToCurrentLyric);
+        });
+    }
+
+    public void suspendLyricFollowingAndHide() {
+        followingSuspended = true;
+        cancelAlphaAnimation();
+        cancelSwitchAnimation();
+        if (!Objects.equals(currentLyrics, requestedLyrics)) replaceRows(requestedLyrics);
+        container.setTranslationX(0);
+        stopUpdateLoop();
+        removeCallbacks(autoRecenterRunnable);
+        resetStaggerState();
+        scrollStatus = ScrollStatus.IDLE;
+    }
+
+    private void resetStaggerState() {
+        staggeredActive = false;
+        animatingLyricViews.clear();
+        delayMillis = null;
+        staggerFromOffsets = null;
+        cumulativeBaseOffset = 0;
+        prevScrollInitialized = false;
+        baseOffsetAtRedirect = 0;
+        lyricAnimationStartAtMillis = 0;
+        staggeringEndListener = null;
+        if (scrollController != null) {
+            scrollController.abortAnimation();
+            // abortAnimation forces the actual scroll to the controller value; keep our mirror in
+            // sync so the scroll-change listener filters it instead of flagging a manual scroll.
+            currentScrollPosition = (int) scrollController.getCurrValue();
+        }
+    }
+
+    enum ScrollStatus {
+        IDLE, MANUAL, RECENTER, FOLLOW_LYRICS
     }
 }

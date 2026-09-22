@@ -23,7 +23,7 @@ import indi.mopelotus.musichud.client.ui.components.Modal;
 import indi.mopelotus.musichud.client.ui.components.MusicCollectionDetailView;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.components.UrlImageView;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.ArrayList;
@@ -111,8 +111,8 @@ public final class PlatformPlaylistManagerView extends LinearLayout {
         LinearLayout row = new LinearLayout(getContext());
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(10), dp(8), dp(10), dp(8));
-        row.setBackground(ButtonInsetBackgroundFactory.builder()
-                .cornerRadius(dp(6)).inset(dp(1)).build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder()
+                .cornerRadius(dp(6)).inset(dp(1)).build().applyBackgroundTo(row);
 
         UrlImageView cover = new UrlImageView(getContext());
         cover.setCornerRadius(dp(6));
@@ -229,8 +229,8 @@ public final class PlatformPlaylistManagerView extends LinearLayout {
         button.setText(key.startsWith(".") ? I18n.get(MusicHud.MOD_ID + key) : key);
         button.setTextSize(Theme.TEXT_SIZE_SMALL);
         button.setTextColor(Theme.PRIMARY_COLOR);
-        button.setBackground(ButtonInsetBackgroundFactory.builder()
-                .cornerRadius(dp(4)).inset(dp(1)).build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder()
+                .cornerRadius(dp(4)).inset(dp(1)).build().applyBackgroundTo(button);
         var binding = tasks.capture();
         button.setOnClickListener(view -> {
             if (key.endsWith(".back") || key.endsWith(".refresh")

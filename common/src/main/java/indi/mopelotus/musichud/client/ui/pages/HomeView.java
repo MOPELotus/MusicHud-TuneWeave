@@ -1,6 +1,13 @@
 package indi.mopelotus.musichud.client.ui.pages;
 
 import icyllis.modernui.animation.LayoutTransition;
+import icyllis.modernui.animation.Animator;
+import icyllis.modernui.animation.AnimatorSet;
+import icyllis.modernui.animation.AnimatorListener;
+import icyllis.modernui.animation.ObjectAnimator;
+import icyllis.modernui.annotation.NonNull;
+import indi.mopelotus.musichud.client.utils.ui.SpringInterpolator;
+import java.util.Objects;
 import icyllis.modernui.core.Context;
 import icyllis.modernui.graphics.Image;
 import icyllis.modernui.graphics.drawable.Drawable;
@@ -27,7 +34,7 @@ import indi.mopelotus.musichud.client.ui.components.UrlImageView;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import indi.mopelotus.musichud.client.ui.dto.LyricLine;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.interfaces.ClientConfig;
 import indi.mopelotus.musichud.interfaces.Unregister;
 import lombok.Getter;
@@ -48,16 +55,27 @@ import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
 public class HomeView extends LinearLayout {
+    private record CardKey(boolean local, long id, Class<?> type) {
+        static CardKey of(boolean local, MusicCollection collection) {
+            return new CardKey(local, collection.getId(), collection.getClass());
+        }
+    }
+    private static final SpringInterpolator NEXT_TO_PLAY_INTERPOLATOR = new SpringInterpolator(0.25f, 1);
+    private static final int NEXT_TO_PLAY_ANIM_DURATION_MS = Math.round(NEXT_TO_PLAY_INTERPOLATOR.getDuration() * 1000);
+    private static final float NEXT_TO_PLAY_MIN_SCALE = 0.95f;
+    private AnimatorSet nextToPlayAnimator;
+    private MusicDetail pendingNextToPlay;
     private static final Logger LOGGER = MusicHud.getLogger(HomeView.class);
     private static final MusicService musicService = MusicService.getInstance();
     private static final ClientConfig clientConfig = ClientConfig.getInstance();
     private static final ActiveViewReference<HomeView> ACTIVE_INSTANCE = new ActiveViewReference<>();
     private final Set<MusicCollection> serverIdlePlaySources = musicService.getIdlePlaySourceState().external().getSources();
     private final Set<MusicCollection> clientIdlePlaySources = musicService.getIdlePlaySourceState().local().getSources();
-    private final Map<MusicCollection, MusicCollectionCard> idlePlaySourceCardMap = new ConcurrentHashMap<>();
+    private final Map<CardKey, MusicCollectionCard> idlePlaySourceCardMap = new ConcurrentHashMap<>();
     @Getter
     private StaggeredLyricScrollView staggeredLyricScrollView;
     private LinearLayout queuePane;
+    private boolean rebuildOnAttach;
     private LinearLayout videoPreview;
     private UrlImageView videoPreviewImage;
     private TextView videoPreviewTitle;
@@ -77,7 +95,7 @@ public class HomeView extends LinearLayout {
     private FlexWrapLayout clientIdlePlaySourceCardsList;
     private final Consumer<MusicCollection> localAddListener = collection -> {
         postHome(() -> {
-            if (clientIdlePlaySources.contains(collection) && !idlePlaySourceCardMap.containsKey(collection)) {
+            if (clientIdlePlaySources.contains(collection) && !idlePlaySourceCardMap.containsKey(CardKey.of(true, collection))) {
                 addIdlePlaySourceTo(collection, getContext(), clientIdlePlaySourceCardsList);
                 checkIdlePlaySources(clientIdlePlaySources, clientIdlePlaySourceView);
             }
@@ -86,7 +104,7 @@ public class HomeView extends LinearLayout {
     private final Consumer<MusicCollection> localRemoveListener = collection -> {
         postHome(() -> {
             if (clientIdlePlaySources.contains(collection)) return;
-            MusicCollectionCard view = idlePlaySourceCardMap.remove(collection);
+            MusicCollectionCard view = idlePlaySourceCardMap.remove(CardKey.of(true, collection));
             if (view != null) {
                 clientIdlePlaySourceCardsList.removeView(view);
                 checkIdlePlaySources(clientIdlePlaySources, clientIdlePlaySourceView);
@@ -97,7 +115,7 @@ public class HomeView extends LinearLayout {
     private final Consumer<MusicCollection> serverRemoveListener = collection -> {
         postHome(() -> {
             if (serverIdlePlaySources.contains(collection)) return;
-            MusicCollectionCard view = idlePlaySourceCardMap.remove(collection);
+            MusicCollectionCard view = idlePlaySourceCardMap.remove(CardKey.of(false, collection));
             if (view != null) {
                 serverIdlePlaySourceCardsList.removeView(view);
                 checkIdlePlaySources(serverIdlePlaySources, serverIdlePlaySourceView);
@@ -121,7 +139,7 @@ public class HomeView extends LinearLayout {
     private final Consumer<MusicCollection> serverAddListener = collection -> {
         postHome(() -> {
             if ((localPlayer != null && !java.util.Objects.equals(collection.getPusherInfo().getPlayerUUID(), localPlayer.getUUID()))
-                    && serverIdlePlaySources.contains(collection) && !idlePlaySourceCardMap.containsKey(collection)) {
+                    && serverIdlePlaySources.contains(collection) && !idlePlaySourceCardMap.containsKey(CardKey.of(false, collection))) {
                 addIdlePlaySourceTo(collection, getContext(), serverIdlePlaySourceCardsList);
                 checkIdlePlaySources(serverIdlePlaySources, serverIdlePlaySourceView);
             }
@@ -147,12 +165,16 @@ public class HomeView extends LinearLayout {
     }
 
     public void refresh() {
+        pendingNextToPlay = null;
+        cancelNextToPlayAnimation();
         notificationGeneration = callbackGeneration.next();
         localPlayer = Minecraft.getInstance().player;
         ACTIVE_INSTANCE.attach(this);
         releaseSubscriptions();
         Context context = getContext();
         removeAllViews();
+        staggeredLyricScrollView = null;
+        nextToPlayItem = null;
         currentSourceLink = new indi.mopelotus.musichud.client.ui.components.PlaybackSourceLink(getContext());
         idlePlaySourceCardMap.clear();
 
@@ -262,16 +284,17 @@ public class HomeView extends LinearLayout {
             rotateNextButton = new ImageButton(context);
             rotateNextButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
             rotateNextButton.setImageDrawable(new ScaledImageDrawable(context.getResources(),
-                    ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/rotate_cw.png"), dp(16), dp(16)));
+                    ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/refresh_ccw_dot.png"), dp(16), dp(16)));
             rotateNextButton.setContentDescription(I18n.get(MusicHud.MOD_ID + ".button.rotateNextToPlay"));
             rotateNextButton.setTooltipText(I18n.get(MusicHud.MOD_ID + ".button.rotateNextToPlay"));
-            rotateNextButton.setBackground(ButtonInsetBackgroundFactory.builder().inset(dp(2)).cornerRadius(dp(4)).build().newBackgroundDrawable());
+            InsetBackgroundFactory.builder().inset(dp(2)).cornerRadius(dp(4)).build().applyBackgroundTo(rotateNextButton);
             rotateNextButton.setOnClickListener(view -> rotateNextToPlay());
             nextToPlayHeader.addView(rotateNextButton, new LayoutParams(dp(40), dp(40)));
             nextToPlayTitleParams.width = MATCH_PARENT;
             scrollViewContainer.addView(nextToPlayHeader, nextToPlayTitleParams);
 
             nextToPlayItem = new MusicListItem(context);
+            nextToPlayItem.getAlbumImageView().setTransitionDuration(0);
             nextToPlayItem.setVisibility(GONE);
             scrollViewContainer.addView(nextToPlayItem, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 
@@ -346,18 +369,13 @@ public class HomeView extends LinearLayout {
             localPlayer = Minecraft.getInstance().player;
 
             clientIdlePlaySources.forEach(collection -> {
-                if (!idlePlaySourceCardMap.containsKey(collection)) {
-                    MusicCollectionCard child = new MusicCollectionCard(context, collection);
-                    clientIdlePlaySourceCardsList.addView(child);
-                    idlePlaySourceCardMap.put(collection, child);
-                }
+                if (!idlePlaySourceCardMap.containsKey(CardKey.of(true, collection)))
+                    addIdlePlaySourceTo(collection, context, clientIdlePlaySourceCardsList);
             });
             serverIdlePlaySources.forEach(collection -> {
-                if (localPlayer != null && !collection.getPusherInfo().getPlayerUUID().equals(localPlayer.getUUID()) && !idlePlaySourceCardMap.containsKey(collection)) {
-                    MusicCollectionCard child = new MusicCollectionCard(context, collection);
-                    serverIdlePlaySourceCardsList.addView(child);
-                    idlePlaySourceCardMap.put(collection, child);
-                }
+                if (localPlayer != null && !Objects.equals(collection.getPusherInfo().getPlayerUUID(), localPlayer.getUUID())
+                        && !idlePlaySourceCardMap.containsKey(CardKey.of(false, collection)))
+                    addIdlePlaySourceTo(collection, context, serverIdlePlaySourceCardsList);
             });
             checkIdlePlaySources(clientIdlePlaySources, clientIdlePlaySourceView);
             checkIdlePlaySources(serverIdlePlaySources, serverIdlePlaySourceView);
@@ -439,7 +457,7 @@ public class HomeView extends LinearLayout {
     private void addIdlePlaySourceTo(MusicCollection idlePlaySource, Context context, FlexWrapLayout targetView) {
         MusicCollectionCard child = new MusicCollectionCard(context, idlePlaySource);
         targetView.addView(child);
-        idlePlaySourceCardMap.put(idlePlaySource, child);
+        idlePlaySourceCardMap.put(CardKey.of(targetView == clientIdlePlaySourceCardsList, idlePlaySource), child);
     }
 
     private void checkQueue(Queue<QueueItem> queue) {
@@ -464,22 +482,149 @@ public class HomeView extends LinearLayout {
     }
 
     private void checkNextToPlay(MusicDetail nextIdle) {
+        if (nextToPlayItem == null) return;
         MusicService musicService = MusicService.getInstance();
         Queue<QueueItem> musicQueue = musicService.getMusicQueue();
         boolean hasIdlePlaySources = !musicService.getIdlePlaySourceState().local().getSources().isEmpty() || !musicService.getIdlePlaySourceState().external().getSources().isEmpty();
         MusicDetail next = hasIdlePlaySources ? nextIdle : null;
-        if (musicQueue.isEmpty() && next != null && !next.equals(MusicDetail.NONE)) {
-            nextToPlayHeader.setVisibility(VISIBLE);
-            nextToPlayTitle.setVisibility(VISIBLE);
-            LocalPlayer player = Minecraft.getInstance().player;
-            rotateNextButton.setVisibility(player != null && player.getUUID().equals(next.getPusherInfo().getPlayerUUID()) ? VISIBLE : GONE);
-            nextToPlayItem.setVisibility(VISIBLE);
-            nextToPlayItem.bindData(next);
-        } else {
+        boolean show = musicQueue.isEmpty() && next != null && !next.equals(MusicDetail.NONE);
+        applyNextToPlay(show, show ? next : null);
+    }
+
+
+    /**
+     * Drives visibility and content of the "next to play" row. When the row is already showing a
+     * different track, the switch is animated: the old content shrinks to {@link #NEXT_TO_PLAY_MIN_SCALE}
+     * and fades out, then the new content is bound and enters in reverse.
+     */
+    private void applyNextToPlay(boolean show, MusicDetail nextIdle) {
+        if (!show) {
+            pendingNextToPlay = null;
+            cancelNextToPlayAnimation();
             nextToPlayHeader.setVisibility(GONE);
-            nextToPlayTitle.setVisibility(GONE);
             nextToPlayItem.setVisibility(GONE);
+            rotateNextButton.setVisibility(GONE);
+            resetNextToPlayItemVisual();
+            return;
         }
+        if (nextToPlayAnimator != null) {
+            // A switch is already in flight: keep only the newest target.
+            pendingNextToPlay = nextIdle;
+            return;
+        }
+        boolean itemShown = nextToPlayItem.getVisibility() == VISIBLE;
+        nextToPlayHeader.setVisibility(VISIBLE);
+        if (itemShown && sameNextTrack(nextToPlayItem.getMusicDetail(), nextIdle)) {
+            // Same track re-synced: refresh in place without replaying the switch animation.
+            if (nextToPlayItem.getMusicDetail() != nextIdle) nextToPlayItem.bindData(nextIdle);
+            updateNextToPlayRotateButton(nextIdle);
+            return;
+        }
+        if (!itemShown) {
+            // First appearance: bind in place, no outgoing content to animate.
+            nextToPlayItem.setVisibility(VISIBLE);
+            nextToPlayItem.bindData(nextIdle);
+            resetNextToPlayItemVisual();
+            updateNextToPlayRotateButton(nextIdle);
+            return;
+        }
+        startNextToPlaySwitch(nextIdle);
+    }
+
+    private void startNextToPlaySwitch(MusicDetail target) {
+        pendingNextToPlay = null;
+        ObjectAnimator outAlpha = ObjectAnimator.ofFloat(nextToPlayItem, View.ALPHA, nextToPlayItem.getAlpha(), 0f);
+        ObjectAnimator outScaleX = ObjectAnimator.ofFloat(nextToPlayItem, View.SCALE_X, nextToPlayItem.getScaleX(), NEXT_TO_PLAY_MIN_SCALE);
+        ObjectAnimator outScaleY = ObjectAnimator.ofFloat(nextToPlayItem, View.SCALE_Y, nextToPlayItem.getScaleY(), NEXT_TO_PLAY_MIN_SCALE);
+        AnimatorSet outSet = new AnimatorSet();
+        outSet.playTogether(outAlpha, outScaleX, outScaleY);
+        outSet.setDuration(NEXT_TO_PLAY_ANIM_DURATION_MS);
+        outSet.setInterpolator(NEXT_TO_PLAY_INTERPOLATOR);
+        nextToPlayAnimator = outSet;
+        outSet.addListener(new AnimatorListener() {
+            @Override
+            public void onAnimationEnd(@NonNull Animator animation) {
+                // Stale callbacks (canceled / replaced) must not settle a newer transition.
+                if (nextToPlayAnimator != outSet) {
+                    return;
+                }
+                MusicDetail bindTarget = target;
+                // A newer target may have arrived during the fade-out; skip the stale one entirely.
+                if (pendingNextToPlay != null) {
+                    bindTarget = pendingNextToPlay;
+                    pendingNextToPlay = null;
+                }
+                nextToPlayItem.clearData();
+                nextToPlayItem.bindData(bindTarget);
+                updateNextToPlayRotateButton(bindTarget);
+                long ticket = notificationGeneration;
+                post(() -> {
+                    if (nextToPlayAnimator == outSet && callbackGeneration.isCurrent(ticket)
+                            && ACTIVE_INSTANCE.isCurrent(HomeView.this) && isAttachedToWindow()) startNextToPlayEnter();
+                });
+            }
+        });
+        outSet.start();
+    }
+
+    private void startNextToPlayEnter() {
+        nextToPlayItem.setAlpha(0f);
+        nextToPlayItem.setScaleX(NEXT_TO_PLAY_MIN_SCALE);
+        nextToPlayItem.setScaleY(NEXT_TO_PLAY_MIN_SCALE);
+        ObjectAnimator inAlpha = ObjectAnimator.ofFloat(nextToPlayItem, View.ALPHA, 0f, 1f);
+        ObjectAnimator inScaleX = ObjectAnimator.ofFloat(nextToPlayItem, View.SCALE_X, NEXT_TO_PLAY_MIN_SCALE, 1f);
+        ObjectAnimator inScaleY = ObjectAnimator.ofFloat(nextToPlayItem, View.SCALE_Y, NEXT_TO_PLAY_MIN_SCALE, 1f);
+        AnimatorSet inSet = new AnimatorSet();
+        inSet.playTogether(inAlpha, inScaleX, inScaleY);
+        inSet.setDuration(NEXT_TO_PLAY_ANIM_DURATION_MS);
+        inSet.setInterpolator(NEXT_TO_PLAY_INTERPOLATOR);
+        nextToPlayAnimator = inSet;
+        inSet.addListener(new AnimatorListener() {
+            @Override
+            public void onAnimationEnd(@NonNull Animator animation) {
+                if (nextToPlayAnimator != inSet) {
+                    return;
+                }
+                nextToPlayAnimator = null;
+                resetNextToPlayItemVisual();
+                if (pendingNextToPlay != null) {
+                    MusicDetail pending = pendingNextToPlay;
+                    pendingNextToPlay = null;
+                    applyNextToPlay(true, pending);
+                }
+            }
+        });
+        inSet.start();
+    }
+
+    private void cancelNextToPlayAnimation() {
+        AnimatorSet animator = nextToPlayAnimator;
+        // Clear the field first so the cancel callback is treated as stale and does not advance.
+        nextToPlayAnimator = null;
+        if (animator != null) {
+            animator.cancel();
+        }
+    }
+
+    private void resetNextToPlayItemVisual() {
+        nextToPlayItem.setAlpha(1f);
+        nextToPlayItem.setScaleX(1f);
+        nextToPlayItem.setScaleY(1f);
+    }
+
+    private void updateNextToPlayRotateButton(MusicDetail nextIdle) {
+        MusicDetail next = nextIdle == null ? null : nextIdle;
+        LocalPlayer player = Minecraft.getInstance().player;
+        rotateNextButton.setVisibility(next != null && player != null
+                && Objects.equals(player.getUUID(), next.getPusherInfo().getPlayerUUID()) ? VISIBLE : GONE);
+    }
+
+    private static boolean sameNextTrack(MusicDetail left, MusicDetail right) {
+        return left == right || left != null && right != null && left.getId() == right.getId()
+                && Objects.equals(left.getSourceRef(), right.getSourceRef())
+                && Objects.equals(left.getSourceKind(), right.getSourceKind())
+                && Objects.equals(left.getPlaybackSource(), right.getPlaybackSource())
+                && Objects.equals(left.getPusherInfo(), right.getPusherInfo());
     }
 
     private void rotateNextToPlay() {
@@ -499,8 +644,8 @@ public class HomeView extends LinearLayout {
     private void addMusicQueueItem(QueueItem item, LinearLayout playQueueView) {
         MusicDetail musicDetail = item.musicDetail();
         var musicListItem = new MusicListItem(getContext());
-        musicListItem.setTag(item.queueUniqueID());
         musicListItem.bindData(musicDetail);
+        musicListItem.setTag(item.queueUniqueID());
         LayoutParams layoutParams = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, WRAP_CONTENT);
         layoutParams.setMargins(0, 0, 0, dp(16));
 
@@ -509,11 +654,11 @@ public class HomeView extends LinearLayout {
             Image removeIcon = ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/trash_2.png");
             removeButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
             removeButton.setImageDrawable(new ScaledImageDrawable(getContext().getResources(), removeIcon, dp(16), dp(16)));
-            Drawable background = ButtonInsetBackgroundFactory.builder()
+            InsetBackgroundFactory background = InsetBackgroundFactory.builder()
                     .inset(dp(2))
                     .cornerRadius(dp(4))
-                    .build().newBackgroundDrawable();
-            removeButton.setBackground(background);
+                    .build();
+            background.applyBackgroundTo(removeButton);
             removeButton.setOnClickListener(v -> {
                 MusicService.getInstance().sendRemoveMusicFromQueue(playQueueView.indexOfChild(musicListItem), item);
             });
@@ -625,6 +770,11 @@ public class HomeView extends LinearLayout {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         ACTIVE_INSTANCE.attach(this);
+        if (rebuildOnAttach) {
+            rebuildOnAttach = false;
+            refresh();
+            return;
+        }
         if (rotateNextButton != null) rotateNextButton.setEnabled(true);
         subscribePlaybackState();
         applyPlaybackSnapshot(NowPlayingInfo.getInstance().snapshot());
@@ -632,6 +782,9 @@ public class HomeView extends LinearLayout {
 
     @Override
     protected void onDetachedFromWindow() {
+        rebuildOnAttach = true;
+        pendingNextToPlay = null;
+        cancelNextToPlayAnimation();
         notificationGeneration = callbackGeneration.next();
         super.onDetachedFromWindow();
         releaseSubscriptions();

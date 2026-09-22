@@ -11,7 +11,7 @@ import indi.mopelotus.musichud.client.ui.ToastUtil;
 import indi.mopelotus.musichud.client.ui.components.MusicListItem;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.pages.VideoDetailView;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import lombok.Getter;
 import net.minecraft.client.resources.language.I18n;
 
@@ -54,11 +54,11 @@ public class SearchMusicResultView extends LinearLayout {
     private void addItem(Context context, MusicDetail musicDetail) {
         var musicLayout = new MusicListItem(context);
         musicLayout.bindData(musicDetail);
-        var background = ButtonInsetBackgroundFactory.builder()
+        InsetBackgroundFactory background = InsetBackgroundFactory.builder()
                 .cornerRadius(dp(12))
                 .inset(dp(1))
-                .padding(new ButtonInsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4))).build().newBackgroundDrawable();
-        musicLayout.setBackground(background);
+                .padding(new InsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4))).build();
+        background.applyBackgroundTo(musicLayout);
 
         musicLayout.setClickable(true);
         String artistsName = musicDetail.getArtists().stream()

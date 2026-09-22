@@ -29,7 +29,7 @@ import indi.mopelotus.musichud.client.ui.hud.metadata.HorizontalAlign;
 import indi.mopelotus.musichud.client.ui.hud.metadata.VerticalAlign;
 import indi.mopelotus.musichud.client.ui.screen.MainFragment;
 import indi.mopelotus.musichud.client.ui.screen.MusicHudScreen;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.interfaces.ClientConfig;
 import indi.mopelotus.musichud.interfaces.IClientLoginService;
 import indi.mopelotus.musichud.interfaces.ServerConfig;
@@ -81,9 +81,8 @@ public class ConfigView extends LinearLayout {
             LinearLayout view = new LinearLayout(context);
             view.setOrientation(LinearLayout.VERTICAL);
             view.setGravity(Gravity.CENTER_HORIZONTAL);
-            LayoutParams params = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-            params.setMargins(0, dp(32), 0, 0);
-            scrollView.addView(view, params);
+            scrollView.addView(view, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+            view.addView(new View(context), new LayoutParams(MATCH_PARENT, dp(32)));
 
             HudRendererManager hudRendererManager = HudRendererManager.getInstance();
 
@@ -106,41 +105,26 @@ public class ConfigView extends LinearLayout {
                     clientConfig::getShowTranslatedCnLyrics,
                     clientConfig::setShowTranslatedCnLyrics);
             translatedLyricOption.create(commonCategory);
-            translatedLyricOption.setOnChanged(() -> {
-                HomeView homeView = HomeView.getInstance();
-                if (homeView != null) {
-                    StaggeredLyricScrollView staggeredLyricScrollView = homeView.getStaggeredLyricScrollView();
-                    if (staggeredLyricScrollView != null) {
-                        MuiModApi.postToUiThread(() -> {
-                            staggeredLyricScrollView.getLyricLineViewList().forEach(LyricLineView::refreshSubLyricLine);
-                        });
-                    }
-                }
-            });
+            translatedLyricOption.setDefaultValue(clientConfig.getDefaultShowTranslatedCnLyrics());
+            translatedLyricOption.setOnChanged(MainFragment::refreshLyricViews);
+            new PreferencesFragment.BooleanOption(context,
+                    I18n.get(MusicHud.MOD_ID + ".config.common.enableLyricsSidebar"),
+                    clientConfig::getEnableLyricsSidebar, clientConfig::setEnableLyricsSidebar)
+                    .setDefaultValue(clientConfig.getDefaultEnableLyricsSidebar())
+                    .setOnChanged(MainFragment::refreshLyricsSidebarVisibility)
+                    .create(commonCategory);
             new PreferencesFragment.BooleanOption(context,
                     I18n.get(MusicHud.MOD_ID + ".config.common.disableVanillaMusicWhilePlaying"),
                     clientConfig::getDisableVanillaMusic,
                     clientConfig::setDisableVanillaMusic)
-                    .create(commonCategory);
-            new PreferencesFragment.BooleanOption(context,
-                    I18n.get(MusicHud.MOD_ID + ".config.common.enableHud"),
-                    clientConfig::getEnableHud,
-                    clientConfig::setEnableHud)
-                    .create(commonCategory);
-            new PreferencesFragment.BooleanOption(context,
-                    I18n.get(MusicHud.MOD_ID + ".config.common.autoHide"),
-                    clientConfig::getHideHudWhenNotPlaying,
-                    clientConfig::setHideHudWhenNotPlaying)
-                    .create(commonCategory);
-            new PreferencesFragment.BooleanOption(context,
-                    I18n.get(MusicHud.MOD_ID + ".config.common.enableMarqueeText"),
-                    clientConfig::getEnableMarqueeText,
-                    clientConfig::setEnableMarqueeText)
+                    .setDefaultValue(clientConfig.getDefaultDisableVanillaMusic())
                     .create(commonCategory);
             new PreferencesFragment.BooleanOption(context,
                     I18n.get(MusicHud.MOD_ID + ".config.common.mixWithVanillaSoundVolume"),
                     clientConfig::getMixWithVanillaSoundVolume,
                     clientConfig::setMixWithVanillaSoundVolume)
+                    .setDefaultValue(clientConfig.getDefaultMixWithVanillaSoundVolume())
+                    .setOnChanged(MainFragment::refreshCoverScale)
                     .create(commonCategory);
             new PreferencesFragment.IntegerOption(
                     context,
@@ -148,7 +132,8 @@ public class ConfigView extends LinearLayout {
                     clientConfig::getSoundVolume,
                     clientConfig::setSoundVolume)
                     .setRange(0, 100)
-                    .setDefaultValue(100)
+                    .setDefaultValue(clientConfig.getDefaultSoundVolume())
+                    .setOnChanged(MainFragment::refreshCoverScale)
                     .create(commonCategory);
             new PreferencesFragment.IntegerOption(
                     context,
@@ -200,113 +185,17 @@ public class ConfigView extends LinearLayout {
                     })
                     .setDefaultValue(0.5)
                     .create(commonCategory);
-            new PreferencesFragment.FloatOption(
-                    context,
-                    I18n.get(MusicHud.MOD_ID + ".config.common.hudBackgroundMixAlpha"),
-                    clientConfig::getHudBackgroundMixAlpha,
-                    clientConfig::setHudBackgroundMixAlpha)
-                    .setRange(0, 1)
-                    .setDefaultValue(0.5)
-                    .create(commonCategory);
-            view.addView(commonCategory);
-
-            var positionCategory = PreferencesFragment.createCategoryList(view, I18n.get(MusicHud.MOD_ID + ".config.category.layout"));
-            new PreferencesFragment.DropDownOption<>(
-                    context,
-                    I18n.get(MusicHud.MOD_ID + ".config.layout.verticalAlign"),
-                    VerticalAlign.values(),
-                    VerticalAlign::ordinal,
-                    () -> VerticalAlign.valueOf(VerticalAlign.class, clientConfig.getHudVerticalPosition()),
-                    (vp) -> clientConfig.setHudVerticalPosition(vp.name()))
-                    .setOnChanged(() -> {
-                        hudRendererManager.updateLayoutFromConfig();
-                        hudRendererManager.refreshStyle();
-                    })
-                    .setDefaultValue(VerticalAlign.TOP)
-                    .create(positionCategory);
-            new PreferencesFragment.DropDownOption<>(
-                    context,
-                    I18n.get(MusicHud.MOD_ID + ".config.layout.horizontalAlign"),
-                    HorizontalAlign.values(),
-                    HorizontalAlign::ordinal,
-                    () -> HorizontalAlign.valueOf(HorizontalAlign.class, clientConfig.getHudHorizontalPosition()),
-                    (hp) -> clientConfig.setHudHorizontalPosition(hp.name()))
-                    .setOnChanged(() -> {
-                        hudRendererManager.updateLayoutFromConfig();
-                        hudRendererManager.refreshStyle();
-                    })
-                    .setDefaultValue(HorizontalAlign.LEFT)
-                    .create(positionCategory);
-            new SignedIntegerOption(
-                    context,
-                    I18n.get(MusicHud.MOD_ID + ".config.layout.offsetX"),
-                    clientConfig::getHudOffsetX,
-                    clientConfig::setHudOffsetX)
-                    .setOnChanged(() -> {
-                        hudRendererManager.updateLayoutFromConfig();
-                        hudRendererManager.refreshStyle();
-                    })
-                    .setRange(-1920, 1920)
-                    .setDefaultValue(16)
-                    .create(positionCategory);
-            new SignedIntegerOption(
-                    context,
-                    I18n.get(MusicHud.MOD_ID + ".config.layout.offsetY"),
-                    clientConfig::getHudOffsetY,
-                    clientConfig::setHudOffsetY)
-                    .setRange(-1920, 1920)
-                    .setOnChanged(() -> {
-                        hudRendererManager.updateLayoutFromConfig();
-                        hudRendererManager.refreshStyle();
-                    })
-                    .setDefaultValue(16)
-                    .create(positionCategory);
-            DynamicIntegerOption cornerRadiusOption = new DynamicIntegerOption(
-                    context,
-                    I18n.get(MusicHud.MOD_ID + ".config.layout.hudCornerRadius"),
-                    clientConfig::getHudCornerRadius,
-                    clientConfig::setHudCornerRadius);
-            cornerRadiusOption.setRange(0, clientConfig.getHudHeight() / 2);
-            cornerRadiusOption.setOnChanged(() -> {
-                hudRendererManager.updateLayoutFromConfig();
-                hudRendererManager.refreshStyle();
-            });
-            cornerRadiusOption.setDefaultValue(8);
-            DynamicIntegerOption widthOption = new DynamicIntegerOption(
-                    context,
-                    I18n.get(MusicHud.MOD_ID + ".config.layout.hudWidth"),
-                    clientConfig::getHudWidth,
-                    clientConfig::setHudWidth);
-            widthOption.setOnChanged(() -> {
-                hudRendererManager.updateLayoutFromConfig();
-                hudRendererManager.refreshStyle();
-            });
-            widthOption.setRange(clientConfig.getHudHeight(), 800, 4);
-            widthOption.setDefaultValue(150);
-            PreferencesFragment.IntegerOption heightOption = new PreferencesFragment.IntegerOption(
-                    context,
-                    I18n.get(MusicHud.MOD_ID + ".config.layout.hudHeight"),
-                    clientConfig::getHudHeight,
-                    clientConfig::setHudHeight)
-                    .setOnChanged(() -> {
-                        hudRendererManager.updateLayoutFromConfig();
-                        hudRendererManager.refreshStyle();
-                        cornerRadiusOption.updateRange(0, clientConfig.getHudHeight() / 2, 1);
-                        widthOption.updateRange(clientConfig.getHudHeight(), 800, 4);
-                    })
-                    .setRange(16, 256, 2)
-                    .setDefaultValue(44);
-            widthOption.create(positionCategory);
-            heightOption.create(positionCategory);
-            cornerRadiusOption.create(positionCategory);
             Button editHud = new Button(context);
-            editHud.setText(I18n.get(MusicHud.MOD_ID + ".hudEditor.title"));
-            editHud.setOnClickListener(button -> net.minecraft.client.Minecraft.getInstance().execute(() -> {
-                var minecraft = net.minecraft.client.Minecraft.getInstance();
+            editHud.setText(I18n.get(MusicHud.MOD_ID + ".config.openHudConfig"));
+            editHud.setTextColor(Theme.PRIMARY_COLOR);
+            editHud.setTextSize(14);
+            InsetBackgroundFactory.builder().inset(0).cornerRadius(dp(8)).build().applyBackgroundTo(editHud);
+            editHud.setOnClickListener(button -> Minecraft.getInstance().execute(() -> {
+                var minecraft = Minecraft.getInstance();
                 minecraft.gui.setScreen(new indi.mopelotus.musichud.client.ui.screen.HudLayoutEditorScreen(minecraft.gui.screen()));
             }));
-            positionCategory.addView(editHud);
-            view.addView(positionCategory);
+            commonCategory.addView(editHud, new LayoutParams(MATCH_PARENT, dp(40)));
+            view.addView(commonCategory);
 
             var multiplayerCategory = PreferencesFragment.createCategoryList(view, I18n.get(MusicHud.MOD_ID + ".config.category.externalServer"));
             PreferencesFragment.BooleanOption autoConnectToServerOption = new PreferencesFragment.BooleanOption(
@@ -525,7 +414,7 @@ public class ConfigView extends LinearLayout {
             String binaryApiStatusTemplate = I18n.get(MusicHud.MOD_ID + ".text.binaryApiStatus");
             apiStatusLabel.setText(binaryApiStatusTemplate.replace("{}", I18n.get(apiServerManager.getBinaryApiServerStatus().i18nKey())));
 
-            ButtonInsetBackgroundFactory backgroundFactory = ButtonInsetBackgroundFactory.builder().inset(0).padding(new ButtonInsetBackgroundFactory.Padding(dp(8), dp(4), dp(8), dp(4))).build();
+            InsetBackgroundFactory backgroundFactory = InsetBackgroundFactory.builder().inset(0).padding(new InsetBackgroundFactory.Padding(dp(8), dp(4), dp(8), dp(4))).build();
 
             View distributionControl = ApiDistributionUi.create(context, backgroundFactory, serverApiBinaryPathInput);
 
@@ -533,7 +422,7 @@ public class ConfigView extends LinearLayout {
             stopApiServerButton.setText(I18n.get(MusicHud.MOD_ID + ".button.stopApiServer"));
             stopApiServerButton.setTextColor(Theme.PRIMARY_COLOR);
             stopApiServerButton.setTextSize(14);
-            stopApiServerButton.setBackground(backgroundFactory.newBackgroundDrawable());
+            backgroundFactory.applyBackgroundTo(stopApiServerButton);
             stopApiServerButton.setOnClickListener((v1) -> {
                 apiServerManager.stopApiServer();
             });
@@ -542,7 +431,7 @@ public class ConfigView extends LinearLayout {
             restartApiServerButton.setText(I18n.get(MusicHud.MOD_ID + ".button.restartApiServer"));
             restartApiServerButton.setTextColor(Theme.PRIMARY_COLOR);
             restartApiServerButton.setTextSize(14);
-            restartApiServerButton.setBackground(backgroundFactory.newBackgroundDrawable());
+            backgroundFactory.applyBackgroundTo(restartApiServerButton);
             restartApiServerButton.setOnClickListener((v1) -> {
                 apiServerManager.restartApiServer();
             });
@@ -570,7 +459,7 @@ public class ConfigView extends LinearLayout {
             checkVersionButton.setText(I18n.get(MusicHud.MOD_ID + ".button.checkApiServerVersion"));
             checkVersionButton.setTextColor(Theme.PRIMARY_COLOR);
             checkVersionButton.setTextSize(14);
-            checkVersionButton.setBackground(backgroundFactory.newBackgroundDrawable());
+            backgroundFactory.applyBackgroundTo(checkVersionButton);
             checkVersionButton.setOnClickListener((v) -> {
                 updateTuneWeaveVersionLabel(apiVersionLabel, apiServiceVersionTemplate);
             });
@@ -595,7 +484,7 @@ public class ConfigView extends LinearLayout {
             refreshApiLogButton.setText(I18n.get(MusicHud.MOD_ID + ".button.refreshApiLog"));
             refreshApiLogButton.setTextColor(Theme.PRIMARY_COLOR);
             refreshApiLogButton.setTextSize(14);
-            refreshApiLogButton.setBackground(backgroundFactory.newBackgroundDrawable());
+            backgroundFactory.applyBackgroundTo(refreshApiLogButton);
             refreshApiLogButton.setOnClickListener(v -> {
                 updateApiLogLabel(apiLogLabel);
             });
@@ -604,7 +493,7 @@ public class ConfigView extends LinearLayout {
             openApiLogDirButton.setText(I18n.get(MusicHud.MOD_ID + ".button.openApiLogDir"));
             openApiLogDirButton.setTextColor(Theme.PRIMARY_COLOR);
             openApiLogDirButton.setTextSize(14);
-            openApiLogDirButton.setBackground(backgroundFactory.newBackgroundDrawable());
+            backgroundFactory.applyBackgroundTo(openApiLogDirButton);
             openApiLogDirButton.setOnClickListener(v -> {
                 Path logDir = apiServerManager.getLogDir();
                 try {
@@ -619,7 +508,7 @@ public class ConfigView extends LinearLayout {
             clearApiLogButton.setText(I18n.get(MusicHud.MOD_ID + ".button.clearApiLogs"));
             clearApiLogButton.setTextColor(Theme.ERROR_TEXT_COLOR);
             clearApiLogButton.setTextSize(14);
-            clearApiLogButton.setBackground(backgroundFactory.newBackgroundDrawable());
+            backgroundFactory.applyBackgroundTo(clearApiLogButton);
             clearApiLogButton.setOnClickListener(v -> {
                 LinearLayout warnContent = new LinearLayout(context);
                 warnContent.setOrientation(LinearLayout.VERTICAL);

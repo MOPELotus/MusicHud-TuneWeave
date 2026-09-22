@@ -4,6 +4,22 @@ import indi.mopelotus.musichud.client.ui.ScopedViewTasks;
 import indi.mopelotus.musichud.client.ui.ClientViewTasks;
 
 import icyllis.modernui.R;
+import icyllis.modernui.animation.LayoutTransition;
+import icyllis.modernui.graphics.Image;
+import icyllis.modernui.graphics.drawable.InsetDrawable;
+import icyllis.modernui.widget.*;
+import icyllis.modernui.view.ViewGroup;
+import icyllis.modernui.mc.ui.ClampingScrollView;
+import indi.mopelotus.musichud.client.ui.components.CloudTrackItem;
+import indi.mopelotus.musichud.client.ui.dto.CloudTrackEntry;
+import indi.mopelotus.musichud.client.ui.dto.CloudEntryState;
+import indi.mopelotus.musichud.client.services.cloud.CloudUploadService;
+import indi.mopelotus.musichud.client.services.cloud.CloudUploadTask;
+import indi.mopelotus.musichud.client.ui.layouts.VirtualizedListLayout;
+import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
+import indi.mopelotus.musichud.client.utils.image.ImageUtils;
+import indi.mopelotus.musichud.interfaces.Unregister;
+import java.util.*;
 import icyllis.modernui.core.Context;
 import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.view.Gravity;
@@ -26,7 +42,7 @@ import indi.mopelotus.musichud.client.ui.components.FlexWrapLayout;
 import indi.mopelotus.musichud.client.ui.components.Modal;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.components.UrlImageView;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import net.minecraft.client.resources.language.I18n;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
@@ -42,141 +58,308 @@ import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 public final class CloudView extends LinearLayout {
     private final ScopedViewTasks tasks = ClientViewTasks.create();
     private final TuneWeaveClientService tuneWeave = TuneWeaveClientService.getInstance();
-    private final LinearLayout rows;
+    private final VirtualizedListLayout<CloudTrackEntry, CloudTrackItem> rows;
+    private final ClampingScrollView scrollView;
+    private final ProgressBar loadingRing;
+    private final ProgressBar usageBar;
+    private final LinearLayout usageInfo;
+    private final TextView usageText;
+    private final int usageBarWidth;
+    private final CloudUploadService uploads = CloudUploadService.getInstance();
+    private Unregister uploadSubscription;
+    private List<TuneWeaveCloudTrack> libraryTracks = List.of();
+    private final Map<String, Long> cloudIds = new HashMap<>();
+    private long nextCloudId = 1;
+    private final Map<Long, Runnable> scheduledCompletion = new HashMap<>();
+    private Object viewLifetime;
+    private Object libraryAccount;
+    private final Map<Long, Preview> previews = new HashMap<>();
+    private record Preview(String song, String artist, String album, String cover, long size,
+                           int duration, long bitrate, TuneWeaveCloudTrack track) {}
+    private final Set<Long> refreshedUploads = new HashSet<>();
     private final TextView status;
 
     public CloudView(Context context) {
         super(context);
         setOrientation(VERTICAL);
-        setPadding(dp(16), dp(24), dp(16), dp(24));
+        setLayoutParams(new LayoutParams(MATCH_PARENT, MATCH_PARENT));
 
-        LinearLayout toolbar = new LinearLayout(context);
-        toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        toolbar.addView(action(".button.back", v -> RouterContainer.getInstance().popNavigate()),
-                new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        LinearLayout topBar = new LinearLayout(context);
+        topBar.setOrientation(HORIZONTAL);
+        topBar.setGravity(Gravity.CENTER_VERTICAL);
+        topBar.setMinimumHeight(dp(48));
+        topBar.setLayoutTransition(new LayoutTransition());
+        LayoutParams topBarParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
+        topBarParams.setMargins(0, dp(24), 0, dp(16));
+        addView(topBar, topBarParams);
+
+        ImageButton backButton = new ImageButton(context);
+        backButton.setTooltipText(I18n.get(MusicHud.MOD_ID + ".button.back"));
+        Image backIcon = ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/arrow_left.png");
+        if (backIcon != null) {
+            backButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            backButton.setImageDrawable(new ScaledImageDrawable(getContext().getResources(), backIcon, dp(16), dp(16)));
+        }
+        backButton.setOnClickListener(view -> {
+            RouterContainer routerContainer = RouterContainer.getInstance();
+            if (routerContainer != null) {
+                routerContainer.popNavigate();
+            }
+        });
+        InsetBackgroundFactory.builder()
+                .inset(0)
+                .cornerRadius(dp(4))
+                .padding(new InsetBackgroundFactory.Padding(dp(16), 0, dp(16), 0))
+                .build()
+                .applyBackgroundTo(backButton);
+        LayoutParams backButtonParams = new LayoutParams(WRAP_CONTENT, MATCH_PARENT);
+        backButtonParams.setMargins(0, 0, dp(4), 0);
+        topBar.addView(backButton, backButtonParams);
+
         TextView title = new TextView(context);
-        title.setText(I18n.get(MusicHud.MOD_ID + ".text.cloud.title"));
         title.setTextSize(Theme.TEXT_SIZE_LARGER);
         title.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
-        toolbar.addView(title, new LayoutParams(0, WRAP_CONTENT, 1));
-        toolbar.addView(action(".button.refresh", v -> refresh()), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        toolbar.addView(action(".button.import", v -> showImport()), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        toolbar.addView(action(".button.upload", v -> selectUpload()), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        addView(toolbar, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        title.setText(I18n.get(MusicHud.MOD_ID + ".button.cloud"));
+        LayoutParams titleParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
+        titleParams.setMargins(dp(12), 0, dp(12), 0);
+        topBar.addView(title, titleParams);
+
+        InsetBackgroundFactory iconBackgroundFactory = InsetBackgroundFactory.builder()
+                .backgroundColor(Theme.GHOST_BUTTON_STATES)
+                .inset(dp(1))
+                .cornerRadius(dp(4))
+                .padding(new InsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4)))
+                .build();
+
+        ImageButton refreshButton = new ImageButton(context);
+        iconBackgroundFactory.applyBackgroundTo(refreshButton);
+        refreshButton.setTooltipText(I18n.get(MusicHud.MOD_ID + ".button.refresh"));
+        refreshButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        Image refreshIcon = ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/rotate_cw.png");
+        if (refreshIcon != null) {
+            refreshButton.setImageDrawable(new InsetDrawable(
+                    new ScaledImageDrawable(getContext().getResources(), refreshIcon, dp(12), dp(16)), dp(3)));
+        }
+        refreshButton.setOnClickListener(view -> refresh());
+        topBar.addView(refreshButton, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+
+        ImageButton uploadButton = new ImageButton(context);
+        iconBackgroundFactory.applyBackgroundTo(uploadButton);
+        uploadButton.setTooltipText(I18n.get(MusicHud.MOD_ID + ".button.upload"));
+        uploadButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        Image uploadIcon = ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/upload.png");
+        if (uploadIcon != null) {
+            uploadButton.setImageDrawable(new InsetDrawable(
+                    new ScaledImageDrawable(getContext().getResources(), uploadIcon, dp(12), dp(16)), dp(3)));
+        }
+        uploadButton.setOnClickListener(view -> selectUpload());
+        topBar.addView(uploadButton, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+
+        topBar.addView(action(".button.import", v -> showImport()), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        usageInfo = new LinearLayout(context);
+        usageInfo.setVisibility(GONE);
+        usageInfo.setOrientation(HORIZONTAL);
+        usageInfo.setGravity(Gravity.CENTER_VERTICAL);
+        LayoutParams params = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
+        params.setMargins(dp(12), 0, 0, 0);
+        topBar.addView(usageInfo, params);
+        {
+            usageBar = new ProgressBar(context, null, R.attr.progressBarStyleHorizontal);
+            usageBarWidth = dp(160);
+            usageBar.setMax(usageBarWidth);
+            LayoutParams params1 = new LayoutParams(usageBarWidth, WRAP_CONTENT);
+            params1.setMargins(0, 0, dp(8), 0);
+            usageInfo.addView(usageBar, params1);
+        }
+        {
+            usageText = new TextView(context, null);
+            usageText.setTextSize(Theme.TEXT_SIZE_NORMAL);
+            usageText.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+            usageInfo.addView(usageText, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        }
 
         status = new TextView(context);
         status.setTextSize(Theme.TEXT_SIZE_NORMAL);
         status.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-        LayoutParams statusParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-        statusParams.setMargins(dp(48), dp(4), 0, dp(12));
-        addView(status, statusParams);
-
-        ScrollView scroll = new ScrollView(context);
-        scroll.setFillViewport(true);
-        rows = new LinearLayout(context);
-        rows.setOrientation(VERTICAL);
-        scroll.addView(rows, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        addView(scroll, new LayoutParams(MATCH_PARENT, 0, 1));
+        status.setPadding(dp(12), 0, dp(12), dp(8));
+        addView(status, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        FrameLayout content = new FrameLayout(context);
+        addView(content, new LayoutParams(MATCH_PARENT, 0, 1));
+        scrollView = new ClampingScrollView(context);
+        scrollView.setScrollBarStyle(View.SCROLLBARS_INSIDE_INSET);
+        content.addView(scrollView, new FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+        rows = new VirtualizedListLayout<>(context, new VirtualizedListLayout.Adapter<>() {
+            public long idOf(CloudTrackEntry entry) { return entry.id(); }
+            public CloudTrackItem createItem(ViewGroup parent) { return new CloudTrackItem(context); }
+            public void clearItem(CloudTrackItem item) { item.clearData(); }
+            public long boundIdOf(CloudTrackItem item) { return item.boundId(); }
+            public void bindItem(CloudTrackItem item, CloudTrackEntry entry) {
+                var token = tasks.capture();
+                item.setActionsAllowed(() -> tasks.isCurrent(token));
+                item.setOnDelete(e -> { if (tasks.isCurrent(token)) confirmDelete(e.cloudTrackInfo()); });
+                item.setOnMore(e -> { if (tasks.isCurrent(token)) showTrackActions(e.cloudTrackInfo()); });
+                item.setOnRetry(e -> { if (tasks.isCurrent(token)) uploads.retry(e.id()); });
+                item.setOnCancel(e -> { if (tasks.isCurrent(token)) uploads.cancel(e.id()); });
+                item.setOnRemove(e -> { if (tasks.isCurrent(token)) uploads.remove(e.id()); });
+                item.bindData(entry);
+            }
+        });
+        rows.setDefaultItemHeight(dp(72));
+        scrollView.addView(rows, new ScrollView.LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        scrollView.setOnScrollChangeListener((v, x, y, oldX, oldY) -> rows.updateWindow(y, v.getHeight()));
+        scrollView.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> rows.updateWindow(v.getScrollY(), b - t));
+        loadingRing = new ProgressBar(context);
+        loadingRing.setIndeterminate(true);
+        FrameLayout.LayoutParams loadingParams = new FrameLayout.LayoutParams(dp(48), dp(48));
+        loadingParams.gravity = Gravity.CENTER;
+        content.addView(loadingRing, loadingParams);
         addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
-            @Override public void onViewAttachedToWindow(View v) { tasks.attach(); refresh(); }
-            @Override public void onViewDetachedFromWindow(View v) { tasks.detach(); }
+            @Override public void onViewAttachedToWindow(View v) {
+                tasks.attach();
+                viewLifetime = new Object();
+                uploadSubscription = uploads.addOnChange(() -> {
+                    var token = tasks.capture();
+                    MuiModApi.postToUiThread(() -> {
+                        if (!tasks.isCurrent(token)) return;
+                        rebuildRows();
+                        refreshCompletedUploads();
+                    });
+                });
+                refresh();
+            }
+            @Override public void onViewDetachedFromWindow(View v) {
+                tasks.detach();
+                if (uploadSubscription != null) { uploadSubscription.unregister(); uploadSubscription = null; }
+                viewLifetime = null;
+                scheduledCompletion.values().forEach(CloudView.this::removeCallbacks);
+                scheduledCompletion.clear();
+            }
         });
     }
 
     private void refresh() {
         boolean refresh = !tasks.failed();
+        Object account = indi.mopelotus.musichud.client.services.music.MusicEntityCache.captureGeneration();
+        if (libraryAccount != account) {
+            libraryAccount = account;
+            libraryTracks = List.of();
+            cloudIds.clear();
+            refreshedUploads.clear();
+            previews.clear();
+            rows.resetItems(List.of());
+            usageInfo.setVisibility(GONE);
+        }
+        // A refresh accounts for completions that existed when its request started.
+        for (var task : uploads.snapshot()) {
+            if (isCompleted(task)) refreshedUploads.add(task.getId());
+        }
         showStatus(I18n.get(MusicHud.MOD_ID + ".text.cloud.loading"));
+        loadingRing.setVisibility(libraryTracks.isEmpty() ? VISIBLE : GONE);
         tasks.load(progress -> tuneWeave.loadCloudLibrary(refresh, progress), this::render,
-                error -> showStatus(message(error)));
+                error -> { loadingRing.setVisibility(GONE); showStatus(message(error)); });
     }
 
     private void render(TuneWeaveCloudLibrary library) {
-        rows.removeAllViews();
-        String capacity = I18n.get(MusicHud.MOD_ID + ".text.cloud.capacity")
-                .replace("{used}", formatBytes(library.storageSize()))
-                .replace("{max}", formatBytes(library.storageMaxSize()));
-        if (library.total() == 0 && library.tracks().isEmpty()) {
-            showStatus(I18n.get(MusicHud.MOD_ID + ".text.cloud.empty") + "  " + capacity);
-            return;
-        }
-        showStatus(I18n.get(MusicHud.MOD_ID + ".text.cloud.count")
-                .replace("{}", Long.toString(library.total())) + "  " + capacity);
-        for (TuneWeaveCloudTrack track : library.tracks()) {
-            rows.addView(createRow(track), rowParams());
-        }
+        loadingRing.setVisibility(GONE);
+        libraryTracks = library.tracks();
+        usageInfo.setVisibility(library.storageSize() >= 0 ? VISIBLE : GONE);
+        usageText.setText(formatBytes(library.storageSize()) + " / " + formatBytes(library.storageMaxSize()));
+        usageBar.setVisibility(library.storageMaxSize() > 0 ? VISIBLE : GONE);
+        usageBar.setProgress(library.storageMaxSize() > 0
+                ? (int) Math.clamp(Math.round((double) library.storageSize() / library.storageMaxSize() * usageBarWidth), 0, usageBarWidth) : 0);
+        showStatus(library.tracks().isEmpty() ? I18n.get(MusicHud.MOD_ID + ".text.cloud.empty")
+                : I18n.get(MusicHud.MOD_ID + ".text.cloud.count").replace("{}", Long.toString(library.total())));
+        Set<String> loaded = new HashSet<>();
+        for (var track : libraryTracks) { loaded.add(track.reference()); loaded.add(track.track().getSourceRef()); }
+        uploads.reconcileReferences(loaded);
+        rebuildRows();
+        refreshCompletedUploads();
     }
 
-    private View createRow(TuneWeaveCloudTrack cloudTrack) {
-        LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(VERTICAL);
-        row.setPadding(dp(10), dp(8), dp(10), dp(8));
-        row.setBackground(ButtonInsetBackgroundFactory.builder()
-                .cornerRadius(dp(6)).inset(dp(1)).build().newBackgroundDrawable());
+    private static boolean isCompleted(CloudUploadTask task) {
+        return task.getState() == CloudEntryState.COMPLETED || task.getState() == CloudEntryState.COMPLETED_PRESENTED;
+    }
 
-        MusicDetail track = cloudTrack.track();
-        LinearLayout summary = new LinearLayout(getContext());
-        summary.setGravity(Gravity.CENTER_VERTICAL);
-        UrlImageView cover = new UrlImageView(getContext());
-        cover.setCornerRadius(dp(6));
-        cover.loadUrl(track.getAlbum().getThumbnailPicUrl(dp(56)));
-        summary.addView(cover, new LayoutParams(dp(56), dp(56)));
+    private void refreshCompletedUploads() {
+        if (tasks.canMutate() && uploads.snapshot().stream()
+                .anyMatch(task -> isCompleted(task) && !refreshedUploads.contains(task.getId()))) refresh();
+    }
 
-        LinearLayout text = new LinearLayout(getContext());
-        text.setOrientation(VERTICAL);
-        TextView name = new TextView(getContext());
-        name.setText(track.getName());
-        name.setTextSize(Theme.TEXT_SIZE_LARGE);
-        name.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
-        name.setMaxLines(2);
-        text.addView(name, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        TextView artist = new TextView(getContext());
-        artist.setText(track.getArtists().stream().map(Artist::getName).collect(Collectors.joining(" / "))
-                + (track.getAlbum().getName().isBlank() ? "" : "  -  " + track.getAlbum().getName()));
-        artist.setTextSize(Theme.TEXT_SIZE_SMALL);
-        artist.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-        artist.setMaxLines(1);
-        text.addView(artist, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        TextView metadata = new TextView(getContext());
-        metadata.setText(cloudMetadata(cloudTrack));
-        metadata.setTextSize(Theme.TEXT_SIZE_SMALL);
-        metadata.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-        metadata.setMaxLines(1);
-        text.addView(metadata, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        LayoutParams textParams = new LayoutParams(0, WRAP_CONTENT, 1);
-        textParams.setMargins(dp(12), 0, 0, 0);
-        summary.addView(text, textParams);
-        row.addView(summary, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+    private void rebuildRows() {
+        List<CloudTrackEntry> entries = new ArrayList<>();
+        for (CloudUploadTask task : uploads.snapshot()) {
+            TuneWeaveCloudTrack matched = libraryTracks.stream().filter(track ->
+                    !Objects.requireNonNullElse(task.getResolvedTrackId(), "").isBlank()
+                    && (task.getResolvedTrackId().equals(track.reference())
+                        || task.getResolvedTrackId().equals(track.track().getSourceRef()))).findFirst().orElse(null);
+            entries.add(new CloudTrackEntry(task.getId(), matched == null ? uploadPreview(task) : matched, task));
+            if (task.getState() == CloudEntryState.COMPLETED && !scheduledCompletion.containsKey(task.getId())) {
+                Object lifetime = viewLifetime;
+                Object account = libraryAccount;
+                Runnable complete = () -> {
+                    scheduledCompletion.remove(task.getId());
+                    if (viewLifetime != lifetime || libraryAccount != account || !tasks.isCurrent()) return;
+                    uploads.markPresented(task.getId());
+                    Set<String> refs = new HashSet<>();
+                    for (var track : libraryTracks) { refs.add(track.reference()); refs.add(track.track().getSourceRef()); }
+                    uploads.reconcileReferences(refs);
+                    rebuildRows();
+                };
+                scheduledCompletion.put(task.getId(), complete);
+                postDelayed(complete, CloudUploadService.COMPLETION_PRESENTATION_MILLIS);
+            }
+        }
+        for (TuneWeaveCloudTrack track : libraryTracks) {
+            boolean showingCompletion = entries.stream().anyMatch(entry -> entry.cloudTrackInfo() == track);
+            if (!showingCompletion) entries.add(new CloudTrackEntry(cloudIds.computeIfAbsent(track.reference(), key -> nextCloudId++), track, null));
+        }
+        Set<Long> activeUploads = new HashSet<>();
+        for (var entry : entries) if (entry.task() != null) activeUploads.add(entry.id());
+        previews.keySet().retainAll(activeUploads);
+        rows.updateItems(entries);
+        rows.updateWindow(scrollView.getScrollY(), scrollView.getHeight());
+    }
 
-        FlexWrapLayout actions = new FlexWrapLayout(getContext());
-        actions.addView(action(".button.play", v -> MusicService.getInstance().sendPushMusicToQueue(track)));
-        actions.addView(action(".button.download", v -> selectDownload(cloudTrack)));
-        actions.addView(action(".button.match", v -> showMatch(cloudTrack)));
-        actions.addView(action(".button.lyrics", v -> showLyrics(cloudTrack)));
-        actions.addView(action(".button.delete", v -> confirmDelete(cloudTrack)));
-        LayoutParams actionParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-        actionParams.setMargins(dp(68), dp(4), 0, 0);
-        row.addView(actions, actionParams);
-        return row;
+    private TuneWeaveCloudTrack uploadPreview(CloudUploadTask task) {
+        Preview cached = previews.get(task.getId());
+        if (cached != null && Objects.equals(cached.song(), task.getSong())
+                && Objects.equals(cached.artist(), task.getArtist()) && Objects.equals(cached.album(), task.getAlbum())
+                && Objects.equals(cached.cover(), task.getCoverDataUri()) && cached.size() == task.getFileSize()
+                && cached.duration() == task.getDurationMillis() && cached.bitrate() == task.getBitrate()) return cached.track();
+        var album = new indi.mopelotus.musichud.beans.music.Album(0, task.getAlbum(), task.getCoverDataUri(), "", "", 0,
+                new indi.mopelotus.musichud.utils.collections.ObservableSequencedSet<>(), new LinkedHashSet<>(),
+                indi.mopelotus.musichud.beans.music.PusherInfo.EMPTY, "");
+        List<Artist> artists = task.getArtist().isBlank() ? List.of()
+                : List.of(new Artist(0, task.getArtist(), "", 0, 0, "", List.of(), 0, ""));
+        var detail = MusicDetail.fromTuneWeave(task.getId(), "", "cloud_upload",
+                task.getSong().isBlank() ? task.getFileName() : task.getSong(), task.getDurationMillis(), album, artists);
+        var track = new TuneWeaveCloudTrack("", detail, task.getFileName(), task.getFileSize(), "", task.getBitrate(), "", "", "");
+        previews.put(task.getId(), new Preview(task.getSong(), task.getArtist(), task.getAlbum(), task.getCoverDataUri(),
+                task.getFileSize(), task.getDurationMillis(), task.getBitrate(), track));
+        return track;
     }
 
     private void selectUpload() {
-        var binding = tasks.capture();
+        var token = tasks.capture();
         if (!tasks.canMutate()) return;
-        String path = TinyFileDialogs.tinyfd_openFileDialog(
-                I18n.get(MusicHud.MOD_ID + ".text.cloud.upload"), "", null, "Audio file", false);
-        if (path == null || path.isBlank()) return;
-        LinearLayout form = form();
-        EditText song = input(".text.cloud.songHint");
-        EditText artist = input(".text.cloud.artistHint");
-        EditText album = input(".text.cloud.albumHint");
-        form.addView(song); form.addView(artist); form.addView(album);
-        new Modal(getContext(), title(".text.cloud.upload"), form,
-                new Modal.ActionButton(I18n.get(MusicHud.MOD_ID + ".button.upload"), (button, modal) -> {
-                    modal.dismiss();
-                    String songValue = text(song), artistValue = text(artist), albumValue = text(album);
-                    mutate(binding, ".text.cloud.uploading", () -> tuneWeave.uploadCloudTrack(
-                            Path.of(path), songValue, artistValue, albumValue));
-                }), cancel()).show();
+        String paths = TinyFileDialogs.tinyfd_openFileDialog(I18n.get(MusicHud.MOD_ID + ".text.cloud.upload"),
+                "", null, "Audio files", true);
+        if (paths == null || paths.isBlank() || !tasks.isCurrent(token)) return;
+        try {
+            for (String path : paths.split("\\|")) uploads.enqueue(Path.of(path));
+            rebuildRows();
+        } catch (RuntimeException error) { showStatus(message(error)); }
+    }
+
+    private void showTrackActions(TuneWeaveCloudTrack track) {
+        if (!tasks.canMutate()) return;
+        LinearLayout actions = form();
+        Modal[] holder = new Modal[1];
+        actions.addView(action(".button.download", v -> { holder[0].dismiss(); selectDownload(track); }));
+        actions.addView(action(".button.match", v -> { holder[0].dismiss(); showMatch(track); }));
+        actions.addView(action(".button.lyrics", v -> { holder[0].dismiss(); showLyrics(track); }));
+        holder[0] = new Modal(getContext(), title(track.track().getName()), actions, cancel());
+        holder[0].show();
     }
 
     private void selectDownload(TuneWeaveCloudTrack cloudTrack) {
@@ -277,8 +460,8 @@ public final class CloudView extends LinearLayout {
         button.setText(I18n.get(MusicHud.MOD_ID + key));
         button.setTextSize(Theme.TEXT_SIZE_SMALL);
         button.setTextColor(Theme.PRIMARY_COLOR);
-        button.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
-                .build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
+                .build().applyBackgroundTo(button);
         var binding = tasks.capture();
         button.setOnClickListener(view -> {
             if (key.endsWith(".back") || key.endsWith(".refresh")

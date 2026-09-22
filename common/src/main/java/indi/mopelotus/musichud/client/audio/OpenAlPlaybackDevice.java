@@ -145,6 +145,9 @@ final class OpenAlPlaybackDevice implements AutoCloseable {
         if (closed) return;
         try {
             driver.guarded(() -> {
+                // Retire before deletion, waiting for any tick-side effect cleanup to finish.
+                OwnedAudioSources.INSTANCE.release(lease);
+                lease = null;
                 if (current()) {
                     if (source != 0) {
                         quietly(() -> driver.stop(source));
