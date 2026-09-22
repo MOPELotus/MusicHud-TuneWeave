@@ -10,7 +10,7 @@ displayName = "MusicHud TuneWeave"
 authors = "Etern, MOPELotus"
 description = "Client music playback and synchronization powered by TuneWeave | 由 TuneWeave 驱动的客户端音乐播放与同步项目"
 displayURL = "https://github.com/MOPELotus/MusicHud-TuneWeave"
-logoFile = "assets/musichud_tuneweave/icon.png"
+iconFile = "assets/musichud_tuneweave/icon.png"
 
 [[dependencies.musichud_tuneweave]]
 modId = "neoforge"
