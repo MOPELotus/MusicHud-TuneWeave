@@ -50,9 +50,7 @@ public class MusicResourceInfo {
     @Getter
     Map<String, String> headers = Map.of();
     List<String> backupUrls = List.of();
-    @Getter
     private Quality requestedQuality = Quality.NONE;
-    @Getter
     private Quality actualQuality = Quality.NONE;
     private String resolvedTrackReference = "";
 
@@ -69,6 +67,9 @@ public class MusicResourceInfo {
         this.requestedQuality = requested == null ? Quality.NONE : requested;
         this.actualQuality = actual == null ? Quality.NONE : actual;
     }
+
+    public Quality getRequestedQuality() { return Objects.requireNonNullElse(requestedQuality, Quality.NONE); }
+    public Quality getActualQuality() { return Objects.requireNonNullElse(actualQuality, Quality.NONE); }
 
     public MusicResourceInfo(long id, String url, int bitrate, long size, FormatType type, String md5,
                              Fee fee, int time) {
