@@ -117,13 +117,13 @@ CF 专版移除了 TuneWeave 下载和更新功能；完整功能请使用普通
 ./gradlew common:test fabric:build neoforge:build -Pdistribution=cf --rerun-tasks
 ```
 
-Windows 使用 `gradlew.bat`。`gradle.properties` 中的 `mod_version` 保持原值；例如 `1.3.0-beta-3` 会生成 `1.3.0-beta-3-cf+26.2`，其他分支使用各自的 Minecraft 版本范围。省略参数或使用 `-Pdistribution=standard` 可构建普通版，无需先执行 `clean`。
+Windows 使用 `gradlew.bat`。`gradle.properties` 中的 `mod_version` 保持原值；例如 `1.3.0-beta-3` 会生成 `1.3.0-beta-3-cf.1+26.2`，其他分支使用各自的 Minecraft 版本范围。省略参数或使用 `-Pdistribution=standard` 可构建普通版，无需先执行 `clean`。
 
 CF 版不包含 TuneWeave 下载器、更新器或下载界面。用户需自行安装 TuneWeave，再配置本地可执行文件路径并手动启动，或连接已自行运行的服务。新配置默认关闭自动启动且不预设程序路径；用户可主动开启自动启动，已有配置中的明确设置会保留。启动后的日志和 TuneWeave 数据仍写入所选程序所在目录。
 
 两种版本使用相同的模组标识、配置路径及通信协议，请只安装其中一种。CF 后缀标识发行方式，不代表已经通过 CurseForge 审核。构建会检查最终 JAR、嵌套依赖和源码 JAR，防止 CF 版残留下载实现。
 
-插件分支也接受该参数并添加 `-cf` 后缀，功能不变：服务器和代理始终不运行 TuneWeave。Actions 手动运行时可选择 `distribution=cf` 获取全版本送审产物；该模式不自动发布 GitHub Release，Modrinth 和 CurseForge 上传仍未启用。
+插件分支也接受该参数并添加 `-cf` 后缀，功能不变：服务器和代理始终不运行 TuneWeave。Actions 手动运行时可选择 `distribution=cf` 获取全版本送审产物；该模式不自动发布 GitHub Release 或上传平台；平台发布由前述独立的 `Platform publishing` 工作流控制。
 
 ## 致谢与许可
 
