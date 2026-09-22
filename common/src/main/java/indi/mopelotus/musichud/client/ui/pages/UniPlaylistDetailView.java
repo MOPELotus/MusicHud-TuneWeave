@@ -19,6 +19,15 @@ import icyllis.modernui.widget.ArrayAdapter;
 import icyllis.modernui.widget.Spinner;
 import icyllis.modernui.widget.TextView;
 import icyllis.modernui.widget.Toast;
+import icyllis.modernui.mc.ui.ClampingScrollView;
+import icyllis.modernui.view.ViewGroup;
+import indi.mopelotus.musichud.client.ui.components.MusicListItem;
+import indi.mopelotus.musichud.client.ui.components.UrlImageView;
+import indi.mopelotus.musichud.client.ui.components.FlexWrapLayout;
+import indi.mopelotus.musichud.client.ui.layouts.VirtualizedListLayout;
+import indi.mopelotus.musichud.beans.music.*;
+import indi.mopelotus.musichud.utils.collections.ObservableSequencedSet;
+import java.util.*;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.services.music.MusicService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
@@ -31,7 +40,7 @@ import indi.mopelotus.musichud.client.ui.components.PlatformSelector;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import net.minecraft.client.resources.language.I18n;
 
@@ -47,25 +56,44 @@ public final class UniPlaylistDetailView extends LinearLayout {
     private TuneWeaveUniPlaylist playlist;
     private final TextView titleView;
     private final TextView descriptionView;
-    private final LinearLayout itemsLayout;
+    private final VirtualizedListLayout<TuneWeaveUniItem, UniRow> itemsLayout;
+    private final ClampingScrollView scroll;
+    private final TextView status;
+    private final UrlImageView cover;
+    private final Map<String, Long> rowIds = new HashMap<>();
+    private long nextRowId = 1;
     private List<TuneWeaveUniItem> items = List.of();
 
     public UniPlaylistDetailView(Context context, TuneWeaveUniPlaylist playlist) {
         super(context);
         this.playlist = playlist;
         setOrientation(VERTICAL);
-        setPadding(dp(16), dp(24), dp(16), dp(24));
-
-        LinearLayout toolbar = new LinearLayout(context);
-        toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        toolbar.addView(action(context, ".button.back", "arrow_left.png", 0,
-                v -> { if (RouterContainer.getInstance() != null) RouterContainer.getInstance().popNavigate(); }),
-                actionParams());
-        titleView = new TextView(context);
-        titleView.setText(playlist.name());
-        titleView.setTextSize(Theme.TEXT_SIZE_LARGER);
-        titleView.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
-        toolbar.addView(titleView, new LayoutParams(0, WRAP_CONTENT, 1));
+        LinearLayout header = new LinearLayout(context);
+        LayoutParams headerParams = new LayoutParams(MATCH_PARENT, dp(128));
+        headerParams.setMargins(0, dp(24), 0, dp(24));
+        addView(header, headerParams);
+        ImageButton back = action(context, ".button.back", "arrow_left.png", 0,
+                v -> { if (RouterContainer.getInstance() != null) RouterContainer.getInstance().popNavigate(); });
+        header.addView(back, new LayoutParams(dp(40), MATCH_PARENT));
+        cover = new UrlImageView(context);
+        cover.setCornerRadius(dp(8));
+        cover.loadUrl(MusicHud.ICON_BASE64);
+        header.addView(cover, new LayoutParams(dp(128), dp(128)));
+        LinearLayout info = new LinearLayout(context);
+        info.setOrientation(VERTICAL);
+        LayoutParams infoParams = new LayoutParams(0, MATCH_PARENT, 1);
+        infoParams.setMargins(dp(16), 0, 0, 0);
+        header.addView(info, infoParams);
+        FlexWrapLayout toolbar = new FlexWrapLayout(context);
+        toolbar.setAnimationsEnabled(false);
+        info.addView(toolbar, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        TextView type = new TextView(context);
+        type.setText(I18n.get(MusicHud.MOD_ID + ".text.uniPlaylist.name"));
+        type.setTextSize(Theme.TEXT_SIZE_LARGE);
+        type.setTextColor(Theme.NORMAL_TEXT_COLOR);
+        LayoutParams typeParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
+        typeParams.setMargins(0, 0, dp(12), 0);
+        toolbar.addView(type, typeParams);
         toolbar.addView(action(context, ".button.edit", "settings.png", 0, v -> editMetadata()), actionParams());
         toolbar.addView(action(context, ".button.refresh", "rotate_cw.png", 0, v -> refresh()), actionParams());
         toolbar.addView(action(context, ".button.playAll", "skip_forward_filled.png", 0, v -> playAll()), actionParams());
@@ -73,20 +101,43 @@ public final class UniPlaylistDetailView extends LinearLayout {
                 v -> showImportDialog()), actionParams());
         toolbar.addView(action(context, ".text.uniPlaylist.add", "audio_lines.png", 0,
                 v -> showAddDialog()), actionParams());
-        addView(toolbar, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-
+        titleView = new TextView(context);
+        titleView.setTextSize(Theme.TEXT_SIZE_LARGER);
+        titleView.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
+        info.addView(titleView, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        ScrollView descriptionScroll = new ScrollView(context);
+        descriptionScroll.setVerticalScrollBarEnabled(false);
+        info.addView(descriptionScroll, new LayoutParams(MATCH_PARENT, 0, 1));
         descriptionView = new TextView(context);
         updateMetadataViews();
         descriptionView.setTextSize(Theme.TEXT_SIZE_NORMAL);
         descriptionView.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-        LayoutParams descriptionParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-        descriptionParams.setMargins(dp(52), dp(4), 0, dp(16));
-        addView(descriptionView, descriptionParams);
+        descriptionScroll.addView(descriptionView, new ScrollView.LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 
-        ScrollView scroll = new ScrollView(context);
-        itemsLayout = new LinearLayout(context);
-        itemsLayout.setOrientation(VERTICAL);
-        scroll.addView(itemsLayout, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        status = new TextView(context);
+        status.setTextSize(Theme.TEXT_SIZE_NORMAL);
+        status.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+        status.setVisibility(GONE);
+        addView(status, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        scroll = new ClampingScrollView(context);
+        itemsLayout = new VirtualizedListLayout<>(context, new VirtualizedListLayout.Adapter<>() {
+            public long idOf(TuneWeaveUniItem item) { return rowIds.computeIfAbsent(item.id(), ignored -> nextRowId++); }
+            public UniRow createItem(ViewGroup parent) { return new UniRow(); }
+            public void clearItem(UniRow row) { row.item = null; row.binding = null; row.clearData(); }
+            public long boundIdOf(UniRow row) { return row.item == null ? -1 : idOf(row.item); }
+            public void bindItem(UniRow row, TuneWeaveUniItem item) {
+                row.item = item;
+                row.binding = tasks.capture();
+                row.bindData(preview(item, idOf(item)));
+                int index = items.indexOf(item);
+                row.up.setVisibility(index > 0 ? VISIBLE : INVISIBLE);
+                row.down.setVisibility(index + 1 < items.size() ? VISIBLE : INVISIBLE);
+            }
+        });
+        itemsLayout.setDefaultItemHeight(dp(64));
+        scroll.addView(itemsLayout, new ScrollView.LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        scroll.setOnScrollChangeListener((v, x, y, ox, oy) -> itemsLayout.updateWindow(y, v.getHeight()));
+        scroll.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> itemsLayout.updateWindow(v.getScrollY(), b - t));
         addView(scroll, new LayoutParams(MATCH_PARENT, 0, 1));
         addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
             @Override public void onViewAttachedToWindow(View v) { tasks.attach(); refresh(); }
@@ -95,50 +146,50 @@ public final class UniPlaylistDetailView extends LinearLayout {
     }
 
     private void refresh() {
+        status.setVisibility(VISIBLE);
+        status.setText(I18n.get(MusicHud.MOD_ID + ".text.uniPlaylist.loading"));
         tasks.<List<TuneWeaveUniItem>>load(progress -> tuneWeave.listUniPlaylistItems(playlist.reference()),
                 loaded -> { items = loaded; render(); }, error -> showMessage(error.getMessage()));
     }
 
     private void render() {
-        itemsLayout.removeAllViews();
-        if (items.isEmpty()) {
-            showMessage(I18n.get(MusicHud.MOD_ID + ".text.uniPlaylist.emptyItems"));
-            return;
+        status.setVisibility(items.isEmpty() ? VISIBLE : GONE);
+        status.setText(I18n.get(MusicHud.MOD_ID + ".text.uniPlaylist.emptyItems"));
+        cover.loadUrl(items.stream().map(TuneWeaveUniItem::coverUrl).filter(url -> url != null && !url.isBlank())
+                .findFirst().orElse(MusicHud.ICON_BASE64));
+        itemsLayout.updateItems(items);
+        itemsLayout.updateWindow(scroll.getScrollY(), scroll.getHeight());
+    }
+
+    private MusicDetail preview(TuneWeaveUniItem item, long id) {
+        var album = new Album(0, item.album(), item.coverUrl(), "", "", 0,
+                new ObservableSequencedSet<>(), new LinkedHashSet<>(), PusherInfo.EMPTY, "");
+        var artists = item.artists().stream().map(name -> new Artist(0, name, "", 0, 0, "", List.of(), 0, "")).toList();
+        return MusicDetail.fromTuneWeave(id, "", item.kind(), item.title(), Math.max(0, item.durationMillis()), album, artists);
+    }
+
+    private final class UniRow extends MusicListItem {
+        TuneWeaveUniItem item;
+        ScopedViewTasks.Token binding;
+        final ImageButton up, down;
+        UniRow() {
+            super(UniPlaylistDetailView.this.getContext());
+            setShowPusherInfo(false);
+            setPlatformActionsEnabled(false);
+            InsetBackgroundFactory.builder().cornerRadius(dp(7)).inset(dp(1))
+                    .padding(new InsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4)))
+                    .build().applyBackgroundTo(this);
+            setOnClickListener(v -> { if (current()) play(item); });
+            up = rowAction(".button.moveUp", "arrow_left.png", 90, () -> move(items.indexOf(item), items.indexOf(item) - 1));
+            down = rowAction(".button.moveDown", "arrow_left.png", -90, () -> move(items.indexOf(item), items.indexOf(item) + 1));
+            rowAction(".button.remove", "trash_2.png", 0, () -> remove(item));
         }
-        for (int index = 0; index < items.size(); index++) {
-            final int itemIndex = index;
-            TuneWeaveUniItem item = items.get(index);
-            LinearLayout row = new LinearLayout(getContext());
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            TextView number = new TextView(getContext());
-            number.setText((index + 1) + ".");
-            number.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-            row.addView(number, new LayoutParams(dp(32), WRAP_CONTENT));
-            LinearLayout text = new LinearLayout(getContext());
-            text.setOrientation(VERTICAL);
-            TextView title = new TextView(getContext());
-            title.setText(item.title());
-            title.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
-            title.setTextSize(Theme.TEXT_SIZE_NORMAL);
-            text.addView(title, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-            TextView meta = new TextView(getContext());
-            meta.setText(item.artists().isEmpty() ? item.sourceRef() : String.join(" / ", item.artists()));
-            meta.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-            meta.setTextSize(Theme.TEXT_SIZE_SMALL);
-            text.addView(meta, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-            row.addView(text, new LayoutParams(0, WRAP_CONTENT, 1));
-            row.addView(action(getContext(), ".button.play", "skip_forward_filled.png", 0,
-                    v -> play(item)), actionParams());
-            if (itemIndex > 0) row.addView(action(getContext(), ".button.moveUp", "arrow_left.png", 90,
-                    v -> move(itemIndex, itemIndex - 1)), actionParams());
-            if (itemIndex + 1 < items.size()) row.addView(action(getContext(), ".button.moveDown", "arrow_left.png", -90,
-                    v -> move(itemIndex, itemIndex + 1)), actionParams());
-            row.addView(action(getContext(), ".button.remove", "trash_2.png", 0,
-                    v -> remove(item)), actionParams());
-            row.setPadding(dp(8), dp(6), dp(8), dp(6));
-            LayoutParams rowParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-            rowParams.setMargins(0, 0, 0, dp(4));
-            itemsLayout.addView(row, rowParams);
+        private boolean current() { return item != null && tasks.isCurrent(binding); }
+        private ImageButton rowAction(String key, String icon, float rotation, Runnable call) {
+            ImageButton button = action(getContext(), key, icon, rotation, ignored -> {});
+            button.setOnClickListener(v -> { if (current()) call.run(); });
+            getButtonsLayout().addView(button, new LinearLayout.LayoutParams(dp(40), dp(40)));
+            return button;
         }
     }
 
@@ -155,7 +206,7 @@ public final class UniPlaylistDetailView extends LinearLayout {
                     context.getResources(), image, dp(16), dp(16)), dp(5)));
         }
         button.setRotation(rotation);
-        button.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1)).build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1)).build().applyBackgroundTo(button);
         var binding = tasks.capture();
         button.setOnClickListener(view -> {
             if (key.endsWith(".back") || key.endsWith(".refresh")
@@ -246,6 +297,7 @@ public final class UniPlaylistDetailView extends LinearLayout {
     }
 
     private void playAll() {
+        if (!tasks.canMutate()) return;
         for (TuneWeaveUniItem item : items) play(item);
     }
 
@@ -265,10 +317,8 @@ public final class UniPlaylistDetailView extends LinearLayout {
     }
 
     private void showMessage(String message) {
-        itemsLayout.removeAllViews();
-        TextView text = new TextView(getContext());
-        text.setText(message == null || message.isBlank() ? I18n.get(MusicHud.MOD_ID + ".button.loadingError") : message);
-        text.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-        itemsLayout.addView(text, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        itemsLayout.resetItems(List.of());
+        status.setVisibility(VISIBLE);
+        status.setText(message == null || message.isBlank() ? I18n.get(MusicHud.MOD_ID + ".button.loadingError") : message);
     }
 }

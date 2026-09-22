@@ -25,13 +25,16 @@ class PlaybackHandoffTest {
         var clock = new AtomicLong(); List<Runnable> frames = new ArrayList<>();
         var handoff = new PlaybackHandoff<Lane>(Runnable::run, frames::add, clock::get);
         var first = new Lane(); handoff.begin(first, lane -> lane.ready); first.ready.complete(ZonedDateTime.now());
-        clock.set(150_000_000); frames.removeFirst().run(); assertEquals(1, first.gain);
+        clock.set(1_000_000_000); frames.removeFirst().run(); assertEquals(1, first.gain);
         var next = new Lane(); var result = handoff.begin(next, lane -> lane.ready);
         assertSame(first, handoff.current()); assertEquals(1, first.gain); assertEquals(0, next.gain);
         next.ready.complete(ZonedDateTime.now()); assertTrue(result.isDone()); assertSame(next, handoff.current());
-        clock.set(225_000_000); frames.removeFirst().run();
+        clock.set(1_250_000_000); frames.removeFirst().run();
+        assertEquals(.1464466f, next.gain, .000001f);
+        assertEquals(.8535534f, first.gain, .000001f);
+        clock.set(1_500_000_000); frames.removeFirst().run();
         assertEquals(.5f, next.gain); assertEquals(.5f, first.gain); assertEquals(0, first.discards);
-        clock.set(300_000_000); frames.removeFirst().run();
+        clock.set(2_000_000_000); frames.removeFirst().run();
         assertEquals(1, next.gain); assertEquals(1, first.discards);
     }
 

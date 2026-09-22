@@ -19,7 +19,8 @@ import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveRadioStation;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.components.UrlImageView;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.ui.components.MusicListFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.List;
@@ -65,7 +66,7 @@ public final class RadioDetailView extends LinearLayout {
         UrlImageView cover = new UrlImageView(context);
         cover.setCornerRadius(dp(8));
         cover.loadUrl(source.coverUrl().isBlank() ? MusicHud.ICON_BASE64 : source.coverUrl());
-        summary.addView(cover, new LayoutParams(dp(88), dp(88)));
+        summary.addView(cover, new LayoutParams(dp(128), dp(128)));
         TextView info = new TextView(context);
         info.setTextSize(Theme.TEXT_SIZE_NORMAL);
         info.setTextColor(Theme.SECONDARY_TEXT_COLOR);
@@ -117,23 +118,11 @@ public final class RadioDetailView extends LinearLayout {
             tracks.addView(empty, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
             return;
         }
+        var binding = tasks.capture();
         for (MusicDetail track : queue) {
-            LinearLayout row = new LinearLayout(getContext());
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(10), dp(8), dp(10), dp(8));
-            row.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(6)).inset(dp(1))
-                    .build().newBackgroundDrawable());
-            TextView name = new TextView(getContext());
-            name.setText(track.getName());
-            name.setTextSize(Theme.TEXT_SIZE_NORMAL);
-            name.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
-            name.setMaxLines(2);
-            row.addView(name, new LayoutParams(0, WRAP_CONTENT, 1));
-            row.addView(action(".button.play", v -> MusicService.getInstance().sendPushMusicToQueue(track)),
-                    new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-            LayoutParams params = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-            params.setMargins(0, 0, 0, dp(6));
-            tracks.addView(row, params);
+            var row = MusicListFactory.createItem(tracks, view -> !tasks.isCurrent(binding));
+            row.bindData(track);
+            tracks.addView(row, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
         }
     }
 
@@ -150,8 +139,8 @@ public final class RadioDetailView extends LinearLayout {
         button.setText(I18n.get(MusicHud.MOD_ID + key));
         button.setTextSize(Theme.TEXT_SIZE_SMALL);
         button.setTextColor(Theme.PRIMARY_COLOR);
-        button.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
-                .build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
+                .build().applyBackgroundTo(button);
         var binding = tasks.capture();
         button.setOnClickListener(view -> {
             if (key.endsWith(".back") || key.endsWith(".refresh")

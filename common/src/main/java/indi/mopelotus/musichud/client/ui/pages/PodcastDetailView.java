@@ -11,6 +11,13 @@ import icyllis.modernui.widget.Button;
 import icyllis.modernui.widget.LinearLayout;
 import icyllis.modernui.widget.ScrollView;
 import icyllis.modernui.widget.TextView;
+import icyllis.modernui.view.ViewGroup;
+import icyllis.modernui.mc.ui.ClampingScrollView;
+import indi.mopelotus.musichud.client.ui.components.MusicListItem;
+import indi.mopelotus.musichud.client.ui.layouts.VirtualizedListLayout;
+import indi.mopelotus.musichud.beans.music.*;
+import indi.mopelotus.musichud.utils.collections.ObservableSequencedSet;
+import java.util.*;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
 import indi.mopelotus.musichud.client.services.music.MusicService;
@@ -21,7 +28,7 @@ import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.components.Modal;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.components.UrlImageView;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.List;
@@ -36,7 +43,10 @@ public final class PodcastDetailView extends LinearLayout {
     private final TuneWeavePodcast source;
     private final TextView status;
     private final TextView description;
-    private final LinearLayout episodes;
+    private final VirtualizedListLayout<TuneWeavePodcastEpisode, EpisodeRow> episodes;
+    private final ClampingScrollView scroll;
+    private final Map<String, Long> rowIds = new HashMap<>();
+    private long nextRowId = 1;
     private final Button subscriptionButton;
     private TuneWeavePodcast podcast;
     private List<TuneWeavePodcastEpisode> episodeList = List.of();
@@ -69,7 +79,7 @@ public final class PodcastDetailView extends LinearLayout {
         UrlImageView cover = new UrlImageView(context);
         cover.setCornerRadius(dp(8));
         cover.loadUrl(source.coverUrl().isBlank() ? MusicHud.ICON_BASE64 : source.coverUrl());
-        summary.addView(cover, new LayoutParams(dp(88), dp(88)));
+        summary.addView(cover, new LayoutParams(dp(128), dp(128)));
         LinearLayout info = new LinearLayout(context);
         info.setOrientation(VERTICAL);
         TextView meta = new TextView(context);
@@ -95,11 +105,24 @@ public final class PodcastDetailView extends LinearLayout {
         status.setTextColor(Theme.SECONDARY_TEXT_COLOR);
         addView(status, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 
-        ScrollView scroll = new ScrollView(context);
-        scroll.setFillViewport(true);
-        episodes = new LinearLayout(context);
-        episodes.setOrientation(VERTICAL);
-        scroll.addView(episodes, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        scroll = new ClampingScrollView(context);
+        episodes = new VirtualizedListLayout<>(context, new VirtualizedListLayout.Adapter<>() {
+            public long idOf(TuneWeavePodcastEpisode value) { return rowIds.computeIfAbsent(value.reference(), ignored -> nextRowId++); }
+            public EpisodeRow createItem(ViewGroup parent) { return new EpisodeRow(); }
+            public void clearItem(EpisodeRow row) { row.episode = null; row.binding = null; row.clearData(); }
+            public long boundIdOf(EpisodeRow row) { return row.episode == null ? -1 : idOf(row.episode); }
+            public void bindItem(EpisodeRow row, TuneWeavePodcastEpisode value) {
+                row.episode = value;
+                row.binding = tasks.capture();
+                row.bindData(preview(value, idOf(value)));
+                row.publication.setText((value.serialNumber() > 0 ? value.serialNumber() + " · " : "") + value.publishedAt());
+                row.setTooltipText(value.description());
+            }
+        });
+        episodes.setDefaultItemHeight(dp(64));
+        scroll.addView(episodes, new ScrollView.LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        scroll.setOnScrollChangeListener((v, x, y, ox, oy) -> episodes.updateWindow(y, v.getHeight()));
+        scroll.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> episodes.updateWindow(v.getScrollY(), b - t));
         addView(scroll, new LayoutParams(MATCH_PARENT, 0, 1));
         addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
             @Override public void onViewAttachedToWindow(View v) { tasks.attach(); refresh(); }
@@ -126,44 +149,42 @@ public final class PodcastDetailView extends LinearLayout {
                 + (loaded.subscribed() ? ".button.unsubscribe" : ".button.subscribe")));
         description.setText(loaded.description());
         status.setText(metaText(loaded));
-        episodes.removeAllViews();
-        if (episodeList.isEmpty()) {
-            TextView empty = new TextView(getContext());
-            empty.setText(I18n.get(MusicHud.MOD_ID + ".text.programs.emptyEpisodes"));
-            empty.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-            episodes.addView(empty, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-            return;
-        }
-        for (TuneWeavePodcastEpisode episode : episodeList) addEpisode(episode);
+        if (episodeList.isEmpty()) status.setText(I18n.get(MusicHud.MOD_ID + ".text.programs.emptyEpisodes"));
+        episodes.updateItems(episodeList);
+        episodes.updateWindow(scroll.getScrollY(), scroll.getHeight());
     }
 
-    private void addEpisode(TuneWeavePodcastEpisode episode) {
-        LinearLayout row = new LinearLayout(getContext());
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(8), dp(10), dp(8));
-        row.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(6)).inset(dp(1))
-                .build().newBackgroundDrawable());
-        LinearLayout text = new LinearLayout(getContext());
-        text.setOrientation(VERTICAL);
-        TextView title = new TextView(getContext());
-        title.setText((episode.serialNumber() > 0 ? episode.serialNumber() + ". " : "") + episode.name());
-        title.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        title.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
-        title.setMaxLines(2);
-        text.addView(title, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        TextView meta = new TextView(getContext());
-        meta.setText(formatDuration(episode.durationMillis()) + (episode.publishedAt().isBlank() ? "" : "  " + episode.publishedAt()));
-        meta.setTextSize(Theme.TEXT_SIZE_SMALL);
-        meta.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-        text.addView(meta, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        LayoutParams textParams = new LayoutParams(0, WRAP_CONTENT, 1);
-        textParams.setMargins(0, 0, dp(8), 0);
-        row.addView(text, textParams);
-        row.addView(action(".button.details", v -> loadEpisodeDetails(episode)), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        row.addView(action(".button.play", v -> play(episode)), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        LayoutParams rowParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-        rowParams.setMargins(0, 0, 0, dp(6));
-        episodes.addView(row, rowParams);
+    private MusicDetail preview(TuneWeavePodcastEpisode episode, long id) {
+        String cover = episode.coverUrl().isBlank() ? podcast.coverUrl() : episode.coverUrl();
+        var album = new Album(0, podcast.name(), cover, "", "", 0,
+                new ObservableSequencedSet<>(), new LinkedHashSet<>(), PusherInfo.EMPTY, "");
+        String creator = episode.creatorName().isBlank() ? podcast.creatorName() : episode.creatorName();
+        List<Artist> artists = creator.isBlank() ? List.of() : List.of(new Artist(0, creator, "", 0, 0, "", List.of(), 0, ""));
+        return MusicDetail.fromTuneWeave(id, "", "podcast_episode", episode.name(), Math.max(0, episode.durationMillis()), album, artists);
+    }
+
+    private final class EpisodeRow extends MusicListItem {
+        TuneWeavePodcastEpisode episode;
+        ScopedViewTasks.Token binding;
+        final TextView publication;
+        EpisodeRow() {
+            super(PodcastDetailView.this.getContext());
+            setShowPusherInfo(false);
+            setPlatformActionsEnabled(false);
+            InsetBackgroundFactory.builder().cornerRadius(dp(7)).inset(dp(1))
+                    .padding(new InsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4)))
+                    .build().applyBackgroundTo(this);
+            setOnClickListener(v -> { if (current()) play(episode); });
+            Button details = action(".button.details", ignored -> {});
+            details.setOnClickListener(v -> { if (current()) loadEpisodeDetails(episode); });
+            getButtonsLayout().addView(details, new LinearLayout.LayoutParams(WRAP_CONTENT, dp(40)));
+            publication = new TextView(getContext());
+            publication.setTextSize(Theme.TEXT_SIZE_NORMAL);
+            publication.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+            publication.setSingleLine(true);
+            getInfoRow().addView(publication);
+        }
+        private boolean current() { return episode != null && tasks.isCurrent(binding); }
     }
 
     private record EpisodeContent(TuneWeavePodcastEpisode episode, indi.mopelotus.musichud.beans.music.LyricInfo lyrics) {}
@@ -198,18 +219,21 @@ public final class PodcastDetailView extends LinearLayout {
                 content.addView(lyricView, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
             }
         }
+        var binding = tasks.capture();
         new Modal(getContext(),
                 title(episode.name()), content,
                 new Modal.ActionButton(I18n.get(MusicHud.MOD_ID + ".button.close"), (b, modal) -> modal.dismiss()),
                 new Modal.ActionButton(I18n.get(MusicHud.MOD_ID + ".button.play"), (b, modal) -> {
-                    play(episode);
+                    if (tasks.isCurrent(binding)) play(episode);
                     modal.dismiss();
                 })).show();
         showStatus("");
     }
 
     private void play(TuneWeavePodcastEpisode episode) {
-        MusicService.getInstance().sendPushMusicToQueue(tuneWeave.podcastEpisodeTrack(podcast, episode));
+        try {
+            MusicService.getInstance().sendPushMusicToQueue(tuneWeave.podcastEpisodeTrack(podcast, episode));
+        } catch (RuntimeException error) { showStatus(message(error)); }
     }
 
     private void toggleSubscription() {
@@ -231,8 +255,8 @@ public final class PodcastDetailView extends LinearLayout {
         button.setText(I18n.get(MusicHud.MOD_ID + key));
         button.setTextSize(Theme.TEXT_SIZE_SMALL);
         button.setTextColor(Theme.PRIMARY_COLOR);
-        button.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
-                .build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
+                .build().applyBackgroundTo(button);
         var binding = tasks.capture();
         button.setOnClickListener(view -> {
             if (key.endsWith(".back") || key.endsWith(".refresh")

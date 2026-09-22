@@ -29,7 +29,7 @@ import indi.mopelotus.musichud.client.ui.components.Modal;
 import indi.mopelotus.musichud.client.ui.components.PlatformSelector;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import net.minecraft.client.resources.language.I18n;
 
@@ -354,8 +354,8 @@ final class UniPlaylistImportDialog {
         private ImageButton commandButton(String icon, String labelKey, View.OnClickListener listener) {
             ImageButton button = new ImageButton(context);
             button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-            button.setBackground(ButtonInsetBackgroundFactory.builder()
-                    .cornerRadius(dp(4)).inset(dp(1)).build().newBackgroundDrawable());
+            InsetBackgroundFactory.builder()
+                    .cornerRadius(dp(4)).inset(dp(1)).build().applyBackgroundTo(button);
             button.setOnClickListener(listener);
             inputActionImage(button, icon, labelKey);
             return button;

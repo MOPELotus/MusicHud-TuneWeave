@@ -23,9 +23,11 @@ import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveRadioStation;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveRadioTaxonomy;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.components.Modal;
+import indi.mopelotus.musichud.client.ui.components.FlexWrapLayout;
+import indi.mopelotus.musichud.client.ui.components.CollectionPreviewCard;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.components.UrlImageView;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import net.minecraft.client.resources.language.I18n;
 
@@ -252,11 +254,17 @@ public final class PodcastRadioView extends LinearLayout {
             return;
         }
         status.setText("");
+        FlexWrapLayout cards = null;
         for (View value : values) {
-            if (value.getTag() instanceof String tag && "section".equals(tag)) {
+            if ("section".equals(value.getTag())) {
                 rows.addView(value, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+                cards = null;
             } else {
-                rows.addView(value, rowParams());
+                if (cards == null) {
+                    cards = new FlexWrapLayout(getContext());
+                    rows.addView(cards, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+                }
+                cards.addView(value);
             }
         }
     }
@@ -276,37 +284,12 @@ public final class PodcastRadioView extends LinearLayout {
 
     private View programRow(String name, String description, String coverUrl, String detail,
                             View.OnClickListener open, boolean subscribed, View.OnClickListener toggle) {
-        LinearLayout row = new LinearLayout(getContext());
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(8), dp(10), dp(8));
-        row.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(6)).inset(dp(1))
-                .build().newBackgroundDrawable());
-        UrlImageView cover = new UrlImageView(getContext());
-        cover.setCornerRadius(dp(8));
-        cover.loadUrl(coverUrl.isBlank() ? MusicHud.ICON_BASE64 : coverUrl);
-        row.addView(cover, new LayoutParams(dp(68), dp(68)));
-        LinearLayout text = new LinearLayout(getContext());
-        text.setOrientation(VERTICAL);
-        TextView title = new TextView(getContext());
-        title.setText(name);
-        title.setTextSize(Theme.TEXT_SIZE_LARGE);
-        title.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
-        title.setMaxLines(2);
-        text.addView(title, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        TextView sub = new TextView(getContext());
-        sub.setText(detail + (description.isBlank() ? "" : "  ·  " + description));
-        sub.setTextSize(Theme.TEXT_SIZE_SMALL);
-        sub.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-        sub.setMaxLines(2);
-        text.addView(sub, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        LayoutParams textParams = new LayoutParams(0, WRAP_CONTENT, 1);
-        textParams.setMargins(dp(12), 0, dp(8), 0);
-        row.addView(text, textParams);
-        row.addView(action(".button.open", open), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        row.addView(action(subscribed ? ".button.unsubscribe" : ".button.subscribe", toggle),
+        var binding = tasks.capture();
+        CollectionPreviewCard card = new CollectionPreviewCard(getContext(), coverUrl, name, description, detail);
+        card.setOnClickListener(view -> { if (tasks.isCurrent(binding)) open.onClick(view); });
+        card.getActions().addView(action(subscribed ? ".button.unsubscribe" : ".button.subscribe", toggle),
                 new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        row.setOnClickListener(open);
-        return row;
+        return card;
     }
 
     private void openPodcast(Object value) {
@@ -345,8 +328,8 @@ public final class PodcastRadioView extends LinearLayout {
         button.setText(key.startsWith(".") ? I18n.get(MusicHud.MOD_ID + key) : key);
         button.setTextSize(Theme.TEXT_SIZE_SMALL);
         button.setTextColor(Theme.PRIMARY_COLOR);
-        button.setBackground(ButtonInsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
-                .build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder().cornerRadius(dp(4)).inset(dp(1))
+                .build().applyBackgroundTo(button);
         var binding = tasks.capture();
         button.setOnClickListener(view -> {
             if (key.endsWith(".back") || key.endsWith(".refresh")
