@@ -253,6 +253,14 @@ public final class TuneWeaveClientService {
         cloud.clear(); return result;
     }
 
+    public String uploadCloudTrack(Path file, String songName, String artist, String album, long bitrate,
+                                   java.util.function.LongConsumer progress, Runnable publishing,
+                                   java.util.function.BooleanSupplier cancelled) {
+        String result = scoped(() -> cloud.uploadTrack(file, songName, artist, album, bitrate, progress, publishing, cancelled));
+        cloud.clear();
+        return result;
+    }
+
     public String importCloudTrack(String md5, String sourceTrackId, long bitrate, long fileSize,
                                    String fileType, String songName, String artist, String album) {
         String result = scoped(() -> cloud.importTrack(md5, sourceTrackId, bitrate, fileSize,

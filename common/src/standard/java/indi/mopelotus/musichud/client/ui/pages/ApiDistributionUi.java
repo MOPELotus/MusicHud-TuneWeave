@@ -14,7 +14,7 @@ import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.ToastUtil;
 import indi.mopelotus.musichud.client.ui.components.Modal;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.interfaces.ServerConfig;
 import indi.mopelotus.musichud.server.api.*;
 import net.minecraft.util.Util;
@@ -47,12 +47,12 @@ public final class ApiDistributionUi {
         return String.format("%.0f MiB", mib);
     }
 
-    public static @NotNull View create(Context context, ButtonInsetBackgroundFactory backgroundFactory, EditText[] serverApiBinaryPathInput) {
+    public static @NotNull View create(Context context, InsetBackgroundFactory backgroundFactory, EditText[] serverApiBinaryPathInput) {
         Button downloadApiServerButton = new Button(context);
         downloadApiServerButton.setText(I18n.get(MusicHud.MOD_ID + ".button.downloadApiServer"));
         downloadApiServerButton.setTextColor(Theme.PRIMARY_COLOR);
         downloadApiServerButton.setTextSize(14);
-        downloadApiServerButton.setBackground(backgroundFactory.newBackgroundDrawable());
+        backgroundFactory.applyBackgroundTo(downloadApiServerButton);
 
         final String downloadingText = I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.downloading");
         final String button1Text = I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.button1");
@@ -117,7 +117,7 @@ public final class ApiDistributionUi {
         selectDirectoryButton.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.dir.button.select"));
         selectDirectoryButton.setTextColor(Theme.PRIMARY_COLOR);
         selectDirectoryButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        selectDirectoryButton.setBackground(backgroundFactory.newBackgroundDrawable());
+        backgroundFactory.applyBackgroundTo(selectDirectoryButton);
         selectDirectoryButton.setOnClickListener(v -> {
             Path defaultPath = targetDir[0].toAbsolutePath();
             String folder = TinyFileDialogs.tinyfd_selectFolderDialog(
@@ -191,7 +191,7 @@ public final class ApiDistributionUi {
         refreshReleaseButton.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.release.refresh"));
         refreshReleaseButton.setTextColor(Theme.PRIMARY_COLOR);
         refreshReleaseButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        refreshReleaseButton.setBackground(backgroundFactory.newBackgroundDrawable());
+        backgroundFactory.applyBackgroundTo(refreshReleaseButton);
         refreshReleaseButton.setOnClickListener(v -> {
             refreshReleaseInfo(releaseNameLabel, latestRelease, targetDir, existingVersionWarning, proxySpinnerRef[0]);
         });
@@ -407,6 +407,8 @@ public final class ApiDistributionUi {
                 directoryTextInput.setText(snapshot.targetDir().toString());
             }
             if (snapshot.page() == ApiDownloadSession.Page.DOWNLOADING) {
+                confirmButton.setText(button1CancelText);
+                cancelBtn.setText(button2hideText);
                 progressBar.setProgress(snapshot.total() > 0
                         ? (int) Math.min(100, snapshot.downloaded() * 100 / snapshot.total()) : 0);
                 progressText.setText(snapshot.total() > 0
@@ -414,10 +416,14 @@ public final class ApiDistributionUi {
                         : formatBytes(snapshot.downloaded()));
                 downloadApiServerButton.setText(downloadingText);
             } else if (snapshot.page() == ApiDownloadSession.Page.DONE && snapshot.release() != null) {
+                confirmButton.setText(button1YesText);
+                cancelBtn.setText(button2NoText);
                 doneDesc.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.done.description")
                         .replace("{path}", snapshot.release().tempFile().toString()));
                 downloadApiServerButton.setText(I18n.get(MusicHud.MOD_ID + ".button.downloadApiServerDone"));
             } else if (snapshot.page() == ApiDownloadSession.Page.IDLE) {
+                confirmButton.setText(button1Text);
+                cancelBtn.setText(button2Text);
                 downloadApiServerButton.setText(I18n.get(MusicHud.MOD_ID + ".button.downloadApiServer"));
             }
         });
@@ -437,6 +443,7 @@ public final class ApiDistributionUi {
             setPage.accept(snapshot.page());
             downloadSession.addListener(sessionListener);
             dialog.show();
+            sessionListener.run();
         });
         return downloadApiServerButton;
     }

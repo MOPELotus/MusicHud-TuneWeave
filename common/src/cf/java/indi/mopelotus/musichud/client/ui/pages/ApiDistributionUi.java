@@ -8,20 +8,20 @@ import icyllis.modernui.widget.TextView;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.components.Modal;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import net.minecraft.client.resources.language.I18n;
 
 /** Local setup instructions; this edition has no binary acquisition code. */
 public final class ApiDistributionUi {
     private ApiDistributionUi() {}
 
-    public static View create(Context context, ButtonInsetBackgroundFactory backgroundFactory,
+    public static View create(Context context, InsetBackgroundFactory backgroundFactory,
                               EditText[] executableInput) {
         Button button = new Button(context);
         button.setText(I18n.get(MusicHud.MOD_ID + ".button.localApiSetup"));
         button.setTextColor(Theme.PRIMARY_COLOR);
         button.setTextSize(14);
-        button.setBackground(backgroundFactory.newBackgroundDrawable());
+        backgroundFactory.applyBackgroundTo(button);
         button.setOnClickListener(v -> {
             TextView instructions = new TextView(context);
             instructions.setText(I18n.get(MusicHud.MOD_ID + ".text.localApiSetup"));

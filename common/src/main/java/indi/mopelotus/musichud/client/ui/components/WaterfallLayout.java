@@ -5,139 +5,99 @@ import icyllis.modernui.view.MeasureSpec;
 import icyllis.modernui.view.View;
 import icyllis.modernui.view.ViewGroup;
 import icyllis.modernui.widget.LinearLayout;
-import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
+/** Upstream shortest-column layout; cached routes retain their children on detach. */
 public class WaterfallLayout extends LinearLayout {
     private final List<View> allChildren = new ArrayList<>();
     private final List<LinearLayout> columns = new ArrayList<>();
-    private final List<Float> columnHeights = new ArrayList<>();
-    @Setter
+    private final List<Integer> columnHeights = new ArrayList<>();
     private int rowMinWidth;
-    private boolean attached;
+    private int measuredContentWidth;
+    private boolean reflowPending = true;
 
     public WaterfallLayout(Context context) {
         super(context);
         setOrientation(HORIZONTAL);
-
-        addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
-            @Override
-            public void onViewAttachedToWindow(View v) {
-                attached = true;
-                reflow();
-            }
-
-            @Override
-            public void onViewDetachedFromWindow(View v) {
-                removeAllViews();
-            }
-        });
-
-        addOnLayoutChangeListener((v, left, top, right, bottom,
-                                    oldLeft, oldTop, oldRight, oldBottom) -> {
-            int newWidth = right - left;
-            int oldWidth = oldRight - oldLeft;
-            if (newWidth != oldWidth && newWidth > 0) {
-                post(WaterfallLayout.this::reflow);
-            }
-        });
     }
 
-    @Override
-    public void addView(@NotNull View view) {
+    public void setRowMinWidth(int width) {
+        if (width <= 0) throw new IllegalArgumentException("Column minimum width must be positive");
+        if (rowMinWidth != width) { rowMinWidth = width; reflow(); }
+    }
+
+    @Override public void addView(@NotNull View view) {
+        if (allChildren.contains(view) || view.getParent() != null) throw new IllegalStateException("View already has a parent");
         allChildren.add(view);
-        if (attached) {
-            boolean rebuilt = ensureColumns();
-            if (!rebuilt && !columns.isEmpty()) {
-                addToShortestColumn(view);
-            }
-        }
+        reflow();
     }
 
-    private boolean ensureColumns() {
-        if (rowMinWidth <= 0) return false;
-        int availableWidth = getWidth() - getPaddingLeft() - getPaddingRight();
-        if (availableWidth <= 0) return false;
-        int newColumnCount = Math.max(1, availableWidth / rowMinWidth);
-        if (newColumnCount != columns.size()) {
-            rebuildColumns(newColumnCount);
-            return true;
+    @Override protected void onMeasure(int widthSpec, int heightSpec) {
+        int width = Math.max(0, MeasureSpec.getSize(widthSpec) - getPaddingLeft() - getPaddingRight());
+        if (rowMinWidth > 0 && width > 0 && (reflowPending || measuredContentWidth != width)) {
+            measuredContentWidth = width;
+            rebuildColumns(Math.max(1, width / rowMinWidth));
+            reflowPending = false;
         }
-        return false;
+        super.onMeasure(widthSpec, heightSpec);
     }
 
     private void rebuildColumns(int count) {
-        for (LinearLayout col : columns) {
-            col.removeAllViews();
-        }
+        for (LinearLayout column : columns) column.removeAllViews();
         super.removeAllViews();
         columns.clear();
         columnHeights.clear();
-
         for (int i = 0; i < count; i++) {
-            LinearLayout col = new LinearLayout(getContext());
-            col.setOrientation(VERTICAL);
-            super.addView(col, new LayoutParams(0, WRAP_CONTENT, 1f));
-            columns.add(col);
-            columnHeights.add(0f);
+            LinearLayout column = new LinearLayout(getContext());
+            column.setOrientation(VERTICAL);
+            super.addView(column, new LayoutParams(0, WRAP_CONTENT, 1f));
+            columns.add(column);
+            columnHeights.add(0);
         }
-
-        for (View child : allChildren) {
-            if (child.getParent() == null) {
-                addToShortestColumn(child);
-            }
-        }
+        for (View child : allChildren) addToShortestColumn(child);
     }
 
     private void addToShortestColumn(View child) {
-        if (columns.isEmpty()) return;
-
-        int shortestIndex = 0;
-        float minHeight = columnHeights.get(0);
+        int shortest = 0;
         for (int i = 1; i < columns.size(); i++) {
-            if (columnHeights.get(i) < minHeight) {
-                minHeight = columnHeights.get(i);
-                shortestIndex = i;
-            }
+            if (columnHeights.get(i) < columnHeights.get(shortest)) shortest = i;
         }
-
-        child.measure(
-                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
-                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-        );
-        float childHeight = child.getMeasuredHeight();
-
-        columns.get(shortestIndex).addView(child);
-        columnHeights.set(shortestIndex, minHeight + childHeight);
+        ViewGroup.LayoutParams params = child.getLayoutParams();
+        int horizontalMargins = 0, verticalMargins = 0;
+        if (params instanceof ViewGroup.MarginLayoutParams margins) {
+            horizontalMargins = margins.leftMargin + margins.rightMargin;
+            verticalMargins = margins.topMargin + margins.bottomMargin;
+        }
+        int width = Math.max(0, measuredContentWidth / columns.size() - horizontalMargins);
+        int childWidth = params != null && params.width >= 0 ? Math.min(width, params.width) : width;
+        child.measure(MeasureSpec.makeMeasureSpec(childWidth,
+                        params != null && params.width == WRAP_CONTENT ? MeasureSpec.AT_MOST : MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(params != null && params.height >= 0 ? params.height : 0,
+                        params != null && params.height >= 0 ? MeasureSpec.EXACTLY : MeasureSpec.UNSPECIFIED));
+        int height = child.getMeasuredHeight() + verticalMargins;
+        columns.get(shortest).addView(child);
+        columnHeights.set(shortest, columnHeights.get(shortest) + height);
     }
 
-    public void reflow() {
-        if (allChildren.isEmpty() || rowMinWidth <= 0) return;
-        ensureColumns();
+    public void reflow() { reflowPending = true; requestLayout(); }
+
+    @Override public void removeView(@NotNull View view) {
+        if (!allChildren.remove(view)) return;
+        for (LinearLayout column : columns) column.removeView(view);
+        reflow();
     }
 
-    @Override
-    public void removeView(@NotNull View view) {
-        allChildren.remove(view);
-        for (LinearLayout col : columns) {
-            col.removeView(view);
-        }
-        if (attached) {
-            reflow();
-        }
-    }
-
-    @Override
-    public void removeAllViews() {
+    @Override public void removeAllViews() {
         allChildren.clear();
+        for (LinearLayout column : columns) column.removeAllViews();
         columns.clear();
         columnHeights.clear();
         super.removeAllViews();
+        reflow();
     }
 }

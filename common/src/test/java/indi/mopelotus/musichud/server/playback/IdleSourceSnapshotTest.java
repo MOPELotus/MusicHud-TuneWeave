@@ -10,6 +10,27 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class IdleSourceSnapshotTest {
+    @Test void sequentialProgressSurvivesReplacementAndModeChangesButIsOwnerScoped() {
+        var progress = new IdleSequentialProgress();
+        var owner = UUID.randomUUID(); var other = UUID.randomUUID(); var random = new Random(1);
+        var collection = playlist();
+        collection.getTracks().add(MusicDetail.fromTuneWeave(2, "netease:2", "track", "Two", 1000, Album.NONE, List.of()));
+        var first = new IdlePlaySource(42, Playlist.class, indi.mopelotus.musichud.beans.api.IdlePlayMode.SEQUENTIAL);
+        first.useClientCollection(collection);
+        assertEquals("netease:1", progress.select(first, owner, random, null).orElseThrow().getSourceRef());
+        var temporaryRandom = new IdlePlaySource(42, Playlist.class);
+        temporaryRandom.useClientCollection(collection);
+        progress.select(temporaryRandom, owner, random, "netease:1");
+        var replacement = new IdlePlaySource(42, Playlist.class, first.getMode());
+        replacement.useClientCollection(collection);
+        assertEquals("netease:1", progress.select(replacement, other, random, null).orElseThrow().getSourceRef());
+        assertEquals("netease:2", progress.select(replacement, owner, random, null).orElseThrow().getSourceRef());
+        progress.reset();
+        assertEquals("netease:1", progress.select(replacement, owner, random, null).orElseThrow().getSourceRef());
+        collection.getTracks().removeFirst();
+        assertEquals("netease:2", progress.select(replacement, owner, random, null).orElseThrow().getSourceRef());
+    }
+
     @Test void sequentialSourceWrapsAndKeepsIndependentCursor() {
         var playlist = playlist();
         playlist.getTracks().add(MusicDetail.fromTuneWeave(2, "netease:2", "track", "Two", 1000, Album.NONE, List.of()));

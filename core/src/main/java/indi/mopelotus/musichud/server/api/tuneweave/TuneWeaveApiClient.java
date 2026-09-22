@@ -154,6 +154,12 @@ public final class TuneWeaveApiClient {
 
     /** Uploads a client-owned file to the short-lived NOS target returned by TuneWeave. */
     public static void uploadTicketFile(String uploadUrl, String method, Map<String, String> headers, Path file) {
+        uploadTicketFile(uploadUrl, method, headers, file, ignored -> {}, () -> false);
+    }
+
+    public static void uploadTicketFile(String uploadUrl, String method, Map<String, String> headers, Path file,
+                                        java.util.function.LongConsumer progress,
+                                        java.util.function.BooleanSupplier cancelled) {
         URI uri = validateNosUploadUri(uploadUrl);
         String normalizedMethod = method == null ? "" : method.trim().toUpperCase(Locale.ROOT);
         if (!("POST".equals(normalizedMethod) || "PUT".equals(normalizedMethod))) {
@@ -164,7 +170,8 @@ public final class TuneWeaveApiClient {
                 .header("User-Agent", "MusicHud TuneWeave/1");
         copyExternalHeaders(builder, headers, true);
         try {
-            builder.method(normalizedMethod, HttpRequest.BodyPublishers.ofFile(file));
+            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException("Cloud upload cancelled");
+            builder.method(normalizedMethod, new ProgressBodyPublisher(HttpRequest.BodyPublishers.ofFile(file), progress, cancelled));
             HttpResponse<Void> response = CLIENT.send(builder.build(), HttpResponse.BodyHandlers.discarding());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new TuneWeaveException(

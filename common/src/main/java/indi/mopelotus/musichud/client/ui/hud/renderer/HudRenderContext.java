@@ -5,6 +5,7 @@ import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.RenderPass;
 import indi.mopelotus.musichud.client.ui.hud.pipelines.HudRenderState;
 import indi.mopelotus.musichud.client.ui.hud.pipelines.HudUniform;
+import indi.mopelotus.musichud.client.ui.hud.pipelines.HudUniformSnapshot;
 import indi.mopelotus.musichud.client.ui.hud.pipelines.RenderStateUtil;
 import lombok.Getter;
 import lombok.NonNull;
@@ -25,12 +26,9 @@ public class HudRenderContext {
     @Getter
     private static HudRenderContext current;
 
-    private final Map<StorageKey, DynamicUniformStorage<?>> storageMap = new HashMap<>();
-    private final Map<StorageKey, HudUniform> pendingUniforms = new HashMap<>();
+    private final Map<StorageKey, DynamicUniformStorage<HudUniformSnapshot>> storageMap = new HashMap<>();
+    private final Map<StorageKey, HudUniformSnapshot> pendingUniforms = new HashMap<>();
     private final Map<StorageKey, GpuBufferSlice> uniformSlices = new HashMap<>();
-
-    private final Map<StorageKey, HudUniform> lastWrittenUniforms = new HashMap<>();
-    private final Map<StorageKey, GpuBufferSlice> lastSlices = new HashMap<>();
 
     @Getter
     @Setter
@@ -50,32 +48,14 @@ public class HudRenderContext {
     }
 
     public void prepareUniforms() {
-        for (Map.Entry<StorageKey, HudUniform> entry : pendingUniforms.entrySet()) {
+        for (Map.Entry<StorageKey, HudUniformSnapshot> entry : pendingUniforms.entrySet()) {
             StorageKey key = entry.getKey();
-            HudUniform uniform = entry.getValue();
-
-            // skip re-upload if same uniform data was already written last frame
-            HudUniform lastWritten = lastWrittenUniforms.get(key);
-            if (lastWritten != null && lastWritten.shouldUseBuffer(uniform)) {
-                GpuBufferSlice cachedSlice = lastSlices.get(key);
-                if (cachedSlice != null) {
-                    uniformSlices.put(key, cachedSlice);
-                    lastWrittenUniforms.put(key, uniform);
-                    continue;
-                }
-            }
-
-            @SuppressWarnings({"unchecked", "resource"})
-            DynamicUniformStorage<HudUniform> storage = (DynamicUniformStorage<HudUniform>)
-                    storageMap.computeIfAbsent(key, k ->
-                            indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources.RENDER.create(() ->
-                                    new DynamicUniformStorage<>(uniform.getUBOName(), uniform.getUBOSize(), 256))
-                    );
-
-            GpuBufferSlice slice = storage.writeUniform(uniform);
-            uniformSlices.put(key, slice);
-            lastSlices.put(key, slice);
-            lastWrittenUniforms.put(key, uniform);
+            HudUniformSnapshot uniform = entry.getValue();
+            // endFrame rotates storage and retires old buffers. Never retain slices across frames.
+            DynamicUniformStorage<HudUniformSnapshot> storage = storageMap.computeIfAbsent(key, k ->
+                    indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources.RENDER.create(() ->
+                            new DynamicUniformStorage<>(key.uboName(), uniform.size(), 256)));
+            uniformSlices.put(key, storage.writeUniform(uniform));
         }
     }
 
@@ -90,7 +70,7 @@ public class HudRenderContext {
         if (uniforms != null) {
             for (HudUniform uniform : uniforms) {
                 StorageKey key = new StorageKey(hudRenderState.pipeline(), uniform.getUBOName());
-                pendingUniforms.put(key, uniform);
+                pendingUniforms.put(key, HudUniformSnapshot.capture(uniform));
             }
         }
     }
@@ -99,9 +79,7 @@ public class HudRenderContext {
         if (pass == null) return;
         for (Map.Entry<StorageKey, GpuBufferSlice> entry : uniformSlices.entrySet()) {
             StorageKey key = entry.getKey();
-            HudUniform uniform = pendingUniforms.get(key);
-            if (uniform == null) continue;
-            pass.setUniform(uniform.getUBOName(), entry.getValue());
+            pass.setUniform(key.uboName(), entry.getValue());
         }
     }
 

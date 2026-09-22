@@ -208,8 +208,10 @@ final class TuneWeaveEntityMapper {
                 stableId(platform, "playlist:" + reference), reference,
                 string(object, "name", reference), cover.isBlank() ? MusicHud.ICON_BASE64 : cover,
                 integer(object, "track_count", integer(object, "item_count", 0)),
-                integer(object, "play_count", 0), creator);
+                0, creator);
+        playlist.setDisplayPlayedCount(longValue(object, "play_count", 0));
         playlist.setPrivacy(playlistPrivacy(object));
+        playlist.setDescription(string(object, "description", ""));
         cachePlaylist(playlist);
         return playlist;
     }
@@ -255,6 +257,15 @@ final class TuneWeaveEntityMapper {
                 string(object, "kind", ""), string(object, "company", ""),
                 integer(object, "track_count", 0), new ObservableSequencedSet<>(), albumArtists,
                 PusherInfo.EMPTY, reference);
+        album.setDescription(string(object, "description", ""));
+        JsonElement aliases = object.get("aliases");
+        if (aliases != null && aliases.isJsonArray()) {
+            var names = new ArrayList<String>();
+            for (var alias : aliases.getAsJsonArray()) {
+                if (alias.isJsonPrimitive() && alias.getAsJsonPrimitive().isString()) names.add(alias.getAsString());
+            }
+            album.setAlias(names);
+        }
         albums.put(album.getId(), album);
         scopedAlbums.put(new ScopedReferenceKey(AccountScope.fromSession(session(platform)), reference), album);
         return album;

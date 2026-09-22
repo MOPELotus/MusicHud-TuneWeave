@@ -8,7 +8,7 @@ import java.util.Set;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
-/** Public player facade: prepare a muted lane, then atomically hand over and fade for 150 ms. */
+/** Public player facade: prepare a muted lane, then atomically hand over with the upstream one-second fade. */
 public final class StreamAudioPlayer {
     public enum Status { IDLE, BUFFERING, PLAYING, RETRYING, ERROR }
     private static final StreamAudioPlayer INSTANCE = new StreamAudioPlayer();

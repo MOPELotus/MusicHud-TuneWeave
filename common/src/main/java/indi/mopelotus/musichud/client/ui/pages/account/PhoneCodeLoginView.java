@@ -14,7 +14,7 @@ import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveChallengeSessi
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveLoginAttempt;
 import indi.mopelotus.musichud.client.ui.CallbackGeneration;
 import indi.mopelotus.musichud.client.ui.components.PlatformSelector;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import net.minecraft.client.resources.language.I18n;
 
@@ -120,13 +120,13 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
         codeP.setMargins(0, 0, 0, dp(2));
         layout2.addView(codeTextInput, codeP);
 
-        var bf1 = ButtonInsetBackgroundFactory.builder()
-                .padding(new ButtonInsetBackgroundFactory.Padding(dp(8), dp(8), dp(8), dp(8)))
+        var bf1 = InsetBackgroundFactory.builder()
+                .padding(new InsetBackgroundFactory.Padding(dp(8), dp(8), dp(8), dp(8)))
                 .cornerRadius(dp(4))
                 .build();
 
         sendCodeButton = new Button(context);
-        sendCodeButton.setBackground(bf1.newBackgroundDrawable());
+        bf1.applyBackgroundTo(sendCodeButton);
         sendCodeButton.setText(I18n.get(MusicHud.MOD_ID + ".button.sendCode"));
         LayoutParams params3 = new LayoutParams(WRAP_CONTENT, MATCH_PARENT, 0);
         params3.setMargins(dp(8), 0, 0, 0);
@@ -140,11 +140,11 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
         loginP.setMargins(0, dp(16), 0, 0);
         loginButton.setLayoutParams(loginP);
         loginButton.setOnClickListener(v -> verifyCode());
-        var bf2 = ButtonInsetBackgroundFactory.builder()
-                .padding(new ButtonInsetBackgroundFactory.Padding(dp(16), dp(8), dp(16), dp(8)))
+        var bf2 = InsetBackgroundFactory.builder()
+                .padding(new InsetBackgroundFactory.Padding(dp(16), dp(8), dp(16), dp(8)))
                 .cornerRadius(dp(4))
                 .build();
-        loginButton.setBackground(bf2.newBackgroundDrawable());
+        bf2.applyBackgroundTo(loginButton);
         content.addView(loginButton);
 
         messageTextView = new TextView(context);

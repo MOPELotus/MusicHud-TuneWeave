@@ -10,11 +10,11 @@ import icyllis.modernui.widget.FrameLayout;
 import icyllis.modernui.widget.LinearLayout;
 import icyllis.modernui.widget.TextView;
 import indi.mopelotus.musichud.MusicHud;
-import indi.mopelotus.musichud.client.ui.dto.LyricLine;
 import indi.mopelotus.musichud.client.audio.NowPlayingInfo;
+import indi.mopelotus.musichud.client.ui.dto.LyricLine;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.hud.HudRendererManager;
-import indi.mopelotus.musichud.client.utils.ui.Easing;
+import indi.mopelotus.musichud.client.utils.ui.SpringInterpolator;
 import indi.mopelotus.musichud.interfaces.ClientConfig;
 import org.apache.logging.log4j.Logger;
 
@@ -28,6 +28,9 @@ public class LyricLineView extends LinearLayout {
     private static final float LYRIC_EMPHASIZE_SCALE = 1.02f;
     private static final float RHYTHM_EMPHASIZE_ANIMATION_SCALE = 0.85f;
     private static Logger logger;
+    private static final int SCALE_ANIMATION_DELAY = 200;
+    private static final int SCALE_ANIMATION_DURATION = 600;
+    private static final SpringInterpolator INTERPOLATOR = new SpringInterpolator(SCALE_ANIMATION_DURATION * 0.001f, 1);
     private static final ClientConfig clientConfig = ClientConfig.getInstance();
     private final NowPlayingInfo nowPlayingInfo = NowPlayingInfo.getInstance();
     private LinearLayout mainLine;
@@ -36,6 +39,10 @@ public class LyricLineView extends LinearLayout {
     private LyricLine lyricLine;
     private View mainText;
     private Animator emphasizeAnim;
+    private Animator fadeAnim;
+    private final java.util.List<Animator> dotAnimations = new java.util.ArrayList<>();
+    private final Runnable fadeRunnable = this::fade;
+    private boolean emphasized;
 
     public LyricLineView(Context context, LyricLine lyricLine) {
         super(context);
@@ -140,7 +147,11 @@ public class LyricLineView extends LinearLayout {
         }
     }
 
-    public void emphasize() {
+    public synchronized void emphasize() {
+        if (emphasized) return;
+        emphasized = true;
+        removeCallbacks(fadeRunnable);
+        cancelAnimations();
         Duration delta = nowPlayingInfo.getPlayedDuration().minus(lyricLine.getStartTime());
         Duration duration = lyricLine.getDuration();
         Duration stayEmphasizeDuration =
@@ -148,6 +159,9 @@ public class LyricLineView extends LinearLayout {
                         nowPlayingInfo.getMusicDuration().minus(lyricLine.getStartTime())
                         : duration.minus(delta);
         stayEmphasizeDuration = stayEmphasizeDuration.minus(Duration.of(800, ChronoUnit.MILLIS));
+        if (stayEmphasizeDuration.isNegative()) {
+            stayEmphasizeDuration = Duration.ofMillis(900);
+        }
         switch (lyricLine.getType()) {
             case META_DATA -> {
             }
@@ -159,17 +173,25 @@ public class LyricLineView extends LinearLayout {
                 row.setPivotX(0f);
                 int height = row.getHeight();
                 row.setPivotY(Math.max(height, dp(24)));
-                ObjectAnimator scaleX = ObjectAnimator.ofFloat(row, View.SCALE_X, 1f, LYRIC_EMPHASIZE_SCALE);
-                scaleX.setInterpolator(Easing.EASE_IN_OUT_QUAD);
-                ObjectAnimator scaleY = ObjectAnimator.ofFloat(row, View.SCALE_Y, 1f, LYRIC_EMPHASIZE_SCALE);
-                scaleY.setInterpolator(Easing.EASE_IN_OUT_QUAD);
 
-                AnimatorSet emphasizeAnimSet = new AnimatorSet();
-                emphasizeAnim = emphasizeAnimSet;
-                emphasizeAnimSet.playTogether(scaleX, scaleY/*, alphaAnim*/);
-                emphasizeAnimSet.setDuration(600);
-                emphasizeAnimSet.setStartDelay(200);
-                emphasizeAnimSet.start();
+                int playTime = Math.clamp(delta.toMillis() - SCALE_ANIMATION_DELAY, 0, SCALE_ANIMATION_DURATION);
+                if (playTime != SCALE_ANIMATION_DURATION) {
+                    ObjectAnimator scaleX = ObjectAnimator.ofFloat(row, View.SCALE_X, 1f, LYRIC_EMPHASIZE_SCALE);
+                    scaleX.setInterpolator(INTERPOLATOR);
+                    ObjectAnimator scaleY = ObjectAnimator.ofFloat(row, View.SCALE_Y, 1f, LYRIC_EMPHASIZE_SCALE);
+                    scaleY.setInterpolator(INTERPOLATOR);
+
+                    AnimatorSet emphasizeAnimSet = new AnimatorSet();
+                    emphasizeAnim = emphasizeAnimSet;
+                    emphasizeAnimSet.playTogether(scaleX, scaleY/*, alphaAnim*/);
+                    emphasizeAnimSet.setDuration(SCALE_ANIMATION_DURATION);
+                    emphasizeAnimSet.setStartDelay(Math.max(0, SCALE_ANIMATION_DELAY - delta.toMillis()));
+                    emphasizeAnimSet.setCurrentPlayTime(playTime);
+                    emphasizeAnimSet.start();
+                } else {
+                    row.setScaleX(LYRIC_EMPHASIZE_SCALE);
+                    row.setScaleY(LYRIC_EMPHASIZE_SCALE);
+                }
             }
             case RHYTHM -> {
                 long stayMillis = stayEmphasizeDuration.toMillis();
@@ -192,6 +214,7 @@ public class LyricLineView extends LinearLayout {
                                 viewById.getAlpha(), Theme.EMPHASIZE_LYRIC_ALPHA);
                         dotAlpha.setDuration(dotDuration);
                         dotAlpha.setStartDelay(800 + stayMillis * i / 3);
+                        dotAnimations.add(dotAlpha);
                         dotAlpha.start();
                     }
                 }
@@ -199,28 +222,59 @@ public class LyricLineView extends LinearLayout {
             }
         }
         if (stayEmphasizeDuration.isPositive()) {
-            postDelayed(this::fade, stayEmphasizeDuration.toMillis());
+            postDelayed(fadeRunnable, stayEmphasizeDuration.toMillis() + SCALE_ANIMATION_DELAY);
         } else {
-            post(this::fade);
+            post(fadeRunnable);
         }
     }
 
     private void fadeNormalLine() {
+        if (!isAttachedToWindow()) return;
+        if (fadeAnim != null) fadeAnim.cancel();
+        if (emphasizeAnim != null) {
+            emphasizeAnim.cancel();
+            emphasizeAnim = null;
+        }
         ObjectAnimator scaleX = ObjectAnimator.ofFloat(row, View.SCALE_X, row.getScaleX(), 1f);
-        scaleX.setInterpolator(Easing.EASE_IN_OUT_QUAD);
+        scaleX.setInterpolator(INTERPOLATOR);
         ObjectAnimator scaleY = ObjectAnimator.ofFloat(row, View.SCALE_Y, row.getScaleY(), 1f);
-        scaleY.setInterpolator(Easing.EASE_IN_OUT_QUAD);
+        scaleY.setInterpolator(INTERPOLATOR);
 
         AnimatorSet set = new AnimatorSet();
         set.playTogether(scaleX, scaleY);
-        set.setDuration(400);
+        set.setDuration(SCALE_ANIMATION_DURATION);
+        fadeAnim = set;
         set.start();
     }
 
     public void fade() {
+        emphasized = false;
+        removeCallbacks(fadeRunnable);
         if (emphasizeAnim != null) {
             emphasizeAnim.cancel();
+            emphasizeAnim = null;
         }
+        if (Math.abs(row.getScaleX() - 1f) > 0.001f || Math.abs(row.getScaleY() - 1f) > 0.001f) {
+            fadeNormalLine();
+        }
+    }
+
+    private void cancelAnimations() {
+        if (emphasizeAnim != null) emphasizeAnim.cancel();
+        emphasizeAnim = null;
+        if (fadeAnim != null) fadeAnim.cancel();
+        fadeAnim = null;
+        dotAnimations.forEach(Animator::cancel);
+        dotAnimations.clear();
+    }
+
+    @Override protected void onDetachedFromWindow() {
+        removeCallbacks(fadeRunnable);
+        emphasized = false;
+        cancelAnimations();
+        row.setScaleX(lyricLine.getType() == LyricLine.Type.RHYTHM ? RHYTHM_EMPHASIZE_ANIMATION_SCALE : 1);
+        row.setScaleY(row.getScaleX());
+        super.onDetachedFromWindow();
     }
 
     public int getScrollPosition(StaggeredLyricScrollView staggeredLyricScrollView) {

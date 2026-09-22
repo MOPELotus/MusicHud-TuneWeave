@@ -86,6 +86,7 @@ dependencies {
     api "icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version"
     compileOnly "maven.modrinth:modernui-mc-mvus:$rootProject.modernui_neoforge_version"
 
+    implementation "net.jthink:jaudiotagger:3.0.1"
     implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
     implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
     implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
