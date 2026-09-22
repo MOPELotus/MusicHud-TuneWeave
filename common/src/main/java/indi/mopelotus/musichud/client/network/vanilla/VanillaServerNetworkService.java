@@ -21,7 +21,7 @@ public interface VanillaServerNetworkService extends IServerNetworkService {
                         .captureClientPayload(false, player, payload);
                 // One FIFO client queue preserves response/push order without taking the
                 // connection lock while a server sender still holds its state lock.
-                net.minecraft.client.Minecraft.getInstance().schedule(() -> indi.mopelotus.musichud.network.ClientPacketContext.receive(
+                net.minecraft.client.Minecraft.getInstance().tell(() -> indi.mopelotus.musichud.network.ClientPacketContext.receive(
                         admission, () -> receiver.receive(payload, player)));
             } else {
                 throw new IllegalStateException();

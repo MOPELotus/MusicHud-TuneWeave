@@ -40,20 +40,23 @@ class HudFrameInjectionTest {
     }
 
     @Test
-    void editorPreviewIsDrawnAfterThe1211BackgroundAndBeforeButtons() throws IOException {
+    void editorPreviewIsDrawnAfterThe1211BackgroundAndBeforeTheUiFrame() throws IOException {
         ClassNode base = readClass(SCREEN);
         assertTrue(base.methods.stream().filter(m -> m.name.equals("render")).flatMap(m -> calls(m).stream())
                 .anyMatch(c -> c.name.equals("renderBackground")));
         ClassNode editor = readClass("indi/mopelotus/musichud/client/ui/screen/HudLayoutEditorScreen");
         MethodNode phase = editor.methods.stream().filter(m -> m.name.equals("renderBackground")).findFirst().orElseThrow();
         var calls = calls(phase);
-        int background = -1, preview = -1;
+        int background = -1, preview = -1, uiFrame = -1;
         for (int i = 0; i < calls.size(); i++) {
-            if (calls.get(i).owner.equals(SCREEN) && calls.get(i).name.equals("renderBackground")) background = i;
-            if (calls.get(i).owner.equals(HUD) && calls.get(i).name.equals("renderPreview")) preview = i;
+            if (calls.get(i).name.equals("renderPanorama")) background = i;
+            if (calls.get(i).owner.equals(HUD) && calls.get(i).name.equals("renderEditorPreview")) preview = i;
+            if (calls.get(i).owner.equals("icyllis/modernui/mc/UIManager") && calls.get(i).name.equals("render")) uiFrame = i;
         }
-        assertTrue(background >= 0 && preview > background);
-        assertFalse(editor.methods.stream().anyMatch(m -> m.name.equals("render")), "Base render keeps buttons above preview");
+        assertTrue(background >= 0 && preview > background && uiFrame > preview);
+        assertEquals(1, calls.stream().filter(c -> c.owner.equals("icyllis/modernui/mc/UIManager")
+                && c.name.equals("render")).count(), "The editor must consume exactly one UI frame");
+        assertFalse(editor.methods.stream().anyMatch(m -> m.name.equals("render")), "Keep the 1.21.1 background dispatch");
     }
 
     @Test

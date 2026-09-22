@@ -13,13 +13,10 @@ public final class HudLayoutEditorScreen extends MusicHudScreen {
 
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        if (minecraft.level == null) super.renderBackground(graphics, mouseX, mouseY, delta);
-    }
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+        if (minecraft.level == null) renderPanorama(graphics, delta);
         HudRendererManager.getInstance().renderEditorPreview(graphics);
         graphics.flush();
-        super.render(graphics, mouseX, mouseY, delta);
+        // ModernUI 1.21.1 consumes its frame in this phase, after the native preview.
+        UIManager.getInstance().render(graphics, mouseX, mouseY, delta);
     }
 }
