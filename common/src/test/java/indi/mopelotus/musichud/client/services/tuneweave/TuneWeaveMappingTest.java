@@ -47,6 +47,29 @@ class TuneWeaveMappingTest {
         assertThrows(UnsupportedOperationException.class, () -> album.getAlias().add("mutation"));
     }
 
+    @Test void playlistPresentationUsesNormalizedExtensionsAndKeepsPersonalizationLocal() {
+        var mapper = new TuneWeaveEntityMapper(platform -> null);
+        var raw = com.google.gson.JsonParser.parseString("{\"ref\":\"netease:42\",\"extensions\":{\"play_count\":5000000000,\"special_type\":100}}").getAsJsonObject();
+        var playlist = mapper.toPlaylist(TuneWeavePlatform.NETEASE, raw);
+        assertTrue(playlist.isPersonalized());
+        assertEquals(5_000_000_000L, playlist.getDisplayPlayedCount());
+        assertTrue(playlist.copyWithPusherInfo(playlist.getPusherInfo()).isPersonalized());
+        assertTrue(playlist.getNameI18nKey().endsWith("recommendlist"));
+        playlist.setPrivacy(indi.mopelotus.musichud.beans.music.Privacy.PRIVATE);
+        org.junit.jupiter.api.Assertions.assertFalse(playlist.copyWithSensitiveErased().isPersonalized());
+        raw.addProperty("ref", "qq:42");
+        org.junit.jupiter.api.Assertions.assertFalse(mapper.toPlaylist(TuneWeavePlatform.QQ, raw).isPersonalized());
+        raw.addProperty("ref", "netease:42");
+        for (String malformed : List.of("null", "{}", "[]", "true", "100.5", "\"invalid\"")) {
+            var metadata = raw.getAsJsonObject("extensions");
+            metadata.add("special_type", com.google.gson.JsonParser.parseString(malformed));
+            metadata.add("play_count", com.google.gson.JsonParser.parseString(malformed));
+            var mapped = mapper.toPlaylist(TuneWeavePlatform.NETEASE, raw);
+            org.junit.jupiter.api.Assertions.assertFalse(mapped.isPersonalized());
+            assertEquals(0, mapped.getDisplayPlayedCount());
+        }
+    }
+
     @Test
     void stableIdsAreDeterministicAndPlatformScoped() {
         long netease = TuneWeaveIdentity.stableId(TuneWeavePlatform.NETEASE, "track:123");
