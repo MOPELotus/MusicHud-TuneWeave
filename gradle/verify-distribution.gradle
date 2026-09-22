@@ -89,7 +89,8 @@ gradle.projectsEvaluated {
                 inputs.file(deploymentTask.archiveFile)
                 inputs.file(rootProject.file('gradle/CfAudioSmoke.java'))
                 doLast {
-                    def logging = project(':common').configurations.runtimeClasspath.files.findAll {
+                    // Resolve the loader's own classpath under its task execution lock.
+                    def logging = target.configurations.runtimeClasspath.files.findAll {
                         it.name.startsWith('slf4j-api-')
                     }
                     if (logging.size() != 1) throw new GradleException('Expected one SLF4J API for audio smoke check')
