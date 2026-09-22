@@ -469,5 +469,8 @@
   "musichud_tuneweave.text.vip.VIP": "VIP",
   "musichud_tuneweave.text.vip.SVIP": "SVIP",
   "musichud_tuneweave.button.more": "更多操作",
-  "musichud_tuneweave.config.common.audioOutputMode.DISCRETE_ONLY": "仅离散多声道（不回退立体声）"
+  "musichud_tuneweave.config.common.audioOutputMode.DISCRETE_ONLY": "仅离散多声道（不回退立体声）",
+  "musichud_tuneweave.text.membershipLevel": "会员等级 %s",
+  "musichud_tuneweave.text.membershipActive": "已开通",
+  "musichud_tuneweave.text.membershipInactive": "未开通"
 }

@@ -469,5 +469,8 @@
   "musichud_tuneweave.text.vip.VIP": "Premium",
   "musichud_tuneweave.text.vip.SVIP": "Premium+",
   "musichud_tuneweave.button.more": "More actions",
-  "musichud_tuneweave.config.common.audioOutputMode.DISCRETE_ONLY": "Discrete channels only (no stereo fallback)"
+  "musichud_tuneweave.config.common.audioOutputMode.DISCRETE_ONLY": "Discrete channels only (no stereo fallback)",
+  "musichud_tuneweave.text.membershipLevel": "Membership level %s",
+  "musichud_tuneweave.text.membershipActive": "Active",
+  "musichud_tuneweave.text.membershipInactive": "Inactive"
 }
