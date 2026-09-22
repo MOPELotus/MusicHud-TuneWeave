@@ -7,6 +7,24 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ExternalIdlePlaySourceStateTest {
+    @Test void replacingPusherReplacesTheTileAndLocalSourcesNeverDuplicate() {
+        UUID self = UUID.randomUUID(), a = UUID.randomUUID(), b = UUID.randomUUID();
+        var state = new ExternalIdlePlaySourceState(() -> self);
+        Playlist first = playlist(1).copyWithPusherInfo(new indi.mopelotus.musichud.beans.music.PusherInfo(a, "A"));
+        Playlist next = playlist(1).copyWithPusherInfo(new indi.mopelotus.musichud.beans.music.PusherInfo(b, "B"));
+        Playlist own = playlist(2).copyWithPusherInfo(new indi.mopelotus.musichud.beans.music.PusherInfo(self, "Self"));
+        Playlist local = playlist(3);
+        List<String> events = new ArrayList<>();
+        state.onAdd(source -> events.add("+" + source.getPusherInfo().getPlayerName()));
+        state.onRemove(source -> events.add("-" + source.getPusherInfo().getPlayerName()));
+        state.updateAll(List.of(first, own, local), List.of());
+        state.updateAll(List.of(next, own, local), List.of());
+        assertEquals(List.of("+A", "-A", "+B"), events);
+        assertEquals(Set.of(next), state.getSources());
+        state.updateAll(List.of(own), List.of());
+        assertTrue(state.getSources().isEmpty());
+    }
+
     @Test void physicalResetRemovesEveryVisibleSourceAndPublishesAfterClearingState() {
         var state = new ExternalIdlePlaySourceState();
         state.add(playlist(1)); state.add(playlist(2));

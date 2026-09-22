@@ -25,6 +25,11 @@ public class SoundEngineMixin {
         SoundEngineEpoch.ready();
     }
 
+    @Inject(method = "tick", at = @At("RETURN"))
+    private void musichud_tuneweave$clearExternalEffects(CallbackInfo ci) {
+        indi.mopelotus.musichud.client.audio.OpenAlEffects.clearExternalEffects();
+    }
+
     @Unique
     private static final ClientConfig musichud_tuneweave$clientConfig = ClientConfig.getInstance();
 

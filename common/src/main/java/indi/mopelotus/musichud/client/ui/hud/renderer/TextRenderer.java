@@ -215,11 +215,12 @@ public class TextRenderer implements HudRenderer {
     }
 
     public float calcDisplayWidth() {
-        if (currentTextData == null || currentTextData.text == null || currentTextData.text.isEmpty()) {
-            return 0f;
-        } else {
-            return Math.min(layout.getWidth(), measureWidth(currentTextData.text) * (layout.getHeight() / vanillaLineHeight));
-        }
+        if (layout == null || layout.getHeight() <= 0) return 0;
+        if (vanillaLineHeight <= 0) vanillaLineHeight = Minecraft.getInstance().font.lineHeight;
+        float current = currentTextData == null ? 0 : measureWidth(currentTextData.text);
+        float next = nextTextData == null ? 0 : measureWidth(nextTextData.text);
+        // The neighboring artist line must leave room for both sides of a text transition.
+        return Math.min(layout.getWidth(), Math.max(current, next) * layout.getHeight() / vanillaLineHeight);
     }
 
     private ModernStringSplitter tryGetSplitter() {

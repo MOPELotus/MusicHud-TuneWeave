@@ -21,6 +21,33 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TuneWeaveMappingTest {
     @Test
+    void collectionDescriptionsAndAliasesAreClientDisplayMetadata() {
+        var mapper = new TuneWeaveEntityMapper(platform -> null);
+        var raw = new JsonObject();
+        raw.addProperty("ref", "qq:playlist:42");
+        raw.addProperty("description", "A playlist description");
+        raw.addProperty("play_count", 5_000_000_000L);
+        Playlist playlist = mapper.toPlaylist(TuneWeavePlatform.QQ, raw);
+        assertEquals("A playlist description", playlist.getDescription());
+        assertEquals(5_000_000_000L, playlist.getDisplayPlayedCount());
+        assertEquals(Integer.MAX_VALUE, playlist.getPlayedCount());
+        assertEquals(5_000_000_000L, playlist.copyWithPusherInfo(playlist.getPusherInfo()).getDisplayPlayedCount());
+        assertEquals(playlist.getDescription(), playlist.copyWithPusherInfo(playlist.getPusherInfo()).getDescription());
+        playlist.setPrivacy(indi.mopelotus.musichud.beans.music.Privacy.PRIVATE);
+        assertEquals("", playlist.copyWithSensitiveErased().getDescription());
+        raw.addProperty("ref", "qq:album:42");
+        JsonArray aliases = new JsonArray();
+        aliases.add("Alias"); aliases.add(JsonNull.INSTANCE); aliases.add(42); aliases.add(new JsonObject());
+        raw.add("aliases", aliases);
+        var album = mapper.toAlbum(TuneWeavePlatform.QQ, raw);
+        assertEquals(List.of("Alias"), album.getAlias());
+        assertEquals("A playlist description", album.getDescription());
+        assertEquals(album.getDescription(), album.copyWithPusherInfo(album.getPusherInfo()).getDescription());
+        assertEquals(album.getAlias(), album.shallowCopyBriefInfo().getAlias());
+        assertThrows(UnsupportedOperationException.class, () -> album.getAlias().add("mutation"));
+    }
+
+    @Test
     void stableIdsAreDeterministicAndPlatformScoped() {
         long netease = TuneWeaveIdentity.stableId(TuneWeavePlatform.NETEASE, "track:123");
 

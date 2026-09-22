@@ -23,7 +23,7 @@ public class IdlePlaySourceCollectionState implements IIdlePlaySourceCollectionS
 
     @Override
     public boolean isContained() {
-        return layer.getSources().stream().anyMatch(c -> c.getId() == collection.getId());
+        return layer.getSources().stream().anyMatch(c -> c.getId() == collection.getId() && c.getClass() == collection.getClass());
     }
 
     @Override
@@ -39,7 +39,7 @@ public class IdlePlaySourceCollectionState implements IIdlePlaySourceCollectionS
     @Override
     public Unregister onOthersModify(Consumer<Boolean> listener) {
         return layer.onChange(c -> {
-            if (c.getId() == collection.getId()) {
+            if (c.getId() == collection.getId() && c.getClass() == collection.getClass()) {
                 listener.accept(isContained());
             }
         });

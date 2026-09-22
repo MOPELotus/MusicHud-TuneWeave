@@ -151,6 +151,76 @@ class LocalIdlePlaySourceStateTest {
         assertTrue(sent.isEmpty());
     }
 
+    @Test void recoveryIsSharedAcrossWidgetsAndRemovalRejectsLateResult() {
+        Set<IdlePlaySource> config = new HashSet<>(Set.of(new IdlePlaySource(42, Playlist.class)));
+        var requests = new ArrayList<CompletableFuture<Playlist>>();
+        var sent = new ArrayList<C2SPayload>();
+        var state = new LocalIdlePlaySourceState(() -> config, () -> {}, (type, id) -> {
+            var request = new CompletableFuture<Playlist>(); requests.add(request); return request;
+        }, sent::add, Runnable::run);
+        state.loadFromConfig();
+        requests.getFirst().completeExceptionally(new IllegalStateException("offline"));
+        assertTrue(state.isInLoadError(Playlist.class, 42));
+        var recovery = state.recover(Playlist.class, 42);
+        assertSame(recovery, state.recover(Playlist.class, 42));
+        assertEquals(2, requests.size());
+        state.remove(playlist());
+        assertFalse(recovery.join());
+        requests.getLast().complete(playlist());
+        assertFalse(state.isInLoadError(Playlist.class, 42));
+        assertTrue(state.getSources().isEmpty());
+        assertTrue(config.isEmpty());
+        assertEquals(1, sent.size());
+    }
+
+    @Test void recoveryRetainsModeAndClearsWarningOnlyAfterPublishing() {
+        var source = new IdlePlaySource(42, Playlist.class, indi.mopelotus.musichud.beans.api.IdlePlayMode.SEQUENTIAL)
+                .withReference("netease:playlist:42");
+        Set<IdlePlaySource> config = new HashSet<>(Set.of(source));
+        var pending = new CompletableFuture<Playlist>();
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var sent = new ArrayList<C2SPayload>();
+        var state = new LocalIdlePlaySourceState(() -> config, () -> {}, (type, id) -> fail("Must retain reference"),
+                sent::add, Runnable::run, (type, ref) -> calls.getAndIncrement() == 0
+                    ? CompletableFuture.failedFuture(new IllegalStateException("offline")) : pending);
+        var changes = new ArrayList<IdlePlaySource>();
+        state.onLoadErrorChanged(changes::add);
+        state.loadFromConfig();
+        var result = state.recover(Playlist.class, 42);
+        assertTrue(state.isInLoadError(Playlist.class, 42));
+        pending.complete(playlist());
+        assertTrue(result.join());
+        assertFalse(state.isInLoadError(Playlist.class, 42));
+        assertEquals(2, changes.size());
+        assertEquals(source.getMode(), ((indi.mopelotus.musichud.network.payloads.pushMessages.c2s.AddToIdlePlaySourceMessage)sent.getLast()).idlePlaySource().getMode());
+    }
+
+    @Test void resetCompletesRecoveryAndRejectsPreviousAccountResult() {
+        Set<IdlePlaySource> config = new HashSet<>(Set.of(new IdlePlaySource(42, Playlist.class)));
+        var pending = new CompletableFuture<Playlist>();
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var sent = new ArrayList<C2SPayload>();
+        var state = new LocalIdlePlaySourceState(() -> config, () -> {}, (type,id) -> calls.getAndIncrement() == 0
+                ? CompletableFuture.failedFuture(new IllegalStateException("offline")) : pending, sent::add, Runnable::run);
+        state.loadFromConfig();
+        var result = state.recover(Playlist.class, 42);
+        state.reset();
+        pending.complete(playlist());
+        assertFalse(result.join());
+        assertTrue(sent.isEmpty());
+        assertTrue(state.getSources().isEmpty());
+    }
+
+    @Test void rejectedExecutorLeavesSourceRetryable() {
+        Set<IdlePlaySource> config = new HashSet<>(Set.of(new IdlePlaySource(42, Playlist.class)));
+        var state = new LocalIdlePlaySourceState(() -> config, () -> {}, (type,id) -> fail("Rejected"),
+                payload -> fail("No publication"), task -> {throw new java.util.concurrent.RejectedExecutionException();});
+        state.loadFromConfig();
+        assertFalse(state.isLoaded());
+        assertTrue(state.isInLoadError(Playlist.class, 42));
+        assertFalse(state.recover(Playlist.class, 42).join());
+    }
+
     private static Playlist playlist() {
         return Playlist.fromTuneWeave(42, "netease:playlist:42", "Test", "", 0, 0, Profile.ANONYMOUS);
     }

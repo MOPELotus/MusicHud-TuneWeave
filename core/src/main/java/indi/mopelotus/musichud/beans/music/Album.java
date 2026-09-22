@@ -46,7 +46,14 @@ public class Album implements MusicCollection {
     @Setter
     String sourceRef = "";
 
-    private boolean nullFiltered = false;
+    // Local display metadata; intentionally absent from Minecraft packet codecs.
+    private transient String description = "";
+    public String getDescription() { return Objects.requireNonNullElse(description, ""); }
+    public void setDescription(String value) { description = Objects.requireNonNullElse(value, ""); }
+    private transient java.util.List<String> alias = java.util.List.of();
+    public java.util.List<String> getAlias() { return alias == null ? java.util.List.of() : alias; }
+    public void setAlias(java.util.List<String> value) { alias = value == null ? java.util.List.of() : java.util.List.copyOf(value); }
+
 
     public Album(
             long id,
@@ -104,15 +111,9 @@ public class Album implements MusicCollection {
     }
 
     @Override
-    public ObservableSequencedSet<MusicDetail> getMusicDetails() {
-        if (musicDetails == null || musicDetails.isEmpty()) {
-            return new ObservableSequencedSet<>(0);
-        }
-        if (!nullFiltered) {
-            musicDetails = musicDetails.stream().filter(Objects::nonNull)
-                    .collect(ObservableSequencedSet::new, Set::add, ObservableSequencedSet::addAll);
-            nullFiltered = true;
-        }
+    public synchronized ObservableSequencedSet<MusicDetail> getMusicDetails() {
+        if (musicDetails == null) musicDetails = new ObservableSequencedSet<>(0);
+        if (musicDetails.contains(null)) musicDetails.remove(null);
         return musicDetails;
     }
 
@@ -133,6 +134,8 @@ public class Album implements MusicCollection {
         album.musicTrackCount = this.musicTrackCount;
         album.company = this.company;
         album.type = this.type;
+        album.alias = getAlias();
+        album.description = getDescription();
         album.sourceRef = this.sourceRef;
         return album;
     }
@@ -142,6 +145,8 @@ public class Album implements MusicCollection {
         Album album = shallowCopyBriefInfo();
         album.pusherInfo = pusherInfo;
         album.sourceRef = sourceRef;
+        album.artists = new LinkedHashSet<>(getArtists());
+        album.musicDetails = new ObservableSequencedSet<>(new LinkedHashSet<>(getMusicDetails()));
         return album;
     }
 
@@ -149,9 +154,9 @@ public class Album implements MusicCollection {
     public boolean equals(Object obj) {
         return obj instanceof Album album
                 && album.id == id
-                && album.name.equals(name)
-                && album.picUrl.equals(picUrl)
-                && album.pusherInfo.equals(pusherInfo);
+                && Objects.equals(album.name, name)
+                && Objects.equals(album.picUrl, picUrl)
+                && Objects.equals(album.pusherInfo, pusherInfo);
     }
 
     @Override

@@ -21,7 +21,7 @@ import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.components.UrlImageView;
 import indi.mopelotus.musichud.client.ui.components.PlatformSelector;
 import indi.mopelotus.musichud.client.utils.image.QrImageUtils;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import net.minecraft.client.resources.language.I18n;
 
@@ -92,9 +92,9 @@ public class QRLoginView extends LinearLayout implements ILoginView {
         loginButton.setWidth(dp(112));
         loginButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
         loginButton.setText(I18n.get(MusicHud.MOD_ID + ".button.loadQRCode"));
-        loginButton.setBackground(ButtonInsetBackgroundFactory.builder()
-                .padding(new ButtonInsetBackgroundFactory.Padding(0, 0, 0, 0))
-                .cornerRadius(dp(4)).inset(dp(1)).build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder()
+                .padding(new InsetBackgroundFactory.Padding(0, 0, 0, 0))
+                .cornerRadius(dp(4)).inset(dp(1)).build().applyBackgroundTo(loginButton);
         LayoutParams buttonParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
         buttonParams.setMargins(0, dp(8), 0, 0);
         addView(loginButton, buttonParams);

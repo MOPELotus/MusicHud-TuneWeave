@@ -49,4 +49,31 @@ class ConfigIdentityMigrationTest {
             assertEquals(7002, config.getPort());
         } finally { MusicHud.setConfigDirectory(previous); }
     }
+
+    @Test void lyricsSidebarDefaultsAndPersistedChoiceSurviveReloads() throws Exception {
+        Path active = directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-client.toml");
+        Path previous = MusicHud.getConfigDirectory();
+        MusicHud.setConfigDirectory(directory);
+        try {
+            var constructor = ClientConfigDefinition.class.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            var config = constructor.newInstance();
+            config.load();
+            assertTrue(config.getEnableLyricsSidebar());
+            config.setEnableLyricsSidebar(false);
+            config.save();
+            var reloaded = constructor.newInstance();
+            reloaded.load();
+            assertFalse(reloaded.getEnableLyricsSidebar());
+            Files.writeString(active, "enableLyricsSidebar = invalid\n");
+            reloaded.load();
+            assertTrue(reloaded.getEnableLyricsSidebar());
+            Files.writeString(active, "soundVolume = 25\n");
+            reloaded.load();
+            assertTrue(reloaded.getEnableLyricsSidebar());
+            assertEquals(25, reloaded.getSoundVolume());
+        } finally {
+            MusicHud.setConfigDirectory(previous);
+        }
+    }
 }

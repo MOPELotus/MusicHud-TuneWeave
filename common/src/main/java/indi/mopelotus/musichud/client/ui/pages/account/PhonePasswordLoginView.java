@@ -15,7 +15,7 @@ import indi.mopelotus.musichud.client.services.LoginService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.components.PlatformSelector;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import net.minecraft.client.resources.language.I18n;
 
@@ -101,9 +101,9 @@ public class PhonePasswordLoginView extends LinearLayout implements ILoginView {
         loginButton = new Button(context);
         loginButton.setText(I18n.get(MusicHud.MOD_ID + ".button.login"));
         loginButton.setTextColor(Theme.PRIMARY_COLOR);
-        loginButton.setBackground(ButtonInsetBackgroundFactory.builder()
-                .padding(new ButtonInsetBackgroundFactory.Padding(dp(16), dp(8), dp(16), dp(8)))
-                .cornerRadius(dp(4)).inset(dp(1)).build().newBackgroundDrawable());
+        InsetBackgroundFactory.builder()
+                .padding(new InsetBackgroundFactory.Padding(dp(16), dp(8), dp(16), dp(8)))
+                .cornerRadius(dp(4)).inset(dp(1)).build().applyBackgroundTo(loginButton);
         LayoutParams loginParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
         loginParams.setMargins(0, dp(16), 0, 0);
         form.addView(loginButton, loginParams);

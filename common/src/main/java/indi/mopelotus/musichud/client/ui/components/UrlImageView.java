@@ -16,7 +16,7 @@ import icyllis.modernui.view.ViewTreeObserver;
 import icyllis.modernui.widget.*;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.ui.Theme;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.client.utils.image.ImageTextureData;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
 import indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources;
@@ -47,6 +47,9 @@ public class UrlImageView extends FrameLayout {
     private final indi.mopelotus.musichud.client.ui.ImagePublication<ImageTextureData> publication =
             new indi.mopelotus.musichud.client.ui.ImagePublication<>(MuiModApi::postToUiThread, ImageTextureData::close);
     private AnimatorSet activeAnimation;
+    private int transitionDuration = 400;
+
+    public void setTransitionDuration(int millis) { transitionDuration = Math.max(0, millis); }
     private final java.util.Map<ImageView, Image> ownedImages = new java.util.IdentityHashMap<>();
     private OnLayoutChangeListener pendingLayoutListener;
     // 滚动监听器
@@ -103,10 +106,10 @@ public class UrlImageView extends FrameLayout {
         retryButton.setText(I18n.get(MusicHud.MOD_ID + ".button.retry"));
         retryButton.setTextSize(Theme.TEXT_SIZE_SMALL);
         retryButton.setTextColor(Theme.PRIMARY_COLOR);
-        var background = ButtonInsetBackgroundFactory.builder()
-                .padding(new ButtonInsetBackgroundFactory.Padding(retryButton.dp(2), retryButton.dp(1), retryButton.dp(2), retryButton.dp(1)))
-                .cornerRadius(retryButton.dp(4)).inset(dp(1)).build().newBackgroundDrawable();
-        retryButton.setBackground(background);
+        InsetBackgroundFactory background = InsetBackgroundFactory.builder()
+                .padding(new InsetBackgroundFactory.Padding(retryButton.dp(2), retryButton.dp(1), retryButton.dp(2), retryButton.dp(1)))
+                .cornerRadius(retryButton.dp(4)).inset(dp(1)).build();
+        background.applyBackgroundTo(retryButton);
         retryButton.setOnClickListener(v -> {
             if (currentURLString != null) {
                 loadUrl(currentURLString);
@@ -348,12 +351,21 @@ public class UrlImageView extends FrameLayout {
         long ticket = publication.current();
         replaceImage(nextImageView, drawable, image);
         progressRing.setVisibility(GONE);
+        if (transitionDuration == 0) {
+            ImageView old = imageView;
+            imageView = nextImageView;
+            nextImageView = old;
+            imageView.setAlpha(1f);
+            nextImageView.setAlpha(0f);
+            replaceImage(nextImageView, null, null);
+            return;
+        }
 
         ObjectAnimator fadeOut = ObjectAnimator.ofFloat(imageView, View.ALPHA, 1f, 0f);
         ObjectAnimator fadeIn = ObjectAnimator.ofFloat(nextImageView, View.ALPHA, 0f, 1f);
 
-        fadeOut.setDuration(400);
-        fadeIn.setDuration(400);
+        fadeOut.setDuration(transitionDuration);
+        fadeIn.setDuration(transitionDuration);
 
         AnimatorSet animatorSet = activeAnimation = new AnimatorSet();
         animatorSet.playTogether(fadeOut, fadeIn);

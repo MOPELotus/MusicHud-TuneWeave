@@ -24,6 +24,8 @@ final class AudioOutputPolicy {
 
     int format(int input, AudioOutputMode mode, boolean multichannel, boolean floating) {
         int channels = OpenAlFormatSelector.channels(input);
+        if (channels > 2 && mode == AudioOutputMode.DISCRETE_ONLY && (!multichannel || rejectMultichannel))
+            throw new IllegalStateException("Discrete multichannel output is unavailable on this device");
         if (channels > 2 && (mode == AudioOutputMode.STEREO || !multichannel || rejectMultichannel)) channels = 2;
         return OpenAlFormatSelector.select(channels,
                 OpenAlFormatSelector.floating(input) && floating && !rejectFloat);

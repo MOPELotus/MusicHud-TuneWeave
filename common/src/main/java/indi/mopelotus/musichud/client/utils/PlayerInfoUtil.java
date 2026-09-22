@@ -17,7 +17,7 @@ public class PlayerInfoUtil {
         Minecraft minecraft = Minecraft.getInstance();
         ClientPacketListener connection = minecraft.getConnection();
         if (connection == null) {
-            throw new IllegalStateException();
+            return null;
         }
         return connection.getPlayerInfo(uuid);
     }

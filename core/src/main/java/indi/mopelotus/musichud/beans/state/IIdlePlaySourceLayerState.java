@@ -39,5 +39,16 @@ public interface IIdlePlaySourceLayerState {
 
     void updateAll(List<Playlist> playlistSources, List<Album> albumSources);
 
+    default boolean isInLoadError(Class<?> type, long id) { return false; }
+
+    default Unregister onLoadErrorChanged(Consumer<indi.mopelotus.musichud.beans.api.IdlePlaySource> listener) {
+        return () -> {};
+    }
+
+    /** Reloads client-owned data and republishes the public source snapshot. */
+    default CompletableFuture<Boolean> recover(Class<?> type, long id) {
+        return CompletableFuture.completedFuture(false);
+    }
+
     void reset();
 }

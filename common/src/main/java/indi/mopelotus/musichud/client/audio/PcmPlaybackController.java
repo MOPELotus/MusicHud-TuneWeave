@@ -20,6 +20,7 @@ final class PcmPlaybackController implements AutoCloseable {
     private OpenAlPlaybackDevice device;
     private boolean align;
     private boolean closed;
+    private boolean hasPlayed;
     private int operationFailures;
 
     PcmPlaybackController(PcmPlaybackBuffer pcm, OpenAlPlaybackDevice.Driver driver,
@@ -57,6 +58,8 @@ final class PcmPlaybackController implements AutoCloseable {
             if (device.queued() == 0) listening.discardQueued(generation);
             // Bound stale playback after stalls; every trim is an entire interleaved frame.
             pcm.align(token, Math.max(0, positionMillis - 500));
+            if (hasPlayed && device.queued() == 0 && !pcm.readyAfterUnderrun(token))
+                return Result.BUFFERING;
             while (device.hasSpace()) {
                 PcmPlaybackBuffer.Chunk next = pcm.peek(token);
                 if (next == null) break;
@@ -75,6 +78,7 @@ final class PcmPlaybackController implements AutoCloseable {
             }
             if (device.queued() > 0) {
                 device.play(Math.clamp(gain, 0f, 1f));
+                hasPlayed = true;
                 policy.accepted(device.format());
                 operationFailures = 0;
                 recovering = false;

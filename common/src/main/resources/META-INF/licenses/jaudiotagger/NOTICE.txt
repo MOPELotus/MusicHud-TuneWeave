@@ -1,0 +1,8 @@
+JAudiotagger 3.0.1 (net.jthink:jaudiotagger)
+https://github.com/ijabz/jaudiotagger
+Copyright Paul Taylor and JAudiotagger contributors.
+Contains Entagged Audio Tag library code, Copyright (c) 2003-2005 Raphael Slinckx and contributors.
+Licensed under the GNU Lesser General Public License, version 2.1 or later.
+The library is distributed without modification.
+Corresponding source for the bundled version:
+https://repo.maven.apache.org/maven2/net/jthink/jaudiotagger/3.0.1/jaudiotagger-3.0.1-sources.jar
