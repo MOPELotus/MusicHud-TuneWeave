@@ -11,27 +11,35 @@ import java.util.List;
 import java.util.Set;
 
 public class ExternalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
+    private final java.util.function.Supplier<java.util.UUID> localPlayer;
+
+    public ExternalIdlePlaySourceState() {
+        this(() -> {
+            Player player = Minecraft.getInstance().player;
+            return player == null ? null : player.getUUID();
+        });
+    }
+
+    ExternalIdlePlaySourceState(java.util.function.Supplier<java.util.UUID> localPlayer) {
+        this.localPlayer = localPlayer;
+    }
+
     @Override
     public synchronized void updateAll(List<Playlist> playlistSources, List<Album> albumSources) {
+        java.util.UUID self = localPlayer.get();
+        var fresh = new java.util.ArrayList<MusicCollection>();
+        fresh.addAll(playlistSources); fresh.addAll(albumSources);
+        fresh.removeIf(source -> source.getPusherInfo() == null
+                || source.getPusherInfo().equals(indi.mopelotus.musichud.beans.music.PusherInfo.EMPTY)
+                || source.getPusherInfo().getPlayerUUID().equals(self));
+        Set<MusicCollection> previous = Set.copyOf(sources);
         Set<MusicCollection> toRemove = new HashSet<>();
         Set<MusicCollection> toAdd = new HashSet<>();
-        Set<MusicCollection> serverIdlePlaySources = Set.copyOf(sources);
-        for (MusicCollection musicCollection : serverIdlePlaySources) {
-            //noinspection SuspiciousMethodCalls
-            if (!playlistSources.contains(musicCollection) && !albumSources.contains(musicCollection)) {
-                toRemove.add(musicCollection);
-            }
+        for (MusicCollection old : previous) {
+            if (fresh.stream().noneMatch(next -> sameSource(old, next))) toRemove.add(old);
         }
-        Player player = Minecraft.getInstance().player;
-        for (MusicCollection musicCollection : playlistSources) {
-            if (!serverIdlePlaySources.contains(musicCollection) && !(player != null && musicCollection.getPusherInfo().getPlayerUUID().equals(player.getUUID()))) {
-                toAdd.add(musicCollection);
-            }
-        }
-        for (MusicCollection musicCollection : albumSources) {
-            if (!serverIdlePlaySources.contains(musicCollection) && !(player != null && musicCollection.getPusherInfo().getPlayerUUID().equals(player.getUUID()))) {
-                toAdd.add(musicCollection);
-            }
+        for (MusicCollection next : fresh) {
+            if (previous.stream().noneMatch(old -> sameSource(old, next))) toAdd.add(next);
         }
         sources.removeAll(toRemove);
         sources.addAll(toAdd);
@@ -43,6 +51,11 @@ public class ExternalIdlePlaySourceState extends AbstractIdlePlaySourceLayerStat
             notifyChange(musicCollection);
             notifyAdd(musicCollection);
         });
+    }
+
+    private static boolean sameSource(MusicCollection a, MusicCollection b) {
+        return a.equalsLoose(b) && java.util.Objects.equals(a.getPusherInfo(), b.getPusherInfo())
+                && java.util.Objects.equals(a.getPusherInfo().getPlayerName(), b.getPusherInfo().getPlayerName());
     }
 
     @Override

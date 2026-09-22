@@ -213,6 +213,38 @@ class PcmPlaybackControllerTest {
         return new PcmPlaybackBuffer.Chunk(bytes.array(), AL10.AL_FORMAT_STEREO16, 8000, start);
     }
 
+    @Test void underrunWaitsForThreeSecondsButSmallQueuesAndEofRemainReachable() throws Exception {
+        for (int capacity : new int[]{4, 60}) {
+            var pcm = new PcmPlaybackBuffer(capacity); var token = pcm.reset(1);
+            pcm.offer(token, stereo(0, 800));
+            var driver = new FakeDriver();
+            try (var controller = controller(pcm, driver)) {
+                assertEquals(PcmPlaybackController.Result.PLAYING, controller.tick(0, AudioOutputMode.STEREO, 1));
+                driver.processed = 1;
+                assertEquals(PcmPlaybackController.Result.BUFFERING, controller.tick(100, AudioOutputMode.STEREO, 1));
+                pcm.offer(token, stereo(800, 8000));
+                assertEquals(PcmPlaybackController.Result.BUFFERING, controller.tick(100, AudioOutputMode.STEREO, 1));
+                pcm.offer(token, stereo(8800, 8000));
+                if (capacity == 60) {
+                    assertEquals(PcmPlaybackController.Result.BUFFERING, controller.tick(100, AudioOutputMode.STEREO, 1));
+                    pcm.offer(token, stereo(16800, 8000));
+                }
+                assertEquals(PcmPlaybackController.Result.PLAYING, controller.tick(100, AudioOutputMode.STEREO, 1));
+            }
+        }
+    }
+
+    @Test void shortFinalTailDoesNotWaitForTheRebufferTarget() throws Exception {
+        var pcm = new PcmPlaybackBuffer(60); var token = pcm.reset(1);
+        pcm.offer(token, stereo(0, 800)); var driver = new FakeDriver();
+        try (var controller = controller(pcm, driver)) {
+            controller.tick(0, AudioOutputMode.STEREO, 1); driver.processed = 1;
+            controller.tick(100, AudioOutputMode.STEREO, 1);
+            pcm.offer(token, stereo(800, 80)); pcm.finish(token, null);
+            assertEquals(PcmPlaybackController.Result.PLAYING, controller.tick(100, AudioOutputMode.STEREO, 1));
+        }
+    }
+
     static final class FakeDriver implements OpenAlPlaybackDevice.Driver {
         record Upload(int format, byte[] bytes) {}
         long generation = 1;

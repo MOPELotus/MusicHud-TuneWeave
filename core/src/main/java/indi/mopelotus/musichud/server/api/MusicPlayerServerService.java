@@ -202,7 +202,7 @@ public class MusicPlayerServerService {
         for (IdlePlaySource source : sources) {
             choice -= eligibleTrackCount(source, excludedReference);
             if (choice >= 0) continue;
-            return source.nextTrackExcept(MusicHud.RANDOM, excludedReference).map(track -> {
+            return sequentialProgress.select(source, owner.getKey().getPlayerUUID(), MusicHud.RANDOM, excludedReference).map(track -> {
                 MusicDetail selected = track.withPlaybackSource(PlaybackSource.from(
                         source.getMusicCollection(), source.getMode().name()));
                 selected.setPusherInfo(owner.getKey());
@@ -250,6 +250,8 @@ public class MusicPlayerServerService {
     @Getter
     private volatile MusicDetail nextIdleMusicDetail = MusicDetail.NONE;
     private long nextIdleRevision;
+    private final indi.mopelotus.musichud.server.playback.IdleSequentialProgress sequentialProgress =
+            new indi.mopelotus.musichud.server.playback.IdleSequentialProgress();
     private int transitioningGeneration = -1;
     private MusicDetail preloadMusicDetail = MusicDetail.NONE;
     private volatile Thread pusherThread;
@@ -553,6 +555,7 @@ public class MusicPlayerServerService {
     }
 
     public synchronized void reset() {
+        sequentialProgress.reset();
         debounceToken.incrementAndGet();
         musicQueue.clear();
         idlePlaySources.clear();

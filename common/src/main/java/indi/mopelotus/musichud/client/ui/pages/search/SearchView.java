@@ -7,6 +7,7 @@ import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.view.Gravity;
 import icyllis.modernui.view.KeyEvent;
 import icyllis.modernui.view.View;
+import icyllis.modernui.view.MeasureSpec;
 import icyllis.modernui.widget.Button;
 import icyllis.modernui.widget.EditText;
 import icyllis.modernui.widget.LinearLayout;
@@ -23,7 +24,7 @@ import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveSearchPage;
 import indi.mopelotus.musichud.client.ui.components.PlatformSelector;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeavePodcast;
-import indi.mopelotus.musichud.client.utils.ui.ButtonInsetBackgroundFactory;
+import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import indi.mopelotus.musichud.interfaces.ClientConfig;
 import lombok.Data;
@@ -68,6 +69,9 @@ public class SearchView extends LinearLayout {
         Context context = getContext();
         removeAllViews();
         setOrientation(VERTICAL);
+        setGravity(Gravity.TOP);
+        searchTextInput = null;
+        searchResultTabPage = null;
 
         boolean enabled = clientConfig.getEnable();
         if (MusicHud.getConnectStatus() != MusicHud.ConnectStatus.CONNECTED && !ClientConfig.getInstance().getEnableIsolatedMode() || !enabled) {
@@ -77,41 +81,53 @@ public class SearchView extends LinearLayout {
             return;
         }
 
-        LinearLayout top = new LinearLayout(context);
-        top.setOrientation(HORIZONTAL);
-        LayoutParams topParams = new LayoutParams(MATCH_PARENT, dp(38));
-        topParams.setMargins(0, dp(32), 0, 0);
-        addView(top, topParams);
-
-        top.addView(new View(context), new LayoutParams(0, WRAP_CONTENT, 2));
+        LinearLayout providers = new LinearLayout(context);
+        providers.setGravity(Gravity.CENTER);
         platformSelector = new PlatformSelector(context, TuneWeavePlatform.values());
         platformSelector.setSelectedPlatform(TuneWeaveClientService.getInstance().defaultPlatform());
-        top.addView(platformSelector, new LayoutParams(WRAP_CONTENT, MATCH_PARENT));
+        providers.addView(platformSelector, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        LayoutParams providerParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
+        providerParams.setMargins(0, dp(16), 0, 0);
+        addView(providers, providerParams);
+        LinearLayout top = new LinearLayout(context);
+        top.setGravity(Gravity.CENTER);
+        top.setOrientation(HORIZONTAL);
+        LayoutParams topParams = new LayoutParams(MATCH_PARENT, dp(38));
+        topParams.setMargins(0, dp(16), 0, 0);
+        addView(top, topParams);
+
+        LinearLayout searchWidget = new LinearLayout(context) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                int width = Math.min(MeasureSpec.getSize(widthSpec), dp(480));
+                super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), heightSpec);
+                setMeasuredDimension(width, getMeasuredHeight());
+            }
+        };
+        searchWidget.setOrientation(HORIZONTAL);
         searchTextInput = new EditText(context, null, R.attr.editTextOutlinedStyle);
         searchTextInput.setTextAlignment(SearchView.TEXT_ALIGNMENT_CENTER);
         searchTextInput.setHint(I18n.get(MusicHud.MOD_ID + ".field.hint.searchMusic"));
         searchTextInput.setSingleLine();
-        LayoutParams params = new LayoutParams(0, WRAP_CONTENT, 6);
+        LayoutParams params = new LayoutParams(0, WRAP_CONTENT, 1);
         params.setMargins(dp(52), 0, 0, 0);
-        top.addView(searchTextInput, params);
+        searchWidget.addView(searchTextInput, params);
 
         Button searchButton = new Button(context);
         searchButton.setText(I18n.get(MusicHud.MOD_ID + ".button.searchMusic"));
         LayoutParams buttonParams = new LayoutParams(WRAP_CONTENT, MATCH_PARENT);
-        Drawable background = ButtonInsetBackgroundFactory.builder()
-                .inset(0).padding(new ButtonInsetBackgroundFactory.Padding(dp(8), 0, dp(8), 0))
-                .cornerRadius(dp(4)).build().newBackgroundDrawable();
-        searchButton.setBackground(background);
+        InsetBackgroundFactory background = InsetBackgroundFactory.builder()
+                .inset(0).padding(new InsetBackgroundFactory.Padding(dp(8), 0, dp(8), 0))
+                .cornerRadius(dp(4)).build();
+        background.applyBackgroundTo(searchButton);
         buttonParams.setMargins(dp(8), 0, 0, 0);
-        top.addView(searchButton, buttonParams);
+        searchWidget.addView(searchButton, buttonParams);
 
-        top.addView(new View(context), new LayoutParams(0, WRAP_CONTENT, 2));
+        top.addView(searchWidget, new LayoutParams(MATCH_PARENT, MATCH_PARENT));
 
         searchResultTabPage = new SearchResultTabPage(context, this);
         searchResultTabPage.clearResult();
 
         LayoutParams resultAreaParams = new LayoutParams(MATCH_PARENT, 0, 1);
-        resultAreaParams.setMargins(dp(32), 0, dp(32), 0);
         addView(searchResultTabPage, resultAreaParams);
 
         searchTextInput.setOnKeyListener((v, keyCode, event) -> {
@@ -126,16 +142,18 @@ public class SearchView extends LinearLayout {
             cancelSearches(); searchResultTabPage.clearResult(); refreshSearch(true);
         });
 
-        addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
-            @Override
-            public void onViewAttachedToWindow(View v) { instance = SearchView.this; }
+    }
 
-            @Override
-            public void onViewDetachedFromWindow(View v) {
-                if (instance == SearchView.this) instance = null;
-                cancelSearches();
-            }
-        });
+    @Override protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        instance = this;
+        post(() -> { if (instance == this && isAttachedToWindow()) refreshSearch(false); });
+    }
+
+    @Override protected void onDetachedFromWindow() {
+        if (instance == this) instance = null;
+        cancelSearches();
+        super.onDetachedFromWindow();
     }
 
     public void refreshSearch(boolean force) {

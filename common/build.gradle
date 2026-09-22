@@ -83,11 +83,14 @@ dependencies {
 
     testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    // Standalone ModernUI layout tests link GLFW; the 26.3 game itself uses SDL.
+    testRuntimeOnly "org.lwjgl:lwjgl-glfw:3.4.3"
 
     api "dev.icyllis:modernui-core:$rootProject.modernui_version"
     api "icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version"
     compileOnly "io.github.mopelotus.modernui:ModernUI-NeoForge:$rootProject.modernui_fork_version@jar"
 
+    implementation "net.jthink:jaudiotagger:3.0.1"
     implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
     implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
     implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"

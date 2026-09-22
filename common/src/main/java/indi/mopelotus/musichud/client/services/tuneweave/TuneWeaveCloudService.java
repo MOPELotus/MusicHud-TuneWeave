@@ -90,7 +90,15 @@ final class TuneWeaveCloudService {
     }
 
     String uploadTrack(Path file, String songName, String artist, String album) {
+        return uploadTrack(file, songName, artist, album, 999_000L, ignored -> {}, () -> {}, () -> false);
+    }
+
+    String uploadTrack(Path file, String songName, String artist, String album, long bitrate,
+                       java.util.function.LongConsumer progress, Runnable publishing,
+                       java.util.function.BooleanSupplier cancelled) {
         Objects.requireNonNull(file, "file");
+        if (bitrate <= 0) throw new IllegalArgumentException("Cloud bitrate must be positive");
+        checkCancelled(cancelled);
         TuneWeavePlatform platform = cloudPlatform();
         try {
             if (!Files.isRegularFile(file)) {
@@ -103,7 +111,7 @@ final class TuneWeaveCloudService {
             String filename = file.getFileName().toString();
             String contentType = contentType(file);
             String md5 = digestFile(file, "MD5");
-            long bitrate = 999_000L;
+            checkCancelled(cancelled);
 
             JsonObject ticketBody = new JsonObject();
             ticketBody.addProperty("md5", md5);
@@ -119,9 +127,11 @@ final class TuneWeaveCloudService {
             if (bool(ticket, "upload_required", true)) {
                 TuneWeaveApiClient.uploadTicketFile(requiredString(ticket, "upload_url"),
                         requiredString(ticket, "upload_method"),
-                        stringMap(ticket.get("upload_headers")), file);
+                        stringMap(ticket.get("upload_headers")), file, progress, cancelled);
             }
 
+            checkCancelled(cancelled);
+            publishing.run();
             JsonObject completion = new JsonObject();
             completion.addProperty("provisional_track_id", provisionalTrackId);
             completion.addProperty("resource_id", resourceId);
@@ -138,6 +148,11 @@ final class TuneWeaveCloudService {
         } catch (IOException error) {
             throw new IllegalArgumentException("Failed to read the selected cloud upload file", error);
         }
+    }
+
+    private static void checkCancelled(java.util.function.BooleanSupplier cancelled) {
+        if (cancelled.getAsBoolean() || Thread.currentThread().isInterrupted())
+            throw new java.util.concurrent.CancellationException("Cloud upload cancelled");
     }
 
     String importTrack(String md5, String sourceTrackId, long bitrate, long fileSize,

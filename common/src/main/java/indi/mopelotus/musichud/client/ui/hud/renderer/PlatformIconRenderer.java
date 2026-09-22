@@ -35,6 +35,10 @@ public final class PlatformIconRenderer implements HudRenderer {
         this.layout = layout;
     }
 
+    public boolean isVisible() { return platform != null; }
+
+    public Layout getLayout() { return layout; }
+
     public void setPlatform(TuneWeavePlatform platform) {
         this.platform = platform;
     }

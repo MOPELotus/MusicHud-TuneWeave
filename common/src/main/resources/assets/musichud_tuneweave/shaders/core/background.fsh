@@ -122,6 +122,10 @@ void main() {
 
     float total = w0 + w1 + w2 + w3 + 0.001;
     w0 /= total; w1 /= total; w2 /= total; w3 /= total;
+    // Preserve the upstream palette's local color definition during transitions.
+    w0 = pow(w0, 1.5); w1 = pow(w1, 1.5); w2 = pow(w2, 1.5); w3 = pow(w3, 1.5);
+    float ptotal = w0 + w1 + w2 + w3 + 0.001;
+    w0 /= ptotal; w1 /= ptotal; w2 /= ptotal; w3 /= ptotal;
 
     vec3 r0 = u_Dark.rgb;
     vec3 r1 = u_Primary.rgb;

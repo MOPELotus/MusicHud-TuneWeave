@@ -87,7 +87,7 @@ public class HudRendererManager {
                         new ScrollingLyricLineRenderer.Line(lyricLine, text, Theme.HUD_FADE_COLOR, Theme.HUD_EMPHASIZE_COLOR, scrollMillis),
                         new ScrollingLyricLineRenderer.Line(lyricLine, translated, Theme.HUD_FADE_COLOR, Theme.HUD_FADE_COLOR, scrollMillis));
             }, CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS, MusicHud.EXECUTOR)),
-                    lines -> LYRICS_LINE_RENDERER.setLines(lines.first(), lines.second(), 300),
+                    lines -> LYRICS_LINE_RENDERER.setLines(lines.first(), lines.second()),
                     error -> MusicHud.LOGGER.debug("HUD lyric update failed", error));
         });        PLAYER_HEAD_RENDERER.setPlayerSkinSupplier(() -> {
             PlayerInfo pusherPlayerInfo = nowPlayingInfo.getPusherPlayerInfo();
@@ -383,6 +383,10 @@ public class HudRendererManager {
     }
 
     /** Renders the live HUD at draft geometry without writing config or issuing resize downloads. */
+    public synchronized void renderEditorPreview(GuiGraphicsExtractor graphics) {
+        renderFrame(graphics, null, true);
+    }
+
     public synchronized void renderPreview(GuiGraphicsExtractor graphics, HudEditorBounds bounds) {
         Layout saved = baseLayout;
         try {
@@ -445,17 +449,19 @@ public class HudRendererManager {
 
             float progressWidth = PROGRESS_RENDERER.getProgressData().getLayout().getWidth();
             Layout titleLayout = TITLE_RENDERER.getLayout();
-            float maxTitleWidth = progressWidth - PLAYER_HEAD_RENDERER.getLayout().getWidth() - Math.max(4, contentInterval);
-            float titleWidth = PLAYING_STATUS_RENDERER.isVisible()
-                    ? maxTitleWidth - Math.max(4, contentInterval) - PLAYING_STATUS_RENDERER.getLayout().getWidth()
-                    : maxTitleWidth;
-            titleLayout.setWidth(Math.max(0, titleWidth - titleLayout.getHeight() - Math.max(4, contentInterval)));
+            float gap = Math.max(4, contentInterval);
+            float headSpace = PLAYER_HEAD_RENDERER.isVisible() ? PLAYER_HEAD_RENDERER.getLayout().getWidth() + gap : 0;
+            float statusSpace = PLAYING_STATUS_RENDERER.isVisible() ? PLAYING_STATUS_RENDERER.getLayout().getWidth() + gap : 0;
+            float platformSpace = PLATFORM_ICON_RENDERER.isVisible() ? titleLayout.getHeight() + gap : 0;
+            float titleWidth = Math.max(0, progressWidth - headSpace - statusSpace - platformSpace);
+            titleLayout.setWidth(titleWidth);
+            PLATFORM_ICON_RENDERER.getLayout().setX(titleLayout.getX() + titleWidth + gap);
 
             PLATFORM_ICON_RENDERER.render(hudRenderContext);
             TITLE_RENDERER.render(hudRenderContext);
             LYRICS_LINE_RENDERER.render(hudRenderContext);
 
-            ARTISTS_AND_ALBUM_RENDERER.getLayout().setWidth(progressWidth - PLAY_TIME_RENDERER.calcDisplayWidth() - contentInterval);
+            ARTISTS_AND_ALBUM_RENDERER.getLayout().setWidth(Math.max(0, progressWidth - PLAY_TIME_RENDERER.calcDisplayWidth() - gap));
             ARTISTS_AND_ALBUM_RENDERER.render(hudRenderContext);
             PLAY_TIME_RENDERER.render(hudRenderContext);
 

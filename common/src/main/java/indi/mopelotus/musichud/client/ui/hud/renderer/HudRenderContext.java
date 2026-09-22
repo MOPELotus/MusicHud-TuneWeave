@@ -6,6 +6,7 @@ import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.commands.RenderPass;
 import indi.mopelotus.musichud.client.ui.hud.pipelines.HudRenderState;
 import indi.mopelotus.musichud.client.ui.hud.pipelines.HudUniform;
+import indi.mopelotus.musichud.client.ui.hud.pipelines.HudUniformSnapshot;
 import indi.mopelotus.musichud.client.ui.hud.pipelines.RenderStateUtil;
 import lombok.Getter;
 import lombok.NonNull;
@@ -26,10 +27,9 @@ public class HudRenderContext {
     @Getter
     private static HudRenderContext current;
 
-    private final Map<StorageKey, DynamicGpuDataStorageMapped<?>> storageMap = new HashMap<>();
-    private final Map<StorageKey, HudUniform> pendingUniforms = new HashMap<>();
+    private final Map<StorageKey, DynamicGpuDataStorageMapped<HudUniformSnapshot>> storageMap = new HashMap<>();
+    private final Map<StorageKey, HudUniformSnapshot> pendingUniforms = new HashMap<>();
     private final Map<StorageKey, GpuBufferSlice> uniformSlices = new HashMap<>();
-
 
     @Getter
     @Setter
@@ -49,21 +49,14 @@ public class HudRenderContext {
     }
 
     public void prepareUniforms() {
-        for (Map.Entry<StorageKey, HudUniform> entry : pendingUniforms.entrySet()) {
+        for (Map.Entry<StorageKey, HudUniformSnapshot> entry : pendingUniforms.entrySet()) {
             StorageKey key = entry.getKey();
-            HudUniform uniform = entry.getValue();
-
-            // Mapped ring-buffer slices belong to the current frame. Always write
-            // after endFrame(), even when the logical uniform value is unchanged.
-            @SuppressWarnings({"unchecked", "resource"})
-            DynamicGpuDataStorageMapped<HudUniform> storage = (DynamicGpuDataStorageMapped<HudUniform>)
-                    storageMap.computeIfAbsent(key, k ->
-                            indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources.RENDER.create(() ->
-                                    new DynamicGpuDataStorageMapped<>(uniform.getUBOName(), uniform.getUBOSize(), GpuBuffer.USAGE_UNIFORM, 256))
-                    );
-
-            GpuBufferSlice slice = storage.writeData(uniform);
-            uniformSlices.put(key, slice);
+            HudUniformSnapshot uniform = entry.getValue();
+            // endFrame rotates storage and retires old buffers. Never retain slices across frames.
+            DynamicGpuDataStorageMapped<HudUniformSnapshot> storage = storageMap.computeIfAbsent(key, k ->
+                    indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources.RENDER.create(() ->
+                            new DynamicGpuDataStorageMapped<>(key.uboName(), uniform.size(), GpuBuffer.USAGE_UNIFORM, 256)));
+            uniformSlices.put(key, storage.writeData(uniform));
         }
     }
 
@@ -78,7 +71,7 @@ public class HudRenderContext {
         if (uniforms != null) {
             for (HudUniform uniform : uniforms) {
                 StorageKey key = new StorageKey(hudRenderState.pipeline(), uniform.getUBOName());
-                pendingUniforms.put(key, uniform);
+                pendingUniforms.put(key, HudUniformSnapshot.capture(uniform));
             }
         }
     }
@@ -87,9 +80,7 @@ public class HudRenderContext {
         if (pass == null) return;
         for (Map.Entry<StorageKey, GpuBufferSlice> entry : uniformSlices.entrySet()) {
             StorageKey key = entry.getKey();
-            HudUniform uniform = pendingUniforms.get(key);
-            if (uniform == null) continue;
-            pass.setUniform(uniform.getUBOName(), entry.getValue());
+            pass.setUniform(key.uboName(), entry.getValue());
         }
     }
 

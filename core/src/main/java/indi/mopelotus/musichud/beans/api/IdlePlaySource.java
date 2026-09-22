@@ -49,6 +49,8 @@ public final class IdlePlaySource {
 
     public String getSourceReference() { return sourceReference == null ? "" : sourceReference; }
 
+    public synchronized void resumeAfter(String reference) { lastReference = reference; }
+
     public IdlePlaySource withReference(String reference) {
         if (reference == null || reference.length() > 512 || (!reference.isBlank() && !reference.contains(":"))) {
             throw new IllegalArgumentException("Invalid idle source reference");
