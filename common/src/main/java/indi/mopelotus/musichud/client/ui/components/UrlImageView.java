@@ -11,6 +11,7 @@ import icyllis.modernui.graphics.drawable.RoundedImageDrawable;
 import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.util.ColorStateList;
 import icyllis.modernui.view.Gravity;
+import icyllis.modernui.view.MeasureSpec;
 import icyllis.modernui.view.View;
 import icyllis.modernui.view.ViewTreeObserver;
 import icyllis.modernui.widget.*;
@@ -133,15 +134,11 @@ public class UrlImageView extends FrameLayout {
 
         if (aspectRatio > 0) {
             int width = getMeasuredWidth();
-            int height = (int) (width / aspectRatio);
-
-            // 设置测量尺寸
-            setMeasuredDimension(width, height);
-
-            // 同时设置内部ImageView的尺寸
-            LayoutParams params = new LayoutParams(width, height);
-            imageView.setLayoutParams(params);
-            nextImageView.setLayoutParams(params);
+            int height = resolveSize((int) (width / aspectRatio), heightMeasureSpec);
+            // Keep fixed badge/header dimensions authoritative when an image arrives.
+            // Measure both image layers in the final frame without requesting another layout.
+            super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
         }
     }
 
