@@ -13,9 +13,11 @@ Paper 会检查实际生效的代理转发配置并拒绝错误部署。代理�
 
 ## 客户端
 
-安装与 Minecraft 版本及 Fabric/NeoForge 匹配的 ModernUI 和 MusicHud TuneWeave 模组；Fabric 还需要 Fabric API。完整版本表和三条 ModernUI 下载路线见 [README](../README.md#客户端依赖)。26.2 配套 ModernUI 不需要 Forge Config API Port；其余表列版本的官方 ModernUI / mVUS Fabric 构建仍需要对应版本的 API Port，NeoForge 无需另装。
+安装与 Minecraft 版本及 Fabric/NeoForge 匹配的 ModernUI 和 MusicHud TuneWeave 模组；Fabric 还需要 Fabric API。完整版本表和三条 ModernUI 下载路线见 [README](../README.md#客户端依赖)。26.2 / 26.3 配套 ModernUI 不需要 Forge Config API Port；其余表列版本的官方 ModernUI / mVUS Fabric 构建仍需要对应版本的 API Port，NeoForge 无需另装。
 
-26.x 客户端运行需要 Java 25，1.21.x 客户端运行需要 Java 21。26.2 使用 [MusicHud TuneWeave 配套的 ModernUI 分支](https://github.com/MOPELotus/ModernUI-MC/releases)。
+26.x 客户端运行需要 Java 25，1.21.x 客户端运行需要 Java 21。26.2 / 26.3 使用 [MusicHud TuneWeave 配套的 ModernUI 分支](https://github.com/MOPELotus/ModernUI-MC/releases)。
+
+26.2 / 26.3 配套 ModernUI 当前使用 `3.13.0.9`。普通版（`-universal.jar`）与 MiSans 版（`-universal-misans.jar`）均可使用，按 Minecraft 版本和加载器选包，只安装其中一版；升级/切换时替换旧 JAR。普通版允许自定义字体，MiSans 版保留字体安装与字重设置；缺少字体时需主动下载并重启。两版首次创建各自配置时继承旧 `client.toml` 并保留原文件，详见 [README](../README.md#客户端依赖)。
 
 在游戏内配置 TuneWeave。可选择自动下载，也可运行独立实例并配置地址（默认 http://127.0.0.1:7832）。音乐账号、Cookie 和 token 只保留在客户端；服务器及代理不运行 TuneWeave，也不保存音乐平台凭据。
 
