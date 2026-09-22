@@ -38,7 +38,7 @@ GAME_VERSIONS = {
 LEGACY_PLUGIN_GAMES = ['1.21.1', '1.21.6', '1.21.7', '1.21.8', '1.21.9', '1.21.10',
                 '1.21.11', '26.1', '26.1.1', '26.1.2', '26.2']
 PLUGIN_GAMES = LEGACY_PLUGIN_GAMES + ['26.3']
-MODERNUI_FORKS = {'26.2': '26.2-3.13.0.7', '26.3': '26.3-3.13.0.7'}
+MODERNUI_FORKS = {'26.2': '26.2-3.13.0.9', '26.3': '26.3-3.13.0.9'}
 PREPARATION_BRANCHES = {'26.2', release.DEFAULT_BRANCH}
 MAIN_CLASSES = {
     'fabric': 'indi/mopelotus/musichud/fabric/CommonInitializer.class',
@@ -312,6 +312,10 @@ def changelog(row, module):
         text += f"Requires the matching [ModernUI build]({modern}) for this Minecraft version and loader. "
         if row['branch'] in MODERNUI_FORKS:
             text += f"Install the {MODERNUI_FORKS[row['branch']]} fork manually; it is currently distributed through GitHub. "
+            text += ('Choose either standard (-universal.jar) or MiSans (-universal-misans.jar); replace the old JAR and never install both. '
+                     'Both include the same marquee/render/input fixes. Standard supports custom fonts without a MiSans installer. '
+                     'MiSans retains font installation and weight controls; missing fonts require an explicit download and restart. '
+                     'The editions use separate client configs and import the old client.toml on first use. ')
         if module == 'fabric':
             text += 'Fabric API is required. '
             if row['branch'] not in MODERNUI_FORKS:

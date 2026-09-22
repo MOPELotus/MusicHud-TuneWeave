@@ -29,8 +29,8 @@
 | 1.21.9–1.21.10 | `+1.21.9-1.21.10.jar` | 21 | mVUS `3.12.0.5-build.4`，ModernUI 文件需分别匹配 1.21.9 或 1.21.10 |
 | 1.21.11 | `+1.21.11.jar` | 21 | mVUS `3.12.0.5-build.4+mc1.21.11` |
 | 26.1–26.1.2 | `+26.1-26.1.2.jar` | 25 | 官方 ModernUI `26.1.2-3.13.0.5`，支持该整个范围 |
-| 26.2 | `+26.2.jar` | 25 | 本项目配套 ModernUI `26.2-3.13.0.7` |
-| 26.3 | `+26.3.jar` | 25 | 本项目配套 ModernUI `26.3-3.13.0.7` |
+| 26.2 | `+26.2.jar` | 25 | 本项目配套 ModernUI `26.2-3.13.0.9` |
+| 26.3 | `+26.3.jar` | 25 | 本项目配套 ModernUI `26.3-3.13.0.9` |
 
 例如，Minecraft 1.21.7 Fabric 使用 `musichud-tuneweave-fabric-<发行版本>+1.21.6-1.21.8.jar`。
 
@@ -45,6 +45,13 @@ ModernUI 有以下三条来源，按上表选择其中一条，再选择对应�
 1. [官方 ModernUI](https://modrinth.com/mod/modern-ui/versions)：用于 1.21.1、1.21.6–1.21.8、26.1–26.1.2。
 2. [ModernUI mVUS](https://modrinth.com/mod/modernui-mc-mvus/versions)：用于 1.21.9–1.21.10、1.21.11。
 3. [MOPELotus ModernUI 分支](https://github.com/MOPELotus/ModernUI-MC/releases)：用于 26.2、26.3，提供 Fabric 和 NeoForge 文件。
+
+26.2 / 26.3 请使用配套 ModernUI **3.13.0.9**，按游戏版本与 Fabric/NeoForge 加载器选择，并在以下字体版本中二选一：
+
+- **普通版**：文件名以 `-universal.jar` 结尾，使用默认字体并允许自定义首选/回退字体，不要求安装 MiSans。
+- **MiSans 版**：文件名以 `-universal-misans.jar` 结尾，保留固定 MiSans 字体、字重设置与字体安装界面。缺少字体时需主动点击下载，完成后重启；已有有效字体无需重复下载。
+
+两版包含相同的走马灯、渲染及输入修复，模组 ID 都是 `modernui`，升级或切换时替换原 JAR，不可同时安装。两版分别使用 `client-standard.toml` 和 `client-misans.toml`，首次创建时继承并保留旧 `client.toml`；普通版只重置旧的 MiSans 完整固定字体组合，其他自定义字体组合保留。文本引擎、通用与 bootstrap 配置仍共用。详见[字体版本说明](https://github.com/MOPELotus/ModernUI-MC/blob/26.3-3.13.0.9/docs/font-editions.md)。MusicHud TuneWeave 本身无需按字体版本另选 JAR。
 
 **26.2 / 26.3 配套 ModernUI 分支不需要 Forge Config API Port。** 上表其余版本使用的官方 ModernUI / mVUS **Fabric** 文件仍声明了这一依赖，需要额外安装匹配游戏版本的 [Forge Config API Port](https://modrinth.com/mod/forge-config-api-port/versions)。这是 ModernUI 的依赖；MusicHud TuneWeave 自身不依赖它。NeoForge 无需另装 API Port。
 
