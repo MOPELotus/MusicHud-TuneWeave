@@ -121,4 +121,4 @@ Actions 中的 `release-bundle` 可用于获取开发构建。报告问题时请
 
 Windows 使用 `gradlew.bat`。基础 `mod_version` 不添加后缀，例如 `1.3.0-beta-3` 在此模式下生成 `musichud-tuneweave-velocity-1.3.0-beta-3-cf.jar`。省略该参数或使用 `-Pdistribution=standard` 构建普通版，无需先 `clean`。两种客户端使用同一通信协议，插件以相同基础发行版本匹配即可。
 
-Actions 的 `distribution=cf` 模式仅生成送审产物，不自动发布 GitHub Release；Modrinth 和 CurseForge 上传仍未启用。CF 后缀不表示平台已经批准。
+Actions 的 `distribution=cf` 模式仅生成送审产物，不自动发布 GitHub Release 或上传平台；平台发布由独立的 `Platform publishing` 工作流控制。CF 后缀不表示平台已经批准。
