@@ -62,10 +62,15 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
     }
 
     public void clear() {
-        setLines(
-                new Line(null, "", 0, 0, 0),
-                new Line(null, "", 0, 0, 0)
-        );
+        // Drop both the displayed and incoming lines, including their scroll state.
+        // Disabling the transition alone would leave the old current lines visible.
+        currentLine1.reset(null);
+        currentLine2.reset(null);
+        nextLine1.reset(null);
+        nextLine2.reset(null);
+        isTransitioning = false;
+        transitionProgress = 1.0f;
+        transitionStartTime = 0;
     }
 
     /**
