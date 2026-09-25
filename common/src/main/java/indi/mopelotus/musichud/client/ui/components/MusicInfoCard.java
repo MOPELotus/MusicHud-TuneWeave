@@ -330,6 +330,7 @@ public class MusicInfoCard extends LinearLayout {
             });
             albumContainer.addView(albumButton);
 
+            updateProgress(NowPlayingInfo.getInstance().snapshot(), true);
             skipCurrentButton.reset();
             progressBar.setVisibility(View.VISIBLE);
             boolean trackActions = canNavigate(musicDetail);
@@ -340,6 +341,29 @@ public class MusicInfoCard extends LinearLayout {
             buttonsLayout.setVisibility(View.VISIBLE);
         }
     }
+    /** Updates only this card's track; binding initializes both texts before it becomes visible. */
+    public void updateProgress(NowPlayingInfo.PlaybackSnapshot snapshot, boolean refreshText) {
+        MusicDetail detail = boundMusic;
+        if (detail == null || detail.equals(MusicDetail.NONE)) return;
+        boolean current = detail.equals(snapshot.musicDetail());
+        long duration = current && snapshot.duration() != null ? Math.max(0, snapshot.duration().toMillis())
+                : Math.max(0, detail.getDurationMillis());
+        long elapsed = !current || snapshot.startedAt() == null ? 0 : Math.max(0,
+                java.time.Duration.between(snapshot.startedAt(), java.time.ZonedDateTime.now()).toMillis());
+        float progress = duration == 0 ? 0 : Math.min(1f, (float) elapsed / duration);
+        progressBar.setProgress(Math.round(progress * progressBar.getMax()));
+        if (refreshText) {
+            playedTimeText.setText(formatTime(elapsed));
+            totalTimeText.setText(formatTime(duration));
+        }
+    }
+
+    private static String formatTime(long millis) {
+        long seconds = millis / 1000;
+        return seconds >= 3600 ? String.format(java.util.Locale.ROOT, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+                : String.format(java.util.Locale.ROOT, "%02d:%02d", seconds / 60, seconds % 60);
+    }
+
     private static boolean isPodcastOrRadio(MusicDetail music) {
         return "podcast_episode".equals(music.getSourceKind()) || "radio_station".equals(music.getSourceKind());
     }

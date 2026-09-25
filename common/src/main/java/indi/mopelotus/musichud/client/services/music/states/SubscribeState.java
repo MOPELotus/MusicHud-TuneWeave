@@ -45,10 +45,10 @@ public class SubscribeState<T extends IdentifiedBeans> implements ISubscribeStat
 
     @Override public CompletableFuture<Boolean> isSubscribed() {
         Object scope = MusicEntityCache.captureGeneration();
-        return subscribedSet.get().thenApply(values -> {
+        return diagnose("list", subscribedSet.get().thenApply(values -> {
             MusicEntityCache.publish(scope, () -> {});
             return values.stream().anyMatch(value -> value.getId() == id);
-        });
+        }));
     }
 
     @Override public CompletableFuture<Void> subscribe() { return modify(true); }
@@ -58,8 +58,8 @@ public class SubscribeState<T extends IdentifiedBeans> implements ISubscribeStat
         Object scope = MusicEntityCache.captureGeneration();
         final BiConsumer<T, Boolean> write;
         try { write = prepareWrite.get(); }
-        catch (RuntimeException error) { return CompletableFuture.failedFuture(error); }
-        return CompletableFuture.runAsync(() -> {
+        catch (RuntimeException error) { return diagnose("prepare", CompletableFuture.failedFuture(error)); }
+        return diagnose(selected ? "subscribe" : "unsubscribe", CompletableFuture.runAsync(() -> {
             T entity = load(scope).join();
             SequencedSet<T> values = subscribedSet.get().join();
             MusicEntityCache.publish(scope, () -> {});
@@ -70,8 +70,19 @@ public class SubscribeState<T extends IdentifiedBeans> implements ISubscribeStat
                 var listeners = LISTENERS.get(new Key(scope, id, type));
                 if (listeners != null) listeners.forEach(listener -> listener.accept(selected));
             });
-        }, executor);
+        }, executor));
     }
+    private static <R> CompletableFuture<R> diagnose(String action, CompletableFuture<R> result) {
+        return result.whenComplete((value, failure) -> {
+            if (failure == null) return;
+            Throwable cause = failure;
+            while (cause instanceof CompletionException && cause.getCause() != null) cause = cause.getCause();
+            if (cause instanceof CancellationException) return;
+            // Provider messages and exception stacks can carry account data. Log only the type.
+            MusicHud.getLogger(SubscribeState.class).warn("Subscription {} failed ({})", action, cause.getClass().getSimpleName());
+        });
+    }
+
     @Override public Unregister onOthersModify(Consumer<Boolean> listener) {
         Key key = new Key(MusicEntityCache.captureGeneration(), id, type);
         LISTENERS.computeIfAbsent(key, ignored -> new CopyOnWriteArrayList<>()).add(listener);
