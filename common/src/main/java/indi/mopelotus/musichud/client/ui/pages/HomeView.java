@@ -294,7 +294,6 @@ public class HomeView extends LinearLayout {
             scrollViewContainer.addView(nextToPlayHeader, nextToPlayTitleParams);
 
             nextToPlayItem = new MusicListItem(context);
-            nextToPlayItem.getAlbumImageView().setTransitionDuration(0);
             nextToPlayItem.setVisibility(GONE);
             scrollViewContainer.addView(nextToPlayItem, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 

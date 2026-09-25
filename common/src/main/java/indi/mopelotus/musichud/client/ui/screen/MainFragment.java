@@ -3,6 +3,8 @@ package indi.mopelotus.musichud.client.ui.screen;
 import icyllis.modernui.animation.*;
 import icyllis.modernui.annotation.Nullable;
 import icyllis.modernui.fragment.Fragment;
+import icyllis.modernui.core.Choreographer;
+import indi.mopelotus.musichud.client.ui.FrameProgressUpdater;
 import icyllis.modernui.graphics.Image;
 import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.mc.ui.ClampingScrollView;
@@ -39,12 +41,8 @@ import net.minecraft.client.resources.language.I18n;
 import net.minecraft.sounds.SoundSource;
 
 import java.time.Duration;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
@@ -53,7 +51,9 @@ import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 public class MainFragment extends Fragment {
     private static final ClientConfig clientConfig = ClientConfig.getInstance();
     private static final ConnectionManager connectionManager = ConnectionManager.getInstance();
-    private final AtomicInteger progressUpdaterToken = new AtomicInteger(0);
+    private final FrameProgressUpdater progressUpdater = new FrameProgressUpdater(
+            frame -> Choreographer.getInstance().postFrameCallback((choreographer, nanos) -> frame.run()),
+            () -> System.nanoTime() / 1_000_000);
     private static final int LYRICS_ANIMATION_DURATION = 300;
     private static final SpringInterpolator LYRIC_PANEL_SWITCH_INTERPOLATOR =
             new SpringInterpolator((float) LYRICS_ANIMATION_DURATION / 1000, 1);
@@ -305,39 +305,21 @@ public class MainFragment extends Fragment {
     }
 
     private void startProgressUpdater(NowPlayingInfo.PlaybackSnapshot snapshot) {
-        int token = progressUpdaterToken.incrementAndGet();
         MusicDetail detail = snapshot.musicDetail();
+        progressUpdater.stop();
         if (detail == null || detail == MusicDetail.NONE) return;
         long duration = snapshot.duration() == null ? Math.max(0, detail.getDurationMillis()) : Math.max(0, snapshot.duration().toMillis());
-        String total = formatTime(duration);
-        MusicHud.EXECUTOR.execute(() -> {
-            while (instance == this && visible && progressUpdaterToken.get() == token) {
-                long elapsed = snapshot.startedAt() == null ? 0 : Math.max(0,
-                        Duration.between(snapshot.startedAt(), java.time.ZonedDateTime.now()).toMillis());
-                float progress = duration == 0 ? 0 : Math.min(1f, (float) elapsed / duration);
-                String played = formatTime(elapsed);
-                MuiModApi.postToUiThread(() -> {
-                    if (instance != this || !visible || progressUpdaterToken.get() != token || playingInfo.snapshot() != snapshot) return;
-                    updateProgress(activeCard, detail, progress, played, total);
-                    updateProgress(stagedCard, detail, progress, played, total);
+        progressUpdater.start(() -> instance == this && visible && playingInfo.snapshot() == snapshot,
+                () -> snapshot.startedAt() == null ? 0 : Duration.between(snapshot.startedAt(), java.time.ZonedDateTime.now()).toMillis(),
+                duration, refreshText -> {
+                    updateProgress(activeCard, detail, snapshot, refreshText);
+                    updateProgress(stagedCard, detail, snapshot, refreshText);
                 });
-                try { Thread.sleep(50); }
-                catch (InterruptedException error) { Thread.currentThread().interrupt(); return; }
-            }
-        });
     }
 
-    private void updateProgress(MusicInfoCard card, MusicDetail detail, float progress, String played, String total) {
-        if (card == null || !isSameMusic(card.getBoundMusic(), detail)) return;
-        card.getProgressBar().setProgress(Math.round(progress * sideWidth));
-        card.getPlayedTimeText().setText(played);
-        card.getTotalTimeText().setText(total);
-    }
-
-    private static String formatTime(long millis) {
-        long seconds = millis / 1000;
-        return seconds >= 3600 ? String.format(java.util.Locale.ROOT, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
-                : String.format(java.util.Locale.ROOT, "%02d:%02d", seconds / 60, seconds % 60);
+    private void updateProgress(MusicInfoCard card, MusicDetail detail,
+                                NowPlayingInfo.PlaybackSnapshot snapshot, boolean refreshText) {
+        if (card != null && isSameMusic(card.getBoundMusic(), detail)) card.updateProgress(snapshot, refreshText);
     }
 
     public static void refreshLyricViews() {
@@ -750,7 +732,7 @@ public class MainFragment extends Fragment {
     @Override
     public void onDestroyView() {
         visible = false;
-        progressUpdaterToken.incrementAndGet();
+        progressUpdater.stop();
         if (playbackStateRegister != null) { playbackStateRegister.unregister(); playbackStateRegister = null; }
         cancelLyricsAnimator();
         if (instance == this) instance = null;

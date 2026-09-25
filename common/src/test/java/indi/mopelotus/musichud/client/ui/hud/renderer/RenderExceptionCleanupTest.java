@@ -91,6 +91,43 @@ class RenderExceptionCleanupTest {
         }
     }
 
+    @Test void clearingSettledLyricsStopsDrawingImmediately() throws Exception {
+        try (Scene s = new Scene()) {
+            Object renderer = s.lyrics(true, false);
+            s.call(renderer, "clear");
+            s.render(renderer);
+            assertEquals(0, s.field("draws"));
+            s.render(renderer);
+            assertEquals(0, s.field("draws"));
+            s.assertBalanced();
+        }
+    }
+
+    @Test void clearingAnIncomingTransitionCannotResurrectEitherLine() throws Exception {
+        try (Scene s = new Scene()) {
+            Object renderer = s.lyrics(false, true);
+            s.call(renderer, "clear");
+            s.render(renderer);
+            assertEquals(0, s.field("draws"));
+            var started = renderer.getClass().getDeclaredField("transitionStartTime");
+            started.setAccessible(true);
+            started.setLong(renderer, System.currentTimeMillis() - 1000);
+            s.render(renderer);
+            assertEquals(0, s.field("draws"));
+            s.call(renderer, "clear");
+            // A fresh track after clearing must still animate and become visible.
+            Class<?> lyric = s.loadClass(ROOT + "client.ui.dto.LyricLine");
+            Class<?> line = s.loadClass(RENDER + "ScrollingLyricLineRenderer$Line");
+            Object next = line.getConstructor(lyric, String.class, int.class, int.class, long.class)
+                    .newInstance(lyric.getConstructor(boolean.class).newInstance(false), "fresh", 1, 2, 0L);
+            renderer.getClass().getMethod("setLines", line, line).invoke(renderer, next, next);
+            started.setLong(renderer, System.currentTimeMillis() - 1000);
+            s.render(renderer);
+            assertTrue((int) s.field("draws") > 0);
+            s.assertBalanced();
+        }
+    }
+
     private static final class Scene extends URLClassLoader {
         final Object context;
         final RuntimeException failure = new RuntimeException("injected draw failure");
