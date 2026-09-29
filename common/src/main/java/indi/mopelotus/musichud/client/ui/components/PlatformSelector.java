@@ -52,7 +52,8 @@ public final class PlatformSelector extends LinearLayout {
         InsetBackgroundFactory.builder()
                 .backgroundColor(Theme.GHOST_BUTTON_STATES)
                 .cornerRadius(dp(6)).inset(dp(1)).build().applyBackgroundTo(this);
-        for (TuneWeavePlatform platform : platforms) {
+        for (TuneWeavePlatform platform : PlatformDisplayOrder.platforms()) {
+            if (!java.util.Arrays.asList(platforms).contains(platform)) continue;
             CheckableImageButton button = new CheckableImageButton(context);
             button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
             Image image = PlatformIconUtils.image(platform, dp(20));

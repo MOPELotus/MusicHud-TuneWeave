@@ -32,6 +32,9 @@ import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
 /** Direct client-mode QR login; the Minecraft server never sees the credential. */
 public class QRLoginView extends LinearLayout implements ILoginView {
+    private LoginVerificationView verificationView;
+    private boolean verifying;
+    private static final String[] KUGOU_LOGIN_TYPES = {"standard", "concept", "web"};
     private static final String[] QQ_LOGIN_TYPES = {"qq", "wechat", "mobile"};
     private final TuneWeaveClientService tuneWeave = TuneWeaveClientService.getInstance();
     private final Button loginButton;
@@ -67,8 +70,9 @@ public class QRLoginView extends LinearLayout implements ILoginView {
         LinearLayout platformLayout = new LinearLayout(context);
         platformLayout.setOrientation(LinearLayout.HORIZONTAL);
         platformLayout.setGravity(Gravity.CENTER);
-        platformSelector = new PlatformSelector(context, TuneWeavePlatform.values());
+        platformSelector = new PlatformSelector(context, TuneWeavePlatform.NETEASE, TuneWeavePlatform.QQ, TuneWeavePlatform.BILIBILI, TuneWeavePlatform.SODA, TuneWeavePlatform.KUGOU);
         platformSelector.setSelectedPlatform(tuneWeave.defaultPlatform());
+        platformSelector.setVisibility(GONE);
         platformLayout.addView(platformSelector, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         qqLoginTypeSpinner = new Spinner(context);
         qqLoginTypeSpinner.setAdapter(new ArrayAdapter<>(context, new String[]{
@@ -109,11 +113,12 @@ public class QRLoginView extends LinearLayout implements ILoginView {
         LayoutParams messageParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
         messageParams.setMargins(0, dp(8), 0, 0);
         addView(messageTextView, messageParams);
+        verificationView = new LoginVerificationView(context, this::verifyQr);
+        addView(verificationView, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 
         loginButton.setOnClickListener(view -> startLogin());
-        platformSelector.setOnPlatformSelectedListener(platform ->
-                qqLoginTypeSpinner.setVisibility(platform == TuneWeavePlatform.QQ ? VISIBLE : GONE));
-        qqLoginTypeSpinner.setVisibility(platformSelector.getSelectedPlatform() == TuneWeavePlatform.QQ ? VISIBLE : GONE);
+        platformSelector.setOnPlatformSelectedListener(platform -> { reset(); updateLoginTypes(); });
+        updateLoginTypes();
         qrImageView.setLoading(false);
 
         addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
@@ -140,9 +145,10 @@ public class QRLoginView extends LinearLayout implements ILoginView {
         String loginType = platform == TuneWeavePlatform.QQ
                 ? QQ_LOGIN_TYPES[Math.clamp(qqLoginTypeSpinner.getSelectedItemPosition(), 0,
                         QQ_LOGIN_TYPES.length - 1)]
-                : null;
+                : platform == TuneWeavePlatform.KUGOU ? KUGOU_LOGIN_TYPES[Math.clamp(qqLoginTypeSpinner.getSelectedItemPosition(), 0, 2)] : null;
         MusicHud.EXECUTOR.execute(() -> {
             try {
+                if (!tuneWeave.capabilities(platform).contains("qr_login")) throw new IllegalStateException("Unsupported login method");
                 TuneWeaveQrSession session = tuneWeave.startQrLogin(token, loginType);
                 String image = QrImageUtils.prepare(session.imageDataUrl(), session.url());
                 callbacks.post(MuiModApi::postToUiThread, ticket, () -> {
@@ -152,11 +158,7 @@ public class QRLoginView extends LinearLayout implements ILoginView {
                     messageTextView.setText(I18n.get(MusicHud.MOD_ID + ".text.login.waitingForScan"));
                     messageTextView.setTextColor(Theme.SECONDARY_TEXT_COLOR);
                     messageTextView.setVisibility(VISIBLE);
-                    var inFlight = new java.util.concurrent.atomic.AtomicBoolean();
-                    pollingTask = MusicHud.scheduleWithFixedDelay(() -> {
-                        if (!callbacks.isCurrent(ticket) || !inFlight.compareAndSet(false, true)) return;
-                        try { pollLogin(session, token, ticket); } finally { inFlight.set(false); }
-                    }, Duration.ofSeconds(2), Duration.ofSeconds(2));
+                    resumePolling(session, token, ticket);
                 });
             } catch (RuntimeException error) {
                 failLogin(ticket, error);
@@ -167,34 +169,69 @@ public class QRLoginView extends LinearLayout implements ILoginView {
     private void pollLogin(TuneWeaveQrSession session, TuneWeaveLoginAttempt token, long ticket) {
         try {
             TuneWeaveQrPoll poll = tuneWeave.pollQrLogin(session);
-            String localizedMessage = localizedPollMessage(poll.state(), poll.message());
-            callbacks.post(MuiModApi::postToUiThread, ticket, () -> {
-                if (!tuneWeave.isLoginCurrent(token)) return;
-                if ("scanned".equals(poll.state())) {
-                    messageTextView.setText(I18n.get(MusicHud.MOD_ID + ".text.login.scanned"));
-                } else if (!localizedMessage.isBlank()) {
-                    messageTextView.setText(localizedMessage);
-                }
-                if (poll.terminal()) {
-                if ("confirmed".equals(poll.state())) {
-                    try {
-                        LoginService.getInstance().completeTuneWeaveLogin(token, poll.profile());
-                    } catch (java.util.concurrent.CancellationException ignored) { }
-                    stopPolling();
-                } else {
-                    stopPolling();
-                    showError(localizedMessage);
-                    setBusy(false);
-                }
-                }
-            });
+            callbacks.post(MuiModApi::postToUiThread, ticket, () -> handlePoll(poll, token, ticket));
         } catch (RuntimeException error) {
             failLogin(ticket, error);
         }
     }
 
+    private void updateLoginTypes() {
+        TuneWeavePlatform platform = selectedPlatform();
+        qqLoginTypeSpinner.setVisibility(platform == TuneWeavePlatform.QQ || platform == TuneWeavePlatform.KUGOU ? VISIBLE : GONE);
+        String[] labels = platform == TuneWeavePlatform.KUGOU
+                ? new String[]{I18n.get(MusicHud.MOD_ID + ".login.kugouStandard"), I18n.get(MusicHud.MOD_ID + ".login.kugouConcept"), I18n.get(MusicHud.MOD_ID + ".login.kugouWeb")}
+                : new String[]{I18n.get(MusicHud.MOD_ID + ".login.qq"), I18n.get(MusicHud.MOD_ID + ".login.wechat"), I18n.get(MusicHud.MOD_ID + ".login.qqMusicClient")};
+        qqLoginTypeSpinner.setAdapter(new ArrayAdapter<>(getContext(), labels));
+    }
+
+    private void resumePolling(TuneWeaveQrSession session, TuneWeaveLoginAttempt token, long ticket) {
+        if (pollingTask != null) pollingTask.stop();
+        var inFlight = new java.util.concurrent.atomic.AtomicBoolean();
+        pollingTask = MusicHud.scheduleWithFixedDelay(() -> {
+            if (!callbacks.isCurrent(ticket) || !inFlight.compareAndSet(false, true)) return;
+            try { pollLogin(session, token, ticket); } finally { inFlight.set(false); }
+        }, Duration.ofSeconds(2), Duration.ofSeconds(2));
+    }
+
+    private void handlePoll(TuneWeaveQrPoll poll, TuneWeaveLoginAttempt token, long ticket) {
+        if (!tuneWeave.isLoginCurrent(token)) return;
+        String message = localizedPollMessage(poll.state(), poll.message());
+        if (!message.isBlank()) messageTextView.setText(message);
+        if ("verification_required".equals(poll.state())) {
+            if (pollingTask != null) { pollingTask.stop(); pollingTask = null; }
+            verificationView.render(poll.progress());
+            qrImageView.setVisibility(GONE);
+        } else {
+            verificationView.clear(); qrImageView.setVisibility(VISIBLE);
+            if (poll.terminal()) {
+                if ("confirmed".equals(poll.state())) {
+                    try { LoginService.getInstance().completeTuneWeaveLogin(token, poll.profile()); }
+                    catch (java.util.concurrent.CancellationException ignored) { }
+                    stopPolling();
+                } else { stopPolling(); showError(message); setBusy(false); }
+            } else if (pollingTask == null && activeSession != null) resumePolling(activeSession, token, ticket);
+        }
+    }
+
+    private void verifyQr(com.google.gson.JsonObject action) {
+        if (verifying || activeSession == null || !tuneWeave.isLoginCurrent(attempt)) return;
+        verifying = true;
+        var session = activeSession; var token = attempt; long ticket = generation;
+        MusicHud.EXECUTOR.execute(() -> {
+            try {
+                var result = tuneWeave.verifyQrLogin(session, action);
+                callbacks.post(MuiModApi::postToUiThread, ticket, () -> { verifying = false; handlePoll(result, token, ticket); });
+            } catch (RuntimeException error) { failLogin(ticket, error); }
+        });
+    }
+
     private void failLogin(long ticket, RuntimeException error) {
         callbacks.post(MuiModApi::postToUiThread, ticket, () -> {
+            verifying = false;
+            if (error instanceof indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.TuneWeaveException failure
+                    && LoginContinuationPolicy.canContinue(failure) && activeSession != null && tuneWeave.isLoginCurrent(attempt)) {
+                showError(I18n.get(MusicHud.MOD_ID + ".text.login.failed")); return;
+            }
             stopPolling();
             if (!(error instanceof java.util.concurrent.CancellationException))
                 showError(I18n.get(MusicHud.MOD_ID + ".text.login.failed"));
@@ -230,6 +267,9 @@ public class QRLoginView extends LinearLayout implements ILoginView {
 
     private void stopPolling() {
         generation = callbacks.next();
+        verifying = false;
+        if (verificationView != null) verificationView.clear();
+        qrImageView.setVisibility(VISIBLE);
         tuneWeave.cancelLogin(attempt);
         attempt = null;
         MusicHud.ScheduledTask task = pollingTask;

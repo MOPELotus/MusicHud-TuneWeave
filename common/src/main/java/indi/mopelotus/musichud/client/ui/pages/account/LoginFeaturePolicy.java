@@ -1,43 +1,27 @@
 package indi.mopelotus.musichud.client.ui.pages.account;
 
-import java.util.ArrayList;
+import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import java.util.List;
+import java.util.Set;
 
-/** Central feature gate for login methods exposed by the default client UI. */
+/** Login tabs follow the selected provider's advertised capabilities. */
 public final class LoginFeaturePolicy {
-    private static final boolean PASSWORD_LOGIN_ENABLED = false;
-    private static final List<LoginMethod> ENABLED_METHODS = createEnabledMethods();
-
-    private LoginFeaturePolicy() {
-    }
-
+    private LoginFeaturePolicy() {}
     public static List<LoginMethod> enabledMethods() {
-        return ENABLED_METHODS;
+        return List.of(LoginMethod.QR_CODE, LoginMethod.PASSWORD, LoginMethod.DEVICE_CODE);
     }
-
-    public static boolean isEnabled(LoginMethod method) {
-        return ENABLED_METHODS.contains(method);
+    public static List<LoginMethod> supportedMethods(TuneWeavePlatform platform, Set<String> capabilities) {
+        return enabledMethods().stream().filter(method -> switch (method) {
+            case QR_CODE -> capabilities.contains("qr_login");
+            case PASSWORD -> (platform == TuneWeavePlatform.KUWO || platform == TuneWeavePlatform.MIGU)
+                    && capabilities.contains("password_login");
+            case DEVICE_CODE -> capabilities.contains("phone_login");
+            case CREDENTIAL_IMPORT -> false;
+        }).toList();
     }
-
+    public static boolean isEnabled(LoginMethod method) { return enabledMethods().contains(method); }
     static void requireEnabled(LoginMethod method) {
-        if (!isEnabled(method)) {
-            throw new IllegalStateException(method + " login is disabled in this build");
-        }
+        if (!isEnabled(method)) throw new IllegalStateException(method + " login is disabled in this build");
     }
-
-    private static List<LoginMethod> createEnabledMethods() {
-        List<LoginMethod> methods = new ArrayList<>();
-        methods.add(LoginMethod.QR_CODE);
-        if (PASSWORD_LOGIN_ENABLED) {
-            methods.add(LoginMethod.PASSWORD);
-        }
-        methods.add(LoginMethod.DEVICE_CODE);
-        return List.copyOf(methods);
-    }
-
-    public enum LoginMethod {
-        QR_CODE,
-        PASSWORD,
-        DEVICE_CODE
-    }
+    public enum LoginMethod { QR_CODE, PASSWORD, DEVICE_CODE, CREDENTIAL_IMPORT }
 }

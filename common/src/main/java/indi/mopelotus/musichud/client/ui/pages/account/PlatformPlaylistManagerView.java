@@ -36,7 +36,10 @@ import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 public final class PlatformPlaylistManagerView extends LinearLayout {
     private final ScopedViewTasks tasks = ClientViewTasks.create();
     private final TuneWeaveClientService tuneWeave = TuneWeaveClientService.getInstance();
-    private final LinearLayout rows;
+    private final indi.mopelotus.musichud.client.ui.layouts.ViewportListLayout<Playlist, LinearLayout> rows;
+    private final Button createButton;
+    private java.util.Set<String> capabilities = java.util.Set.of();
+    private record Loaded(java.util.Set<String> capabilities, List<Playlist> playlists) {}
     private final TextView status;
     private List<Playlist> playlists = List.of();
 
@@ -55,7 +58,9 @@ public final class PlatformPlaylistManagerView extends LinearLayout {
         title.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
         toolbar.addView(title, new LayoutParams(0, WRAP_CONTENT, 1));
         toolbar.addView(action(".button.refresh", v -> refresh()), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        toolbar.addView(action(".button.create", v -> showCreateDialog()), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        createButton = action(".button.create", v -> showCreateDialog());
+        createButton.setVisibility(GONE);
+        toolbar.addView(createButton, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         addView(toolbar, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 
         TextView hint = new TextView(context);
@@ -68,8 +73,18 @@ public final class PlatformPlaylistManagerView extends LinearLayout {
 
         ScrollView scroll = new ScrollView(context);
         scroll.setFillViewport(true);
-        rows = new LinearLayout(context);
-        rows.setOrientation(VERTICAL);
+        rows = new indi.mopelotus.musichud.client.ui.layouts.ViewportListLayout<>(context,
+                new indi.mopelotus.musichud.client.ui.layouts.VirtualizedListLayout.Adapter<>() {
+            public long idOf(Playlist item) { return item.getId(); }
+            public LinearLayout createItem(icyllis.modernui.view.ViewGroup parent) { return new LinearLayout(context); }
+            public void clearItem(LinearLayout view) { view.removeAllViews(); view.setTag(null); }
+            public long boundIdOf(LinearLayout view) { return view.getTag() instanceof Long id ? id : -1; }
+            public void bindItem(LinearLayout view, Playlist playlist) {
+                view.removeAllViews(); view.setTag(playlist.getId());
+                view.addView(createRow(playlist, playlists.indexOf(playlist)), rowParams());
+            }
+        });
+        rows.setDefaultItemHeight(dp(80)); rows.setAnimationsEnabled(false);
         scroll.addView(rows, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
         addView(scroll, new LayoutParams(MATCH_PARENT, 0, 1));
 
@@ -89,22 +104,21 @@ public final class PlatformPlaylistManagerView extends LinearLayout {
         boolean refresh = !tasks.failed();
         var platform = tuneWeave.defaultPlatform();
         showStatus(I18n.get(MusicHud.MOD_ID + ".text.platformPlaylist.loading"));
-        tasks.<List<Playlist>>load(progress -> new ArrayList<>(tuneWeave.loadAccountPlaylists(platform, refresh,
-                values -> progress.accept(new ArrayList<>(values.getCreatedPlaylist()))).getCreatedPlaylist()),
-                this::render, error -> showStatus(message(error)));
+        tasks.<Loaded>load(progress -> {
+            var supported = tuneWeave.capabilities(platform);
+            var values = tuneWeave.loadAccountPlaylists(platform, refresh,
+                    partial -> progress.accept(new Loaded(supported, new ArrayList<>(partial.getCreatedPlaylist()))));
+            return new Loaded(supported, new ArrayList<>(values.getCreatedPlaylist()));
+        }, this::render, error -> showStatus(message(error)));
     }
 
-    private void render(List<Playlist> loaded) {
-        playlists = List.copyOf(loaded);
-        rows.removeAllViews();
-        if (loaded.isEmpty()) {
-            showStatus(I18n.get(MusicHud.MOD_ID + ".text.platformPlaylist.empty"));
-            return;
-        }
-        status.setVisibility(GONE);
-        for (int index = 0; index < loaded.size(); index++) {
-            rows.addView(createRow(loaded.get(index), index), rowParams());
-        }
+    private void render(Loaded loaded) {
+        capabilities = loaded.capabilities();
+        createButton.setVisibility(capabilities.contains("playlist_write") ? VISIBLE : GONE);
+        playlists = List.copyOf(loaded.playlists());
+        rows.resetItems(playlists);
+        if (playlists.isEmpty()) showStatus(I18n.get(MusicHud.MOD_ID + ".text.platformPlaylist.empty"));
+        else status.setVisibility(GONE);
     }
 
     private View createRow(Playlist playlist, int index) {
@@ -140,14 +154,16 @@ public final class PlatformPlaylistManagerView extends LinearLayout {
         row.addView(action(".button.open", v -> RouterContainer.getInstance().pushNavigate(
                 new MusicCollectionDetailView(getContext(), playlist, true))), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         row.addView(action(".button.rename", v -> showRenameDialog(playlist)), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        if (index > 0) {
+        if (capabilities.contains("playlist_collection_order_write") && index > 0) {
             row.addView(action(".button.moveUp", v -> move(index, index - 1)),
                     new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         }
-        if (index + 1 < playlists.size()) {
+        if (capabilities.contains("playlist_collection_order_write") && index + 1 < playlists.size()) {
             row.addView(action(".button.moveDown", v -> move(index, index + 1)),
                     new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         }
+        if (capabilities.contains("playlist_submission_write"))
+            row.addView(action(".button.submitPlaylist", v -> confirmSubmission(playlist)), new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         row.addView(action(".button.delete", v -> confirmDelete(playlist)),
                 new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         return row;
@@ -198,6 +214,22 @@ public final class PlatformPlaylistManagerView extends LinearLayout {
                         (button, modal) -> modal.dismiss())).show();
     }
 
+    private void confirmSubmission(Playlist playlist) {
+        var binding = tasks.capture();
+        if (!tasks.canMutate()) return;
+        TextView warning = new TextView(getContext());
+        warning.setText(I18n.get(MusicHud.MOD_ID + ".text.submission.submitWarning"));
+        new Modal(getContext(), modalTitle(playlist.getName()), warning,
+                new Modal.ActionButton(I18n.get(MusicHud.MOD_ID + ".button.confirm"), (button, modal) -> {
+                    modal.dismiss();
+                    var result = new java.util.concurrent.atomic.AtomicReference<indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveSubmissionOutcome>();
+                    if (tasks.mutate(binding, () -> result.set(tuneWeave.submitSavedPlaylist(playlist.getSourceRef())),
+                            () -> showStatus(PersonalLibraryView.submissionMessage(result.get(), false)),
+                            error -> showStatus(message(error))))
+                        showStatus(I18n.get(MusicHud.MOD_ID + ".text.platformPlaylist.saving"));
+                }), new Modal.ActionButton(I18n.get(MusicHud.MOD_ID + ".button.cancel"), (button, modal) -> modal.dismiss())).show();
+    }
+
     private void confirmDelete(Playlist playlist) {
         var binding = tasks.capture();
         if (!tasks.canMutate()) return;
@@ -230,7 +262,9 @@ public final class PlatformPlaylistManagerView extends LinearLayout {
         button.setTextSize(Theme.TEXT_SIZE_SMALL);
         button.setTextColor(Theme.PRIMARY_COLOR);
         InsetBackgroundFactory.builder()
-                .cornerRadius(dp(4)).inset(dp(1)).build().applyBackgroundTo(button);
+                .cornerRadius(dp(4)).inset(dp(1))
+                .padding(new InsetBackgroundFactory.Padding(dp(8), dp(8), dp(8), dp(8)))
+                .build().applyBackgroundTo(button);
         var binding = tasks.capture();
         button.setOnClickListener(view -> {
             if (key.endsWith(".back") || key.endsWith(".refresh")

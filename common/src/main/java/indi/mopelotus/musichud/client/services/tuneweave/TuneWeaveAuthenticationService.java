@@ -24,6 +24,7 @@ final class TuneWeaveAuthenticationService {
         cancelPlatform(platform);
         var validation = gateway.capture(() -> null);
         var attempt = new TuneWeaveLoginAttempt(platform, gateway.credential(platform), () -> validation.get());
+        attempt.accountIdentity = gateway.accountIdentity(platform);
         attempts.put(platform, attempt);
         return attempt;
     }
@@ -68,9 +69,10 @@ final class TuneWeaveAuthenticationService {
     private TuneWeaveSession commit(TuneWeaveLoginAttempt attempt, JsonElement credential) {
         synchronized (this) {
             requireCurrent(attempt);
-            gateway.publishIfCredentialUnchanged(attempt.platform, attempt.expectedCredential,
+            gateway.publishIfAccountCurrent(attempt.platform, attempt.accountIdentity,
                     () -> { gateway.saveCredential(attempt.platform, credential); sessions.remove(attempt.platform); });
             attempt.expectedCredential = gateway.credential(attempt.platform);
+            attempt.accountIdentity = gateway.accountIdentity(attempt.platform);
             var validation = gateway.capture(() -> null);
             attempt.validateContext = () -> validation.get();
             transactions.values().removeIf(value -> value == attempt);
@@ -87,7 +89,7 @@ final class TuneWeaveAuthenticationService {
     }
 
     TuneWeaveSession cachedSession(TuneWeavePlatform platform) {
-        return sessions.get(platform);
+        return gateway.hasCredential(platform) ? sessions.get(platform) : null;
     }
 
     TuneWeaveQrSession startQrLogin(TuneWeavePlatform platform, String loginType) {
@@ -112,12 +114,72 @@ final class TuneWeaveAuthenticationService {
         JsonObject data = object(gateway.requestWithoutCredential(
                 "GET", "/v1/auth/qr/" + TuneWeaveApiClient.encodePathSegment(session.transactionId()),
                 Map.of(), null).data());
-        String state = requiredString(data, "state");
+        return qrProgress(attempt, data);
+    }
+
+    TuneWeaveQrPoll verifyQrLogin(TuneWeaveQrSession session, JsonObject action) {
+        var attempt = transaction(session);
+        JsonObject data = object(gateway.requestWithoutCredential("POST", "/v1/auth/qr/"
+                + TuneWeaveApiClient.encodePathSegment(session.transactionId()) + "/verification", Map.of(), action).data());
+        return qrProgress(attempt, data);
+    }
+
+    private TuneWeaveQrPoll qrProgress(TuneWeaveLoginAttempt attempt, JsonObject data) {
         requireCurrent(attempt);
-        if ("confirmed".equals(state)) {
-            return new TuneWeaveQrPoll(state, string(data, "message"), commit(attempt, data.get("caller_credential")));
+        var progress = TuneWeaveLoginProgress.read(data, null);
+        TuneWeaveSession profile = "confirmed".equals(progress.state()) ? commit(attempt, data.get("caller_credential")) : null;
+        return new TuneWeaveQrPoll(progress.state(), string(data, "message"), profile, progress);
+    }
+
+    TuneWeaveSession importCredential(TuneWeaveLoginAttempt attempt, String cookie) {
+        requireCurrent(attempt);
+        if (cookie == null || cookie.isBlank() || cookie.length() > 65_536 || cookie.chars().anyMatch(c -> c < 32 || c == 127))
+            throw new IllegalArgumentException("Invalid credential input");
+        JsonObject body = clientModeBody(attempt.platform);
+        JsonObject credential = new JsonObject();
+        credential.addProperty("kind", "cookie"); credential.addProperty("value", cookie);
+        body.add("credential", credential);
+        JsonObject data = object(gateway.requestWithoutCredential("POST", "/v1/auth/import", Map.of(), body).data());
+        return commit(attempt, data.get("caller_credential"));
+    }
+
+    TuneWeavePasswordSession startPasswordLogin(TuneWeaveLoginAttempt attempt, String principalType,
+                                                String principal, String password) {
+        requireCurrent(attempt);
+        if (attempt.platform != TuneWeavePlatform.KUWO && attempt.platform != TuneWeavePlatform.MIGU)
+            throw new IllegalArgumentException("Unsupported password login platform");
+        if (!java.util.Set.of("username", "phone", "email").contains(principalType)
+                || principal == null || principal.isBlank() || principal.length() > 512
+                || password == null || password.isBlank() || password.length() > 4096)
+            throw new IllegalArgumentException("Invalid password login input");
+        JsonObject body = clientModeBody(attempt.platform);
+        body.addProperty("principal_type", principalType); body.addProperty("principal", principal);
+        body.addProperty("password", password); body.addProperty("password_format", "plain");
+        if ("phone".equals(principalType)) body.addProperty("country_code", "86");
+        JsonObject data = object(gateway.requestWithoutCredential("POST", "/v1/auth/password", Map.of(), body).data());
+        var progress = passwordProgress(attempt, data);
+        if ("confirmed".equals(progress.state())) return new TuneWeavePasswordSession(null, progress);
+        return bind(attempt, new TuneWeavePasswordSession(requiredString(data, "transaction_id"), progress));
+    }
+
+    TuneWeaveLoginProgress advancePasswordLogin(TuneWeavePasswordSession session, JsonObject action) {
+        var attempt = transaction(session);
+        JsonObject data = object(gateway.requestWithoutCredential("POST", "/v1/auth/password/challenges/"
+                + TuneWeaveApiClient.encodePathSegment(session.transactionId()) + "/verify", Map.of(), action).data());
+        return passwordProgress(attempt, data);
+    }
+
+    private TuneWeaveLoginProgress passwordProgress(TuneWeaveLoginAttempt attempt, JsonObject data) {
+        requireCurrent(attempt);
+        if (data.has("caller_credential") && !data.get("caller_credential").isJsonNull()) {
+            if (data.has("state") && !"confirmed".equals(requiredString(data, "state")))
+                throw new IllegalArgumentException("Credential in unfinished password login");
+            return new TuneWeaveLoginProgress("confirmed", null, java.util.List.of(), commit(attempt, data.get("caller_credential")));
         }
-        return new TuneWeaveQrPoll(state, string(data, "message"), profile(data.get("profile")));
+        var progress = TuneWeaveLoginProgress.read(data, null);
+        if (!"verification_required".equals(progress.state()))
+            throw new IllegalArgumentException("Invalid password login progress");
+        return progress;
     }
 
     TuneWeaveSession loginWithPassword(TuneWeavePlatform platform, String principalType,
@@ -145,32 +207,46 @@ final class TuneWeaveAuthenticationService {
     }
 
     TuneWeaveChallengeSession startSmsLogin(TuneWeaveLoginAttempt attempt, String principal, String countryCode) {
+        return startSmsLogin(attempt, principal, countryCode, false);
+    }
+
+    TuneWeaveChallengeSession startSmsLogin(TuneWeaveLoginAttempt attempt, String principal, String countryCode, boolean allowAccountCreation) {
         requireCurrent(attempt);
         TuneWeavePlatform platform = attempt.platform;
         JsonObject body = clientModeBody(platform);
         body.addProperty("method", "sms");
+        if (platform == TuneWeavePlatform.KUWO || platform == TuneWeavePlatform.KUGOU) {
+            body.addProperty("backend", "standard");
+            body.addProperty("allow_account_creation", allowAccountCreation);
+        } else if (allowAccountCreation) throw new IllegalArgumentException("Unexpected account creation option");
         body.addProperty("principal", principal);
         body.addProperty("country_code", countryCode == null || countryCode.isBlank() ? "86" : countryCode);
         JsonObject data = object(gateway.requestWithoutCredential(
                 "POST", "/v1/auth/challenges", Map.of(), body).data());
-        return bind(attempt, new TuneWeaveChallengeSession(platform, requiredString(data, "transaction_id")));
+        return bind(attempt, new TuneWeaveChallengeSession(platform, requiredString(data, "transaction_id"), TuneWeaveLoginProgress.read(data, null)));
     }
 
     TuneWeaveSession verifySmsLogin(TuneWeaveChallengeSession session, String code) {
+        JsonObject body = new JsonObject(); body.addProperty("code", code);
+        var progress = advanceSmsLogin(session, body);
+        if (!"confirmed".equals(progress.state())) throw new IllegalStateException("Additional login verification required");
+        return progress.profile();
+    }
+
+    TuneWeaveLoginProgress advanceSmsLogin(TuneWeaveChallengeSession session, JsonObject body) {
         var attempt = transaction(session);
-        JsonObject body = new JsonObject();
-        body.addProperty("code", code);
-        JsonObject data = object(gateway.requestWithoutCredential(
-                "POST", "/v1/auth/challenges/"
-                        + TuneWeaveApiClient.encodePathSegment(session.transactionId()) + "/verify",
-                Map.of(), body).data());
-        return commit(attempt, data.get("caller_credential"));
+        JsonObject data = object(gateway.requestWithoutCredential("POST", "/v1/auth/challenges/"
+                + TuneWeaveApiClient.encodePathSegment(session.transactionId()) + "/verify", Map.of(), body).data());
+        requireCurrent(attempt);
+        var progress = TuneWeaveLoginProgress.read(data, null);
+        if (!"confirmed".equals(progress.state())) return progress;
+        return new TuneWeaveLoginProgress(progress.state(), null, java.util.List.of(), commit(attempt, data.get("caller_credential")));
     }
 
     TuneWeaveSession loadSession(TuneWeavePlatform platform) {
         Object expectedEpoch;
         synchronized (this) { expectedEpoch = accountEpochs.get(platform); }
-        String expected = gateway.credential(platform);
+        Object expected = gateway.accountIdentity(platform);
         return gateway.capture(() -> {
             JsonElement data = gateway.requestForPlatform(platform, "GET", "/v1/auth/session",
                     Map.of("platform", platform.apiName()), null).data();
@@ -180,7 +256,7 @@ final class TuneWeaveAuthenticationService {
             TuneWeaveSession result = enrichSessionProfile(parsed);
             synchronized (this) {
                 if (accountEpochs.get(platform) != expectedEpoch) throw new java.util.concurrent.CancellationException("Authentication state changed during profile load");
-                gateway.publishIfCredentialUnchanged(platform, expected, () -> {
+                gateway.publishIfAccountCurrent(platform, expected, () -> {
                     if (result != null) sessions.put(platform, result);
                 });
             }
@@ -204,6 +280,7 @@ final class TuneWeaveAuthenticationService {
         cancelPlatform(platform);
         Object logoutEpoch = accountEpochs.get(platform);
         String expected = gateway.credential(platform);
+        Object identity = gateway.accountIdentity(platform);
         var request = gateway.capture(() -> gateway.requestForPlatform(platform, "DELETE", "/v1/auth/session",
                 Map.of("platform", platform.apiName(), "credential_mode", "client"), null));
         return () -> {
@@ -214,7 +291,7 @@ final class TuneWeaveAuthenticationService {
             } finally {
                 synchronized (this) {
                     if (accountEpochs.get(platform) == logoutEpoch)
-                        gateway.clearCredentialIfUnchanged(platform, expected, () -> sessions.remove(platform));
+                        gateway.clearCredentialIfCurrent(platform, identity, () -> sessions.remove(platform));
                 }
             }
         };

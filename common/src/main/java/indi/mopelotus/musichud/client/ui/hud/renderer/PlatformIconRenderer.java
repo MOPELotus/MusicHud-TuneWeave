@@ -64,15 +64,10 @@ public final class PlatformIconRenderer implements HudRenderer {
         Identifier cached = TEXTURES.get(key);
         if (cached != null) return cached;
         if (FAILED.contains(key)) return null;
-        String path = "/assets/musichud_tuneweave/textures/platforms/" + platform.apiName() + ".svg";
-        try (InputStream input = MusicHud.class.getResourceAsStream(path)) {
-            if (input == null) return null;
-            PNGTranscoder transcoder = new PNGTranscoder();
-            transcoder.addTranscodingHint(PNGTranscoder.KEY_WIDTH, (float) rasterSize);
-            transcoder.addTranscodingHint(PNGTranscoder.KEY_HEIGHT, (float) rasterSize);
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            transcoder.transcode(new TranscoderInput(input), new TranscoderOutput(output));
-            NativeImage image = NativeImage.read(new ByteArrayInputStream(output.toByteArray()));
+        try {
+            byte[] png = indi.mopelotus.musichud.client.utils.image.PlatformIconData.png(platform, rasterSize);
+            if (png == null) return null;
+            NativeImage image = NativeImage.read(new ByteArrayInputStream(png));
             DynamicTexture texture = new FilteredDynamicTexture(
                     () -> "musichud_platform_" + platform.apiName() + '_' + rasterSize, image);
             Identifier id = Identifier.fromNamespaceAndPath(MusicHud.MOD_ID,

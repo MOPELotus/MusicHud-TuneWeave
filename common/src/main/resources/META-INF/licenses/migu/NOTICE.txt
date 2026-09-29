@@ -1,0 +1,6 @@
+Migu Music official application icon
+Copyright and trademark: 咪咕音乐有限公司
+Used to identify the supported music service; no affiliation is implied.
+Source: https://apps.apple.com/cn/app/id725215315
+Original artwork: https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/e0/b7/10/e0b710ca-177a-115c-976d-7671ff78c833/app_default_icon-0-1x_U007epad-0-1-0-sRGB-85-220-0.jpeg/512x512bb.jpg
+Retrieved: 2026-09-28. Original JPEG retained unchanged.

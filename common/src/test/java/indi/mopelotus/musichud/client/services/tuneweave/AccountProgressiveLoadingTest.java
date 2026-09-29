@@ -50,10 +50,11 @@ class AccountProgressiveLoadingTest {
             assertThrows(IllegalStateException.class, load::run);
             fail.set(false);
             load.run();
-            assertEquals(List.of(0, 1, 1), offsets, module);
+            var expectedOffsets = module.equals("bilibili") ? List.of(0, 1, 1, 0, 1) : List.of(0, 1, 1);
+            assertEquals(expectedOffsets, offsets, module);
             assertEquals(module.equals("bilibili") ? 1 : 2, shown.getLast(), module);
             load.run();
-            assertEquals(List.of(0, 1, 1), offsets, "Completed pages should remain cached");
+            assertEquals(expectedOffsets, offsets, "Completed created and collected pages should remain cached");
         }
     }
 }

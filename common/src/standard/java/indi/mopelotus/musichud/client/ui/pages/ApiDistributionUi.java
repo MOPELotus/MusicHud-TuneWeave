@@ -369,7 +369,7 @@ public final class ApiDistributionUi {
                 ApiBinaryUpdateService updateService = ApiBinaryUpdateService.getInstance();
                 ApiBinaryUpdateService.DownloadedRelease downloaded = downloadSession.snapshot().release();
                 Path finalPath = downloaded == null ? null
-                        : updateService.resolveFinalPath(downloaded.tempFile(), downloaded.tag());
+                        : updateService.resolveFinalPath(downloaded);
                 if (finalPath == null) {
                     ToastUtil.show(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.renameFailed"));
                     return;

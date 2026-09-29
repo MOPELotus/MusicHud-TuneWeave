@@ -69,6 +69,11 @@ public final class TuneWeaveClientService {
         return accountRequests.prepare(platform, operation);
     }
 
+    public java.util.Set<String> capabilities(TuneWeavePlatform platform) {
+        return gateway.capture(() -> TuneWeaveCapabilities.read(gateway.requestWithoutCredential(
+                "GET", "/v1/capabilities", Map.of("platform", platform.apiName()), null).data(), platform.apiName())).get();
+    }
+
     public <T, R> java.util.function.Function<T, R> prepareFunction(java.util.function.Function<T, R> operation) {
         Object epoch = entities.captureEpoch();
         return gateway.captureFunction(value -> {
@@ -138,6 +143,46 @@ public final class TuneWeaveClientService {
         return gateway.hasCredential(platform);
     }
 
+    public java.util.List<TuneWeavePersonalLibrary.Entry> loadPersonalLibrary(TuneWeavePlatform platform, TuneWeavePersonalLibrary.Kind kind) {
+        return prepareAccountRequest(platform, () -> TuneWeavePersonalLibrary.load(gateway, entities, platform, kind)).get();
+    }
+
+    public java.util.List<MusicDetail> loadPersonalLibraryTracks(TuneWeavePersonalLibrary.Entry entry) {
+        TuneWeavePlatform platform = TuneWeaveReference.platform(entry.reference());
+        if (!java.util.Set.of("digital_album", "playlist").contains(entry.resourceKind()))
+            throw new IllegalArgumentException("Unsupported personal collection kind");
+        java.util.function.Supplier<java.util.List<MusicDetail>> request = () -> {
+            String root = entry.resourceKind().equals("playlist") ? "/v1/playlists/"
+                    : platform == TuneWeavePlatform.SODA ? "/v1/albums/" : "/v1/digital-albums/";
+            String path = root + indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.encodePathSegment(entry.reference()) + "/tracks";
+            var items = OffsetPagination.loadAll(offset -> {
+                var query = Map.of("limit", "100", "offset", Integer.toString(offset));
+                return entry.resourceKind().equals("digital_album") && platform == TuneWeavePlatform.MIGU
+                        ? gateway.requestWithoutCredential("GET", path, query, null)
+                        : gateway.requestForPlatform(platform, "GET", path, query, null);
+            });
+            return items.stream().map(item -> entities.toTrack(platform, TuneWeaveJson.unwrap(item))).toList();
+        };
+        return entry.resourceKind().equals("digital_album") && platform == TuneWeavePlatform.MIGU
+                ? prepareRequest(request).get() : prepareAccountRequest(platform, request).get();
+    }
+
+    public TuneWeaveSubmissionOutcome submitSavedPlaylist(String reference) {
+        return prepareAccountRequest(TuneWeaveReference.platform(reference),
+                () -> TuneWeavePersonalLibrary.submit(gateway, reference, false)).get();
+    }
+    public TuneWeaveSubmissionOutcome deleteSubmissionRecords(String reference) {
+        return prepareAccountRequest(TuneWeaveReference.platform(reference),
+                () -> TuneWeavePersonalLibrary.submit(gateway, reference, true)).get();
+    }
+
+    public void setDigitalAlbumSubscribed(TuneWeavePersonalLibrary.Entry entry, boolean subscribed) {
+        prepareAccountRequest(entry.platform(), () -> {
+            TuneWeavePersonalLibrary.setDigitalSubscribed(gateway, entry, subscribed);
+            return null;
+        }).get();
+    }
+
     public TuneWeaveMembership loadMembership(TuneWeavePlatform platform) {
         return scoped(() -> account.loadMembership(platform));
     }
@@ -172,8 +217,31 @@ public final class TuneWeaveClientService {
         return authentication.startSmsLogin(attempt, phone, region);
     }
 
+    public TuneWeaveChallengeSession startSmsLogin(TuneWeaveLoginAttempt attempt, String phone, String region, boolean allowAccountCreation) {
+        return authentication.startSmsLogin(attempt, phone, region, allowAccountCreation);
+    }
+
+    public TuneWeaveSession importCredential(TuneWeaveLoginAttempt attempt, String cookie) {
+        return authentication.importCredential(attempt, cookie);
+    }
+    public TuneWeaveLoginProgress advanceSmsLogin(TuneWeaveChallengeSession session, com.google.gson.JsonObject action) {
+        return authentication.advanceSmsLogin(session, action);
+    }
+    public TuneWeaveQrPoll verifyQrLogin(TuneWeaveQrSession session, com.google.gson.JsonObject action) {
+        return authentication.verifyQrLogin(session, action);
+    }
+
     public TuneWeaveQrPoll pollQrLogin(TuneWeaveQrSession session) {
         return authentication.pollQrLogin(session);
+    }
+
+    public TuneWeavePasswordSession startPasswordLogin(TuneWeaveLoginAttempt attempt, String principalType,
+                                                       String principal, String password) {
+        return authentication.startPasswordLogin(attempt, principalType, principal, password);
+    }
+
+    public TuneWeaveLoginProgress advancePasswordLogin(TuneWeavePasswordSession session, com.google.gson.JsonObject action) {
+        return authentication.advancePasswordLogin(session, action);
     }
 
     public TuneWeaveSession loginWithPassword(TuneWeavePlatform platform, String principalType,

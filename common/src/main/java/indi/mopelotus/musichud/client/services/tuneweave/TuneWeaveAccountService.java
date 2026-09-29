@@ -53,6 +53,10 @@ final class TuneWeaveAccountService {
     }
 
     TuneWeaveMembership loadMembership(TuneWeavePlatform platform) {
+        var capabilities = TuneWeaveCapabilities.read(gateway.requestWithoutCredential(
+                "GET", "/v1/capabilities", Map.of("platform", platform.apiName()), null).data(), platform.apiName());
+        String capability = platform == TuneWeavePlatform.NETEASE ? "user_membership_client_info" : "user_membership";
+        if (!capabilities.contains(capability)) return TuneWeaveMembership.NONE;
         try {
             Map<String, String> query = platform == TuneWeavePlatform.NETEASE
                     ? Map.of("platform", platform.apiName(), "backend", "client")
@@ -249,31 +253,41 @@ final class TuneWeaveAccountService {
         TuneWeaveSession captured = session;
         List<JsonElement> data = loadAccountPages(TuneWeavePlatform.BILIBILI,
                 "/v1/users/" + TuneWeaveApiClient.encodePathSegment(reference) + "/playlists/created", refresh,
-                values -> progress.accept(mapBilibiliFolders(captured, values)));
-        return mapBilibiliFolders(captured, data);
+                values -> progress.accept(mapBilibiliFolders(captured, values, List.of())));
+        List<JsonElement> collected = loadAccountPages(TuneWeavePlatform.BILIBILI,
+                "/v1/users/" + TuneWeaveApiClient.encodePathSegment(reference) + "/favorites/playlists", refresh,
+                values -> progress.accept(mapBilibiliFolders(captured, data, values)));
+        return mapBilibiliFolders(captured, data, collected);
     }
 
-    private UserCategoryPlaylists mapBilibiliFolders(TuneWeaveSession session, List<JsonElement> data) {
+    private UserCategoryPlaylists mapBilibiliFolders(TuneWeaveSession session, List<JsonElement> data, List<JsonElement> collected) {
         ObservableSequencedSet<Playlist> created = new ObservableSequencedSet<>();
         ObservableSequencedSet<Playlist> subscribed = new ObservableSequencedSet<>();
         Playlist defaultFolder = null;
         for (JsonElement item : data) {
             JsonObject raw = unwrap(item);
             String playlistReference = string(raw, "ref", "");
-            if (!playlistReference.startsWith("bilibili:favorite:")) {
+            if (!playlistReference.startsWith("bilibili:favorite:")
+                    && !playlistReference.startsWith("bilibili:season:")
+                    && !playlistReference.startsWith("bilibili:series:")) {
                 continue;
             }
             Playlist playlist = entities.toPlaylist(TuneWeavePlatform.BILIBILI, raw);
             JsonObject extensions = raw.has("extensions") && raw.get("extensions").isJsonObject()
                     ? raw.getAsJsonObject("extensions") : new JsonObject();
-            if (bool(extensions, "default", false) && defaultFolder == null) {
+            if (playlistReference.startsWith("bilibili:favorite:") && bool(extensions, "default", false) && defaultFolder == null) {
                 defaultFolder = playlist;
             } else {
                 created.add(playlist);
             }
         }
         if (defaultFolder == null && !created.isEmpty()) {
-            defaultFolder = created.removeFirst();
+            for (Playlist candidate : created) {
+                if (candidate.getSourceRef().startsWith("bilibili:favorite:")) {
+                    defaultFolder = candidate; break;
+                }
+            }
+            if (defaultFolder != null) created.remove(defaultFolder);
         }
         if (defaultFolder == null) {
             defaultFolder = Playlist.fromTuneWeave(
@@ -283,6 +297,9 @@ final class TuneWeaveAccountService {
             entities.cachePlaylist(defaultFolder);
         }
         favoritePlaylistReferences.put(favoriteKey(TuneWeavePlatform.BILIBILI), defaultFolder.getSourceRef());
+        for (JsonElement item : collected) {
+            subscribed.add(entities.toPlaylist(TuneWeavePlatform.BILIBILI, unwrap(item)));
+        }
         return new UserCategoryPlaylists(defaultFolder, created, subscribed);
     }
 }

@@ -1,0 +1,34 @@
+import java.util.zip.ZipFile
+import javax.imageio.ImageIO
+
+def webpDistribution = tasks.named(tasks.findByName('remapJar') == null ? 'jar' : 'remapJar')
+tasks.register('verifyShadedWebp') {
+    group = 'verification'
+    description = 'Decodes WebP through the actual distributed caller and its private decoder.'
+    dependsOn webpDistribution
+    inputs.file(webpDistribution.flatMap { it.archiveFile })
+    inputs.file(rootProject.file('common/src/test/resources/images/alpha.webp'))
+    doLast {
+        File artifact = webpDistribution.get().archiveFile.get().asFile
+        new ZipFile(artifact).withCloseable { zip ->
+            if (zip.entries().any { it.name.startsWith('com/twelvemonkeys/') && it.name.endsWith('.class') }) {
+                throw new GradleException("Unisolated WebP classes in ${artifact.name}")
+            }
+            if (zip.getEntry('TWELVEMONKEYS-LICENSE.txt') == null) {
+                throw new GradleException("Missing WebP license in ${artifact.name}")
+            }
+        }
+        new URLClassLoader([artifact.toURI().toURL()] as URL[], ClassLoader.getPlatformClassLoader()).withCloseable { loader ->
+            Class decoder = loader.loadClass('indi.mopelotus.musichud.client.utils.image.WebpImages')
+            byte[] webp = rootProject.file('common/src/test/resources/images/alpha.webp').bytes
+            byte[] png = (byte[]) decoder.getMethod('normalize', byte[].class).invoke(null, [webp] as Object[])
+            def image = ImageIO.read(new ByteArrayInputStream(png))
+            if (image.width != 13 || image.height != 7 || image.getRGB(0, 0) != (int) 0x801464dcL) {
+                throw new GradleException("Packaged WebP decode failed in ${artifact.name}")
+            }
+            image.flush()
+        }
+        logger.lifecycle("Verified private WebP decoding in ${artifact.name}")
+    }
+}
+tasks.named('check') { dependsOn tasks.named('verifyShadedWebp') }

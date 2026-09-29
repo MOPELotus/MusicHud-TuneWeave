@@ -15,6 +15,7 @@ public class ToggleSubscribeButton extends AsyncStateToggleButton {
                 () -> ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/heart.png")));
     }
     public void bindState(ISubscribeState<?> state) {
+        setAvailability(state == null ? () -> java.util.concurrent.CompletableFuture.completedFuture(false) : state::isSupported);
         if (state == null) bindAsync(null, null, null);
         else bindAsync(state::isSubscribed, selected -> selected ? state.subscribe() : state.unsubscribe(), state::onOthersModify);
     }

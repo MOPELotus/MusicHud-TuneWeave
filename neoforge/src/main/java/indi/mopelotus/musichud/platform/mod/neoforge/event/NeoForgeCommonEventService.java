@@ -13,14 +13,14 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
-import java.util.HashSet;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.Set;
 import java.util.function.Consumer;
 
 public class NeoForgeCommonEventService implements ICommonEventService {
     private static volatile NeoForgeCommonEventService instance;
-    private final Set<Consumer<IPlayerClient>> disconnectListeners = new HashSet<>();
-    private final Set<Runnable> stoppingListeners = new HashSet<>();
+    private final Set<Consumer<IPlayerClient>> disconnectListeners = new CopyOnWriteArraySet<>();
+    private final Set<Runnable> stoppingListeners = new CopyOnWriteArraySet<>();
 
     private NeoForgeCommonEventService() {
         NeoForge.EVENT_BUS.register(this);
