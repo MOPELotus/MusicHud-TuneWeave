@@ -57,12 +57,15 @@ public final class PaperNetworkManager implements INetworkRegister, IServerNetwo
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, channel, (received, player, bytes) -> {
             if (!channel.equals(received) || !ProxyDeploymentProbe.isRequest(bytes)) return;
             // This is public presence information, never permission to disable a standalone server.
-            player.getScheduler().run(plugin, task -> new DeferredPluginSend(
+            // Plugin-message listeners already run on the player's owning server thread.
+            // A ready connection must not wait for an entity tick (for example during death/respawn).
+            // Only channel-registration retries need the player scheduler.
+            new DeferredPluginSend(
                     () -> this.plugin == plugin && lifecycle.get() == generation && plugin.isEnabled() && player.isOnline(),
                     () -> player.getListeningPluginChannels().contains(channel),
                     () -> player.sendPluginMessage(plugin, channel, ProxyDeploymentProbe.present()),
                     later -> player.getScheduler().runDelayed(plugin, ignored -> later.run(), null, 1L),
-                    MAX_PLUGIN_MESSAGE_RETRY_TICKS).run(), null);
+                    MAX_PLUGIN_MESSAGE_RETRY_TICKS).run();
         });
     }
 

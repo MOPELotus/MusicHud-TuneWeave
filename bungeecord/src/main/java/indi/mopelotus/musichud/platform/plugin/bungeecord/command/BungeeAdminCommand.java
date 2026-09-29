@@ -36,7 +36,7 @@ public final class BungeeAdminCommand extends Command implements TabExecutor {
                 field(sender, "公共会话", session != null && session.isActive() ? "运行中" : "空闲");
                 field(sender, "当前播放", detail == null || detail == MusicDetail.NONE ? "无" : detail.getName());
                 field(sender, "队列数量", String.valueOf(service.getMusicQueue().size()));
-                field(sender, "账号状态", "网易云 / QQ / Bilibili 由客户端持有");
+                field(sender, "账号状态", "各音乐平台账号由客户端持有");
             }
             case "api" -> {
                 if (args.length == 2 && args[1].equalsIgnoreCase("status")) field(sender, "API 状态", "服务端不托管（客户端分布式）");

@@ -46,7 +46,7 @@ public final class VelocityAdminCommand implements SimpleCommand {
         field(invocation, "公共会话", session != null && session.isActive() ? "运行中" : "空闲");
         field(invocation, "当前播放", detail == null || detail == MusicDetail.NONE ? "无" : detail.getName());
         field(invocation, "队列数量", String.valueOf(service.getMusicQueue().size()));
-        field(invocation, "账号状态", "网易云 / QQ / Bilibili 由客户端持有");
+        field(invocation, "账号状态", "各音乐平台账号由客户端持有");
     }
 
     private void sendApi(Invocation invocation, String[] args) {
