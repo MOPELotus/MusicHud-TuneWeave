@@ -21,6 +21,11 @@ abstract class AsyncStateToggleButton extends ToggleIconButton {
     private Function<Consumer<Boolean>, Unregister> observer;
     private Unregister subscription, loginSubscription;
     private Object scope;
+    private Supplier<CompletableFuture<Boolean>> availability = () -> CompletableFuture.completedFuture(true);
+    private boolean hiddenUnsupported;
+    private static final class UnsupportedToggle extends RuntimeException {}
+    protected void setAvailability(Supplier<CompletableFuture<Boolean>> availability) { this.availability = availability; }
+
 
     AsyncStateToggleButton(Context context, Appearance appearance) { super(context, appearance); }
 
@@ -33,6 +38,7 @@ abstract class AsyncStateToggleButton extends ToggleIconButton {
     private void refreshBinding() {
         if (subscription != null) { subscription.unregister(); subscription = null; }
         controller.unbind();
+        if (hiddenUnsupported) { hiddenUnsupported = false; setVisibility(VISIBLE); }
         scope = MusicEntityCache.captureGeneration();
         if (reader == null || !LoginService.getInstance().isLogined()) {
             setChecked(false); setEnabled(false);
@@ -42,7 +48,10 @@ abstract class AsyncStateToggleButton extends ToggleIconButton {
         Object expected = scope;
         var read = reader; var observe = observer;
         var write = indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService.getInstance().prepareFunction(writer);
-        controller.bind(() -> CompletableFuture.supplyAsync(read, MusicHud.EXECUTOR).thenCompose(Function.identity()), selected -> {
+        controller.bind(() -> CompletableFuture.supplyAsync(availability, MusicHud.EXECUTOR)
+                .thenCompose(Function.identity()).thenCompose(supported -> supported
+                        ? CompletableFuture.supplyAsync(read, MusicHud.EXECUTOR).thenCompose(Function.identity())
+                        : CompletableFuture.failedFuture(new UnsupportedToggle())), selected -> {
                     var result = new java.util.concurrent.atomic.AtomicReference<CompletableFuture<?>>();
                     MusicEntityCache.publish(expected, () -> result.set(write.apply(selected)));
                     return result.get();
@@ -57,6 +66,9 @@ abstract class AsyncStateToggleButton extends ToggleIconButton {
                     }
                 }, error -> {
                     if (MusicEntityCache.captureGeneration() != expected || !isAttachedToWindow()) return;
+                    Throwable cause = error;
+                    while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null) cause = cause.getCause();
+                    if (cause instanceof UnsupportedToggle) { hiddenUnsupported = true; setVisibility(GONE); return; }
                     setTooltipText(I18n.get(MusicHud.MOD_ID + ".button.retry"));
                     // A passive state lookup is not a user mutation. Keep its retry
                     // affordance on the button instead of flooding the screen with toasts.

@@ -155,6 +155,7 @@ final class RenderTestEnvironment {
                     public boolean isWordByWord() { return word; }
                     public void parsePhrases() {}
                     public Duration getStartTime() { return Duration.ZERO; }
+                    public Duration getDuration() { return Duration.ofSeconds(1); }
                     public int binarySearchPhraseIndex(Duration duration) { return 0; }
                     public List<Phrase> getPhrases() { return List.of(new Phrase()); }
                     public static class Phrase {

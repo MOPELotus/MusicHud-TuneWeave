@@ -28,6 +28,7 @@ class BilibiliEmptyFavoritesTest {
                 return created.get() ? ResumableOffsetCollectionTest.page(false, 1, "bilibili:favorite:42")
                         : ResumableOffsetCollectionTest.page(false, 0);
             }
+            if (path.endsWith("/favorites/playlists")) return ResumableOffsetCollectionTest.page(false, 0);
             if (path.endsWith("/items")) return ResumableOffsetCollectionTest.page(false, 0);
             assertTrue(path.contains("bilibili"));
             JsonObject folder = new JsonObject(); folder.addProperty("ref", "bilibili:favorite:42");
@@ -44,16 +45,16 @@ class BilibiliEmptyFavoritesTest {
         assertSame(placeholder, entities.playlist(placeholder.getId()));
         assertTrue(catalog.loadPlaylistDetail(placeholder.getId()).getMusicDetails().isEmpty());
         assertTrue(catalog.loadKnownPlaylistForImport(placeholder.getSourceRef()).getMusicDetails().isEmpty());
-        assertEquals(1, calls.size());
+        assertEquals(2, calls.size());
         var mutations = new TuneWeavePlaylistService(gateway, entities, catalog);
         assertThrows(IllegalArgumentException.class, () -> mutations.delete(placeholder));
         assertThrows(IllegalArgumentException.class, () -> mutations.setPlaylistSubscribed(placeholder, true));
         assertThrows(IllegalArgumentException.class, () -> mutations.reorderTracks(placeholder, List.of()));
-        assertEquals(1, calls.size());
+        assertEquals(2, calls.size());
         created.set(true);
         var actual = catalog.loadPlaylistDetail(placeholder.getSourceRef(), true, ignored -> {});
         assertEquals("bilibili:favorite:42", actual.getSourceRef());
-        assertEquals(4, calls.size());
+        assertEquals(6, calls.size());
         sessions.put(TuneWeavePlatform.BILIBILI, new TuneWeaveSession(TuneWeavePlatform.BILIBILI, "2", "Other", "", true));
         assertNull(entities.playlist(placeholder.getId()));
     }

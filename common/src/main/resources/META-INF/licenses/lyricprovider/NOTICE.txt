@@ -1,0 +1,6 @@
+Platform icons: Soda, Kugou and Kuwo
+Copyright 2026 Proify, Tomakino
+Source: https://github.com/tomakino/LyricProvider/tree/be4c131f9303966e2bb146c3e7c0665cf69585cb
+Apache License, Version 2.0.
+Extracted from the ICON constants of qishui-music, kugou-music and kuwo-music.
+Original SVG geometry and PNG bytes preserved. The SVG default gradient stop offset is made explicit for Batik compatibility.

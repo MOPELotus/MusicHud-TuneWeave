@@ -11,6 +11,25 @@ import indi.mopelotus.musichud.server.api.tuneweave.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TuneWeaveMembershipTest {
+    @Test void unsupportedMembershipNeverSendsAccountRequest() {
+        ClientConfig config = (ClientConfig) Proxy.newProxyInstance(ClientConfig.class.getClassLoader(), new Class<?>[]{ClientConfig.class},
+            (proxy, method, args) -> switch(method.getName()) {
+                case "getTuneWeaveBaseUrl" -> "http://127.0.0.1:7832";
+                case "getDefaultMusicPlatform" -> "bilibili";
+                case "getTuneWeaveCredential" -> "private-credential";
+                default -> throw new AssertionError(method.getName());
+            });
+        var calls = new ArrayList<String>();
+        var gateway = new TuneWeaveGateway(config,(base,method,path,query,body,sent)-> {
+            calls.add(path); assertEquals("/v1/capabilities",path); assertTrue(sent.isEmpty());
+            return new TuneWeaveApiClient.TuneWeaveResponse(200,JsonParser.parseString("[{\"platform\":\"bilibili\",\"registered\":true,\"capabilities\":[\"playlist_read\",\"account_profile\"]}]"),new JsonObject());
+        });
+        var auth = new TuneWeaveAuthenticationService(gateway,new HashMap<>());
+        var account = new TuneWeaveAccountService(gateway,auth,new TuneWeaveEntityMapper(p->null));
+        for(int i=0;i<3;i++) assertEquals(TuneWeaveMembership.NONE,account.loadMembership(TuneWeavePlatform.BILIBILI));
+        assertEquals(List.of("/v1/capabilities","/v1/capabilities","/v1/capabilities"),calls);
+    }
+
     @Test void unknownAndMalformedStatusNeverBecomeAnActiveMembership() {
         var knownLevel = TuneWeaveMembership.parse(JsonParser.parseString("{\"level\":7,\"active\":null}"));
         assertEquals(7L, knownLevel.level()); assertNull(knownLevel.active());
@@ -32,6 +51,10 @@ class TuneWeaveMembershipTest {
                 });
         var hook = new AtomicReference<Runnable>(() -> {});
         var gateway = new TuneWeaveGateway(config, (base, method, path, query, body, sent) -> {
+            if (path.equals("/v1/capabilities")) {
+                assertTrue(sent.isEmpty());
+                return new TuneWeaveApiClient.TuneWeaveResponse(200, JsonParser.parseString("[{\"platform\":\"netease\",\"registered\":true,\"capabilities\":[\"user_membership_client_info\"]}]"), new JsonObject());
+            }
             assertEquals("/v1/account/membership", path);
             assertEquals("GET", method); assertEquals("netease", query.get("platform"));
             assertEquals("client", query.get("backend"));

@@ -453,6 +453,16 @@ public class VirtualizedListLayout<T, V extends View> extends FrameLayout {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec);
+        if (width == 0) {
+            // Weighted LinearLayout parents first probe with an unspecified zero width.
+            // Wrapped rows are temporarily taller there; recycling from those heights
+            // repeatedly cancels visible image requests before the final width arrives.
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            int total = 0;
+            for (long id : layoutIds()) total += layoutHeight(id);
+            setMeasuredDimension(getMeasuredWidth(), total);
+            return;
+        }
         if (width != measuredWidth) {
             measuredWidth = width;
             heightByItemId.clear();
@@ -496,11 +506,18 @@ public class VirtualizedListLayout<T, V extends View> extends FrameLayout {
         // Collapse any attached child that is not part of the current layout set. Views queued
         // for deferred recycling would otherwise keep their previous bounds and linger as a
         // stray, un-laid-out box.
+        var ids = layoutIds();
+        Set<V> laidOut = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (long id : ids) {
+            V view = viewForId(id);
+            if (view != null) laidOut.add(view);
+        }
         for (int i = 0; i < getChildCount(); i++) {
-            getChildAt(i).layout(0, 0, 0, 0);
+            View child = getChildAt(i);
+            if (!laidOut.contains(child)) child.layout(0, 0, 0, 0);
         }
         int y = 0;
-        for (long id : layoutIds()) {
+        for (long id : ids) {
             int h = layoutHeight(id);
             V view = viewForId(id);
             if (view != null) {

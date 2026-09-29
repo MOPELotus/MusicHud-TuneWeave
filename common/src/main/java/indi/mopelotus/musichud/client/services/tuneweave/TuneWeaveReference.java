@@ -11,6 +11,10 @@ final class TuneWeaveReference {
             case "netease" -> TuneWeavePlatform.NETEASE;
             case "qq" -> TuneWeavePlatform.QQ;
             case "bilibili" -> TuneWeavePlatform.BILIBILI;
+            case "soda" -> TuneWeavePlatform.SODA;
+            case "kugou" -> TuneWeavePlatform.KUGOU;
+            case "kuwo" -> TuneWeavePlatform.KUWO;
+            case "migu" -> TuneWeavePlatform.MIGU;
             default -> throw new indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.TuneWeaveException("Unknown response platform", false);
         };
     }
@@ -29,7 +33,7 @@ final class TuneWeaveReference {
         if (separator <= 0) {
             throw new IllegalArgumentException("Invalid TuneWeave reference: " + reference);
         }
-        return TuneWeavePlatform.fromApiName(reference.substring(0, separator));
+        return requirePlatform(reference.substring(0, separator));
     }
 
     static TuneWeavePlatform platformOrDefault(String reference, TuneWeavePlatform fallback) {
@@ -40,7 +44,7 @@ final class TuneWeaveReference {
         }
         int separator = reference.indexOf(':');
         return separator > 0
-                ? TuneWeavePlatform.fromApiName(reference.substring(0, separator))
+                ? requirePlatform(reference.substring(0, separator))
                 : fallback;
     }
 
@@ -53,6 +57,10 @@ final class TuneWeaveReference {
             case "netease" -> TuneWeavePlatform.NETEASE;
             case "qq" -> TuneWeavePlatform.QQ;
             case "bilibili" -> TuneWeavePlatform.BILIBILI;
+            case "soda" -> TuneWeavePlatform.SODA;
+            case "kugou" -> TuneWeavePlatform.KUGOU;
+            case "kuwo" -> TuneWeavePlatform.KUWO;
+            case "migu" -> TuneWeavePlatform.MIGU;
             default -> throw new IllegalArgumentException("Invalid account favorite reference");
         };
     }
