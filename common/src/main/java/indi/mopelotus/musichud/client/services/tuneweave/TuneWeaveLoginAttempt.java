@@ -5,6 +5,7 @@ import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 /** Opaque client-local identity. Never serialized or formatted with credential contents. */
 public final class TuneWeaveLoginAttempt {
     final TuneWeavePlatform platform;
+    Object accountIdentity;
     String expectedCredential;
     Runnable validateContext;
 

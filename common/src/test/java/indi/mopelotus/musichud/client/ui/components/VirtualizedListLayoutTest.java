@@ -83,6 +83,56 @@ class VirtualizedListLayoutTest {
         assertTrue(list.getChildCount() < 100, "must still virtualize");
     }
 
+    @Test void retainedRowsNeverReceiveTransientZeroSizedLayoutsDuringResize() {
+        var list = new TestList(new Rows()); list.updateWindow(0, 200);
+        list.resetItems(List.of(new Row(1, 20), new Row(2, 20))); measure(list);
+        var zeroLayouts = new java.util.concurrent.atomic.AtomicInteger();
+        for (int i = 0; i < list.getChildCount(); i++) list.getChildAt(i).addOnLayoutChangeListener(
+                (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                    if (right == left || bottom == top) zeroLayouts.incrementAndGet();
+                });
+        list.measure(MeasureSpec.makeMeasureSpec(500, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+        list.layout(0, 0, 500, list.getMeasuredHeight());
+        assertEquals(0, zeroLayouts.get(), "active image/card rows must retain valid drawable bounds");
+    }
+
+    @Test void provisionalGridMeasurementsDoNotRecreateCardsOrInvalidateImageCallbacks() {
+        var created = new java.util.HashMap<Integer, Integer>();
+        var grid = new indi.mopelotus.musichud.client.ui.layouts.VirtualizedCardGrid<Integer>(context, 100, 120, item -> {
+            created.merge(item, 1, Integer::sum);
+            return new View(context);
+        });
+        grid.setItems(IntStream.range(0, 1000).boxed().toList());
+        measure(grid);
+        var rowList = (ViewGroup)grid.getChildAt(0);
+        View firstRow = rowList.getChildAt(0);
+        for (int i = 0; i < 5; i++) {
+            grid.measure(MeasureSpec.makeMeasureSpec(700, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            grid.measure(MeasureSpec.makeMeasureSpec(300, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+        }
+        // Older ModernUI may fill more initially unmeasured rows on the next measure.
+        // New visible cards are valid; recreating an existing item's image publication is not.
+        assertTrue(created.values().stream().allMatch(count -> count == 1),
+                "provisional widths must not recreate existing card image publications");
+        assertSame(firstRow, rowList.getChildAt(0));
+    }
+
+    @Test void zeroWidthProbeDoesNotRecycleRowsBeforeTheWeightedFinalMeasurement() {
+        var adapter = new Rows(); adapter.wrapAtZeroWidth = true;
+        var list = new TestList(adapter); list.updateWindow(0, 200);
+        list.resetItems(IntStream.range(0, 1000).mapToObj(i -> new Row(i, 20)).toList());
+        measure(list);
+        int cleared = adapter.cleared;
+        for (int pass = 0; pass < 5; pass++) {
+            list.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            measure(list);
+        }
+        assertEquals(cleared, adapter.cleared,
+                "a parent's zero-width sizing probe must not cancel visible image bindings");
+        assertTrue(list.getChildCount() < 30, "the settled viewport remains virtualized");
+    }
+
     private static void measure(View view) {
         view.measure(MeasureSpec.makeMeasureSpec(300, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
@@ -92,15 +142,17 @@ class VirtualizedListLayoutTest {
     private record Row(long id, int height) {}
     private final class Cell extends View {
         Row row;
-        Cell() { super(context); }
+        final boolean wrapAtZeroWidth;
+        Cell(boolean wrapAtZeroWidth) { super(context); this.wrapAtZeroWidth = wrapAtZeroWidth; }
         @Override protected void onMeasure(int width, int height) {
-            setMeasuredDimension(MeasureSpec.getSize(width), resolveSize(row == null ? 0 : row.height(), height));
+            setMeasuredDimension(MeasureSpec.getSize(width), resolveSize(row == null ? 0 : row.height() * (wrapAtZeroWidth && MeasureSpec.getSize(width) == 0 ? 2 : 1), height));
         }
     }
     private final class Rows implements VirtualizedListLayout.Adapter<Row, Cell> {
         int created, cleared;
+        boolean wrapAtZeroWidth;
         public long idOf(Row row) { return row.id(); }
-        public Cell createItem(ViewGroup parent) { created++; return new Cell(); }
+        public Cell createItem(ViewGroup parent) { created++; return new Cell(wrapAtZeroWidth); }
         public void clearItem(Cell view) { cleared++; view.row = null; view.requestLayout(); }
         public void bindItem(Cell view, Row row) { view.row = row; view.requestLayout(); }
         public long boundIdOf(Cell view) { return view.row == null ? -1 : view.row.id(); }

@@ -292,6 +292,16 @@ public class UrlImageView extends FrameLayout {
         float ratio = (float) image.getWidth() / image.getHeight();
         setAspectRatio(squareCrop ? 1.0f : ratio);
 
+        // Verification images must preserve every pixel. RoundedImageDrawable in the
+        // supported ModernUI versions initializes a square source rectangle, even for
+        // rectangular images; its zero-radius path therefore clips wide challenges.
+        if (!circular && cornerRadius == 0) {
+            var drawable = ClientGraphicsResources.createPlainDrawable(getContext().getResources(), image);
+            drawable.setFilter(false);
+            setImageWithAnimation(drawable, image);
+            return;
+        }
+
         RoundedImageDrawable drawable = ClientGraphicsResources.createRoundedDrawable(
                 getContext().getResources(),
                 image
@@ -346,7 +356,7 @@ public class UrlImageView extends FrameLayout {
         }
     }
 
-    private void setImageWithAnimation(RoundedImageDrawable drawable, Image image) {
+    private void setImageWithAnimation(icyllis.modernui.graphics.drawable.Drawable drawable, Image image) {
         cancelAnimation();
         long ticket = publication.current();
         replaceImage(nextImageView, drawable, image);
@@ -445,7 +455,7 @@ public class UrlImageView extends FrameLayout {
         return normalized.contains(".hdslb.com/") || normalized.contains(".biliimg.com/");
     }
 
-    private void replaceImage(ImageView target, RoundedImageDrawable drawable, Image image) {
+    private void replaceImage(ImageView target, icyllis.modernui.graphics.drawable.Drawable drawable, Image image) {
         var previousDrawable = target.getDrawable();
         target.setImageDrawable(drawable);
         if (previousDrawable != drawable) ClientGraphicsResources.releaseDrawable(previousDrawable);

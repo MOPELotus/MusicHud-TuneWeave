@@ -108,7 +108,7 @@ public final class TuneWeaveApiClient {
         String uri = buildUri(normalizedBaseUrl, TuneWeaveRoutePolicy.normalizePath(path), query);
         String requestId = "mh-" + UUID.randomUUID();
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(uri))
-                .timeout(Duration.ofSeconds(25))
+                .timeout(Duration.ofSeconds(65))
                 .header("Accept", "application/json")
                 .header("User-Agent", "MusicHud TuneWeave/1")
                 .header("X-Request-ID", requestId);
@@ -131,10 +131,11 @@ public final class TuneWeaveApiClient {
             try {
                 HttpResponse<String> response = CLIENT.send(
                         builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-                return parseResponse(response.statusCode(), response.body());
+                return parseResponse(response.statusCode(), response.body(),
+                        response.headers().allValues("X-TuneWeave-Updated-Credential"));
             } catch (TuneWeaveException e) {
                 last = e;
-                if (!e.isRetryable() || attempt == attempts) {
+                if (!e.isRetryable() || !e.getCredentialUpdates().isEmpty() || attempt == attempts) {
                     throw e;
                 }
             } catch (HttpTimeoutException | ConnectException e) {
@@ -320,6 +321,10 @@ public final class TuneWeaveApiClient {
     }
 
     private static TuneWeaveResponse parseResponse(int status, String rawBody) {
+        return parseResponse(status, rawBody, java.util.List.of());
+    }
+
+    private static TuneWeaveResponse parseResponse(int status, String rawBody, java.util.List<String> updates) {
         JsonElement parsed;
         try {
             parsed = JsonParser.parseString(rawBody == null || rawBody.isBlank() ? "{}" : rawBody);
@@ -327,6 +332,9 @@ public final class TuneWeaveApiClient {
             throw new TuneWeaveException("TuneWeave returned invalid JSON (HTTP " + status + ')', e, false);
         }
         JsonObject envelope = parsed.isJsonObject() ? parsed.getAsJsonObject() : new JsonObject();
+        JsonObject meta = envelope.has("meta") && envelope.get("meta").isJsonObject()
+                ? envelope.getAsJsonObject("meta") : new JsonObject();
+        Map<String, String> credentialUpdates = TuneWeaveCredentialUpdates.parse(meta, updates);
         boolean ok = status >= 200 && status < 300 && envelope.has("ok") && envelope.get("ok").getAsBoolean();
         if (!ok) {
             JsonObject error = envelope.has("error") && envelope.get("error").isJsonObject()
@@ -335,13 +343,18 @@ public final class TuneWeaveApiClient {
             String message = string(error, "message", "TuneWeave request failed (HTTP " + status + ')');
             boolean retryable = (status == 429 || status == 408 || status >= 500)
                     || (error.has("retryable") && error.get("retryable").getAsBoolean());
+            TuneWeavePlatform affected = null;
+            if (error.has("platform") && !error.get("platform").isJsonNull()) {
+                JsonElement value = error.get("platform");
+                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString())
+                    throw new TuneWeaveException("Invalid error platform", false);
+                affected = TuneWeavePlatform.requireApiName(value.getAsString());
+            }
             throw new TuneWeaveException(code + ": " + message, status, code, retryable,
-                    error.has("details") ? error.get("details") : JsonNull.INSTANCE);
+                    error.has("details") ? error.get("details") : JsonNull.INSTANCE, credentialUpdates, affected);
         }
         JsonElement data = envelope.has("data") ? envelope.get("data") : JsonNull.INSTANCE;
-        JsonObject meta = envelope.has("meta") && envelope.get("meta").isJsonObject()
-                ? envelope.getAsJsonObject("meta") : new JsonObject();
-        return new TuneWeaveResponse(status, data, meta);
+        return new TuneWeaveResponse(status, data, meta, credentialUpdates);
     }
 
     private static String string(JsonObject object, String name, String fallback) {
@@ -349,7 +362,13 @@ public final class TuneWeaveApiClient {
         return value == null || value.isJsonNull() ? fallback : value.getAsString();
     }
 
-    public record TuneWeaveResponse(int statusCode, JsonElement data, JsonObject meta) {
+    public record TuneWeaveResponse(int statusCode, JsonElement data, JsonObject meta,
+                                    Map<String, String> credentialUpdates) {
+        public TuneWeaveResponse(int statusCode, JsonElement data, JsonObject meta) {
+            this(statusCode, data, meta, TuneWeaveCredentialUpdates.parse(meta, java.util.List.of()));
+        }
+        public TuneWeaveResponse { credentialUpdates = Map.copyOf(credentialUpdates); }
+        @Override public String toString() { return "TuneWeaveResponse[statusCode=" + statusCode + "]"; }
     }
 
     public static class TuneWeaveException extends RuntimeException {
@@ -361,9 +380,23 @@ public final class TuneWeaveApiClient {
         private final boolean retryable;
         @Getter
         private final JsonElement details;
+        @Getter private TuneWeavePlatform platform;
+        @Getter private Map<String, String> credentialUpdates = Map.of();
+
+        public TuneWeaveException(String message, int statusCode, String code, boolean retryable,
+                                 JsonElement details, Map<String, String> credentialUpdates) {
+            this(message, statusCode, code, retryable, details, (Throwable) null);
+            this.credentialUpdates = Map.copyOf(credentialUpdates);
+        }
+
+        public TuneWeaveException(String message, int statusCode, String code, boolean retryable,
+                                 JsonElement details, Map<String, String> updates, TuneWeavePlatform platform) {
+            this(message, statusCode, code, retryable, details, updates);
+            this.platform = platform;
+        }
 
         public TuneWeaveException(String message, boolean retryable) {
-            this(message, 0, "client_error", retryable, JsonNull.INSTANCE, null);
+            this(message, 0, "client_error", retryable, JsonNull.INSTANCE, (Throwable) null);
         }
 
         public TuneWeaveException(String message, Throwable cause, boolean retryable) {
@@ -371,7 +404,7 @@ public final class TuneWeaveApiClient {
         }
 
         public TuneWeaveException(String message, int statusCode, String code, boolean retryable, JsonElement details) {
-            this(message, statusCode, code, retryable, details, null);
+            this(message, statusCode, code, retryable, details, (Throwable) null);
         }
 
         private TuneWeaveException(String message, int statusCode, String code, boolean retryable,

@@ -27,15 +27,10 @@ public final class PlatformIconUtils {
         IconKey key = new IconKey(platform, rasterSize);
         Image cached = CACHE.get(key);
         if (cached != null) return cached;
-        String path = "/assets/musichud_tuneweave/textures/platforms/" + platform.apiName() + ".svg";
-        try (InputStream input = MusicHud.class.getResourceAsStream(path)) {
-            if (input == null) return null;
-            PNGTranscoder transcoder = new PNGTranscoder();
-            transcoder.addTranscodingHint(PNGTranscoder.KEY_WIDTH, (float) rasterSize);
-            transcoder.addTranscodingHint(PNGTranscoder.KEY_HEIGHT, (float) rasterSize);
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            transcoder.transcode(new TranscoderInput(input), new TranscoderOutput(output));
-            try (Bitmap bitmap = BitmapFactory.decodeByteArray(output.toByteArray(), 0, output.size())) {
+        try {
+            byte[] png = PlatformIconData.png(platform, rasterSize);
+            if (png == null) return null;
+            try (Bitmap bitmap = BitmapFactory.decodeByteArray(png, 0, png.length)) {
                 Image result = ClientGraphicsResources.createImage(bitmap);
                 CACHE.put(key, result);
                 return result;
@@ -66,6 +61,10 @@ public final class PlatformIconUtils {
             case "netease", "163" -> TuneWeavePlatform.NETEASE;
             case "qq", "tencent" -> TuneWeavePlatform.QQ;
             case "bilibili", "bili" -> TuneWeavePlatform.BILIBILI;
+            case "soda" -> TuneWeavePlatform.SODA;
+            case "kugou" -> TuneWeavePlatform.KUGOU;
+            case "kuwo" -> TuneWeavePlatform.KUWO;
+            case "migu" -> TuneWeavePlatform.MIGU;
             default -> null;
         };
     }

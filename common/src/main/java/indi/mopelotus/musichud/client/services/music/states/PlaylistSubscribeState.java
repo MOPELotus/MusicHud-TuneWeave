@@ -16,4 +16,8 @@ public class PlaylistSubscribeState extends SubscribeState<Playlist> {
                 () -> tuneWeave.prepareBiConsumer(tuneWeave::setPlaylistSubscribed)
         );
     }
+    @Override public java.util.concurrent.CompletableFuture<Boolean> isSupported() {
+        var request = tuneWeave.prepareRequest(() -> tuneWeave.capabilities(tuneWeave.platformOfEntity(Playlist.class, getBeanId())).contains("playlist_subscription_write"));
+        return java.util.concurrent.CompletableFuture.supplyAsync(request, indi.mopelotus.musichud.MusicHud.EXECUTOR);
+    }
 }

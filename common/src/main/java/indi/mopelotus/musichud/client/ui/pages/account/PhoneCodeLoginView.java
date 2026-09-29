@@ -25,6 +25,10 @@ import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
 public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
+    private indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveBrowserVerification browser;
+    private CheckBox allowAccountCreation;
+    private LoginVerificationView verificationView;
+    private indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveLoginProgress progress;
     private final EditText phoneTextInput;
     private final EditText codeTextInput;
     private final TextView messageTextView;
@@ -62,8 +66,9 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
         textView1.setLayoutParams(params1);
         addView(textView1);
 
-        platformSelector = new PlatformSelector(context, TuneWeavePlatform.NETEASE, TuneWeavePlatform.QQ);
+        platformSelector = new PlatformSelector(context, TuneWeavePlatform.NETEASE, TuneWeavePlatform.QQ, TuneWeavePlatform.KUGOU, TuneWeavePlatform.KUWO, TuneWeavePlatform.MIGU);
         platformSelector.setSelectedPlatform(tuneWeave.defaultPlatform());
+        platformSelector.setVisibility(GONE);
         LayoutParams platformParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
         platformParams.setMargins(0, dp(12), 0, 0);
         addView(platformSelector, platformParams);
@@ -73,6 +78,11 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
         content.setLayoutParams(new LayoutParams(dp(320), WRAP_CONTENT));
         content.setGravity(Gravity.CENTER_HORIZONTAL);
         addView(content);
+        allowAccountCreation = new CheckBox(context);
+        allowAccountCreation.setText(I18n.get(MusicHud.MOD_ID + ".text.login.allowAccountCreation"));
+        allowAccountCreation.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+        content.addView(allowAccountCreation, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        updateAccountCreationOption();
 
         LinearLayout layout1 = new LinearLayout(context);
         layout1.setOrientation(LinearLayout.HORIZONTAL);
@@ -146,6 +156,8 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
                 .build();
         bf2.applyBackgroundTo(loginButton);
         content.addView(loginButton);
+        verificationView = new LoginVerificationView(context, this::advanceChallenge);
+        content.addView(verificationView, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 
         messageTextView = new TextView(context);
         messageTextView.setTextSize(Theme.TEXT_SIZE_NORMAL);
@@ -168,7 +180,13 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
                 invalidateLogin();
             }
         });
-        platformSelector.setOnPlatformSelectedListener(platform -> reset());
+        platformSelector.setOnPlatformSelectedListener(platform -> { reset(); allowAccountCreation.setChecked(true); updateAccountCreationOption(); });
+    }
+
+    private void updateAccountCreationOption() {
+        var platform = selectedPlatform();
+        allowAccountCreation.setChecked(true);
+        allowAccountCreation.setVisibility(GONE);
     }
 
     private void setSendingButtonDisable() {
@@ -190,21 +208,27 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
         SmsLoginInput input;
         try { input = new SmsLoginInput(phoneTextInput.getText().toString().trim(), phoneRegionInput.getText().toString().trim()); }
         catch (IllegalArgumentException error) { errorText(I18n.get(MusicHud.MOD_ID + ".text.phoneFormatError")); return; }
+        boolean allowCreation = selectedPlatform() == TuneWeavePlatform.KUWO || selectedPlatform() == TuneWeavePlatform.KUGOU;
+        if (selectedPlatform() == TuneWeavePlatform.KUWO && !allowCreation) {
+            errorText(I18n.get(MusicHud.MOD_ID + ".text.login.kuwoCreationRequired")); return;
+        }
         invalidateLogin();
         submittedInput = input;
-        TuneWeaveLoginAttempt token = attempt = tuneWeave.beginLogin(selectedPlatform());
+        var platform = selectedPlatform();
+        TuneWeaveLoginAttempt token = attempt = tuneWeave.beginLogin(platform);
         long ticket = generation;
         sending = true;
         setSendingButtonDisable();
         MusicHud.EXECUTOR.execute(() -> {
             try {
-                var challenge = tuneWeave.startSmsLogin(token, input.phone(), input.countryCode());
+                if (!tuneWeave.capabilities(platform).contains("phone_login")) throw new IllegalStateException("Unsupported login method");
+                var challenge = tuneWeave.startSmsLogin(token, input.phone(), input.countryCode(), allowCreation);
                 callbacks.post(MuiModApi::postToUiThread, ticket, () -> {
                     sending = false;
                     if (!tuneWeave.isLoginCurrent(token)) { reset(); return; }
                     challengeSession = challenge;
-                    lastSentCodeTime = ZonedDateTime.now();
-                    startCountdown(60, ticket);
+                    showProgress(challenge.progress(), ticket);
+
                 });
             } catch (RuntimeException error) { failed(ticket, error); }
         });
@@ -218,29 +242,88 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
             if (!current.equals(submittedInput)) throw new IllegalArgumentException("Phone changed");
             code = SmsLoginInput.code(codeTextInput.getText().toString());
         } catch (IllegalArgumentException error) { errorText(I18n.get(MusicHud.MOD_ID + ".text.codeFormatError")); return; }
+        var body = new com.google.gson.JsonObject(); body.addProperty("code", code);
+        advanceChallenge(body);
+    }
+
+    private void advanceChallenge(com.google.gson.JsonObject body) {
+        if (sending || verifying) return;
         var session = challengeSession;
         var token = attempt;
         if (session == null || session.platform() != selectedPlatform() || !tuneWeave.isLoginCurrent(token)) {
             errorText(I18n.get(MusicHud.MOD_ID + ".text.sendCodeFirst")); return;
+        }
+        String action = body.has("action") ? body.get("action").getAsString() : "submit_code";
+        if ("open_browser".equals(action)) { openBrowserVerification(); return; }
+        if ("select_account".equals(action) || "submit_browser".equals(action)) {
+            try { body.addProperty("code", SmsLoginInput.code(codeTextInput.getText().toString())); }
+            catch (IllegalArgumentException error) { errorText(I18n.get(MusicHud.MOD_ID + ".text.codeFormatError")); return; }
         }
         long ticket = generation;
         verifying = true;
         loginButton.setClickable(false);
         MusicHud.EXECUTOR.execute(() -> {
             try {
-                var profile = tuneWeave.verifySmsLogin(session, code);
+                var result = tuneWeave.advanceSmsLogin(session, body);
                 callbacks.post(MuiModApi::postToUiThread, ticket, () -> {
-                    try { LoginService.getInstance().completeTuneWeaveLogin(token, profile); }
-                    catch (java.util.concurrent.CancellationException ignored) { }
-                    reset();
+                    verifying = false;
+                    loginButton.setClickable(true);
+                    if (!tuneWeave.isLoginCurrent(token)) { reset(); return; }
+                    if ("confirmed".equals(result.state())) {
+                        try { LoginService.getInstance().completeTuneWeaveLogin(token, result.profile()); }
+                        catch (java.util.concurrent.CancellationException ignored) { }
+                        reset();
+                    } else showProgress(result, ticket);
                 });
             } catch (RuntimeException error) { failed(ticket, error); }
         });
     }
 
+    private void showProgress(indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveLoginProgress value, long ticket) {
+        progress = value;
+        verificationView.render(value);
+        loginButton.setVisibility("waiting".equals(value.state()) ? VISIBLE : GONE);
+        if ("waiting".equals(value.state())) {
+            if (scheduledRefreshTask == null) { lastSentCodeTime = ZonedDateTime.now(); startCountdown(60, ticket); }
+            messageTextView.setText(I18n.get(MusicHud.MOD_ID + ".text.login.smsSent"));
+            messageTextView.setTextColor(Theme.SECONDARY_TEXT_COLOR); messageTextView.setVisibility(VISIBLE);
+        }
+    }
+
+    private void openBrowserVerification() {
+        if (browser != null || progress == null) return;
+        long ticket = generation;
+        try {
+            var bridge = new indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveBrowserVerification(progress.verification());
+            browser = bridge;
+            MusicHud.EXECUTOR.execute(() -> {
+                try { bridge.openBrowser(); }
+                catch (Exception error) { bridge.close(); failed(ticket, new IllegalStateException("Cannot open verification browser")); }
+            });
+            bridge.receipt().whenComplete((response, error) -> callbacks.post(MuiModApi::postToUiThread, ticket, () -> {
+                if (browser != bridge) return;
+                browser = null;
+                if (error == null) {
+                    var body = LoginVerificationView.action("submit_browser");
+                    body.addProperty("verification_id", bridge.verificationId()); body.addProperty("response", response);
+                    bridge.close(); advanceChallenge(body);
+                } else { bridge.close(); errorText(I18n.get(MusicHud.MOD_ID + ".text.login.failed")); }
+            }));
+        } catch (Exception error) { errorText(I18n.get(MusicHud.MOD_ID + ".text.login.failed")); }
+    }
+
     private void failed(long ticket, RuntimeException error) {
         callbacks.post(MuiModApi::postToUiThread, ticket, () -> {
-            reset();
+            boolean retry = error instanceof indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.TuneWeaveException failure
+                    && LoginContinuationPolicy.canContinue(failure) && challengeSession != null && tuneWeave.isLoginCurrent(attempt);
+            if (retry) {
+                sending = false; verifying = false; loginButton.setClickable(true);
+                if (progress != null && "browser_verification_required".equals(progress.state())) {
+                    progress = new indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveLoginProgress("waiting", null, java.util.List.of(), null);
+                    showProgress(progress, ticket);
+                }
+            }
+            else reset();
             if (!(error instanceof java.util.concurrent.CancellationException))
                 errorText(I18n.get(MusicHud.MOD_ID + ".text.login.failed"));
         });
@@ -259,8 +342,10 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
 
     private void invalidateLogin() {
         generation = callbacks.next();
+        if (browser != null) { var previous = browser; browser = null; previous.close(); }
         tuneWeave.cancelLogin(attempt); attempt = null;
-        challengeSession = null; submittedInput = null;
+        challengeSession = null; submittedInput = null; progress = null;
+        if (verificationView != null) verificationView.clear();
         if (scheduledRefreshTask != null) { scheduledRefreshTask.stop(); scheduledRefreshTask = null; }
         sending = false; verifying = false;
     }
@@ -270,6 +355,7 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
         setSendingButtonEnable();
         sendCodeButton.setText(I18n.get(MusicHud.MOD_ID + ".button.sendCode"));
         loginButton.setClickable(true);
+        loginButton.setVisibility(VISIBLE);
         messageTextView.setVisibility(GONE);
     }
 

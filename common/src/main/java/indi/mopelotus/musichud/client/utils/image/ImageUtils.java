@@ -217,6 +217,7 @@ public class ImageUtils {
     }
 
     private static Bitmap decodeBounded(byte[] bytes, BitmapFactory.Options options) throws IOException {
+        bytes = WebpImages.normalize(bytes);
         var info = new BitmapFactory.Options();
         BitmapFactory.decodeByteArrayInfo(bytes, 0, bytes.length, info);
         ImageInputLimits.dimensions(info.outWidth, info.outHeight);
