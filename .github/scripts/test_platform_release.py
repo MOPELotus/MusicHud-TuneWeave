@@ -25,6 +25,18 @@ class PlatformContracts(unittest.TestCase):
         self.assertEqual('channels/7059/create', call.args[0])
         self.assertEqual(['UNSTABLE'], json.loads(call.kwargs['data'])['flags'])
 
+    def test_hangar_release_channel_is_stable(self):
+        internal = Mock()
+        internal.request.side_effect = [[], None, [{'name': 'Release', 'color': '#eab308'}]]
+        with patch.object(platform, 'Client', return_value=internal):
+            platform.ensure_hangar_channel(Mock(token='test'), {'id': 7059}, 'Release')
+        self.assertEqual([], json.loads(internal.request.call_args_list[1].kwargs['data'])['flags'])
+
+    def test_release_classification_uses_source_tag_not_cf_suffix(self):
+        for version, expected in [('1.3.0', 'release'), ('1.3.0-beta-3', 'beta')]:
+            self.assertEqual(expected, platform.release_type({'version': version}))
+            self.assertEqual(expected, platform.release_type({'version': version + '-cf.1'}, {'tag': 'v' + version}))
+
     def test_hangar_existing_channel_is_not_changed(self):
         internal = Mock()
         internal.request.return_value = [{'name': 'Beta', 'color': '#eab308'}]
@@ -254,6 +266,13 @@ class RuntimeArtifactContracts(unittest.TestCase):
                 release.dump(root / 'cf/cf-manifest.json', cf)
                 with self.assertRaisesRegex(ValueError, 'filename mismatch'):
                     platform.verify_platform_bundle(root, manifest['tag'])
+
+    def test_formal_release_metadata_for_standard_and_cf(self):
+        row = next(r for r in self.helper.rows if r['branch'] == '26.3') | {'version': '1.3.0'}
+        for distribution in ['standard', 'cf']:
+            current = row | {'distribution': distribution}
+            self.assertEqual('release', platform.modrinth_metadata(current, 'fabric', 'project', {'fabric-api':'fabric'})['version_type'])
+            self.assertEqual('release', platform.curseforge_metadata(current, 'fabric', {'26.3','Fabric','Client'})['releaseType'])
 
     def test_26_3_metadata_links_fork_without_incorrect_external_dependencies(self):
         row = next(r for r in self.helper.rows if r['branch'] == '26.3')

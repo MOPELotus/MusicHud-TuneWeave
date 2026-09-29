@@ -336,6 +336,11 @@ def changelog(row, module):
     return text + '\n\n[Setup and dependencies](https://github.com/' + REPOSITORY + '/blob/v' + row['version'] + '/README.md)'
 
 
+def release_type(row, manifest=None):
+    version = manifest['tag'].removeprefix('v') if manifest and 'tag' in manifest else row['version']
+    return 'beta' if '-' in version else 'release'
+
+
 def modrinth_metadata(row, module, project, dependency_ids, manifest=None):
     dependencies = []
     if module in ('fabric', 'neoforge'):
@@ -353,7 +358,7 @@ def modrinth_metadata(row, module, project, dependency_ids, manifest=None):
     release.require(len(number) <= 32, 'Modrinth version number exceeds 32 characters')
     data = {'project_id': project, 'name': f"{row['version']} · {module} · {row['range'] or 'server/proxy'}",
             'version_number': number,
-            'version_type': 'beta', 'loaders': [module],
+            'version_type': release_type(row, manifest), 'loaders': [module],
             'game_versions': game_versions(row, manifest),
             'dependencies': dependencies, 'changelog': changelog(row, module),
             'featured': True, 'file_parts': ['file'], 'primary_file': 'file'}
@@ -476,7 +481,7 @@ def curseforge_metadata(row, module, available, manifest=None):
             if row['branch'] not in MODERNUI_FORKS:
                 relations.append({'slug': 'forge-config-api-port', 'projectID': 547434, 'type': 'requiredDependency'})
     data = {'displayName': f"MusicHud TuneWeave {release.artifact_version(row)} - {module}",
-            'releaseType': 'beta', 'gameVersionNames': names,
+            'releaseType': release_type(row, manifest), 'gameVersionNames': names,
             'changelog': changelog(row, module), 'changelogType': 'markdown',
             'isMarkedForManualRelease': False}
     if relations:
@@ -539,18 +544,18 @@ def ensure_hangar_channel(client, project, name):
         return
     used = {channel['color'].lower() for channel in channels}
     color = next((color for color in ('#eab308', '#a855f7', '#0ea5e9', '#f97316') if color not in used), None)
-    release.require(color is not None, 'Choose an unused color for the Hangar Beta channel')
-    data = {'name': name, 'description': 'Beta releases of MusicHud TuneWeave.', 'color': color, 'flags': ['UNSTABLE']}
+    release.require(color is not None, 'Choose an unused color for the Hangar ' + name + ' channel')
+    data = {'name': name, 'description': name + ' releases of MusicHud TuneWeave.', 'color': color, 'flags': [] if name == 'Release' else ['UNSTABLE']}
     try:
         internal.request('channels/' + str(project['id']) + '/create', method='POST',
                          data=json.dumps(data).encode(), content_type='application/json')
     except ApiError as error:
         if error.status in (401, 403):
-            raise RuntimeError('Hangar API key cannot create the Beta channel (HTTP ' + str(error.status) +
-                               '); create Beta in project Channels, then retry') from None
+            raise RuntimeError('Hangar API key cannot create the ' + name + ' channel (HTTP ' + str(error.status) +
+                               '); create ' + name + ' in project Channels, then retry') from None
         raise
     channels = internal.request('channels/' + str(project['id']))
-    release.require(any(channel['name'] == name for channel in channels), 'Hangar Beta channel creation was not confirmed')
+    release.require(any(channel['name'] == name for channel in channels), 'Hangar ' + name + ' channel creation was not confirmed')
 
 
 def publish_hangar(client, manifest, folder, config, report):
@@ -572,8 +577,9 @@ def publish_hangar(client, manifest, folder, config, report):
                         'Existing Hangar version differs from release artifacts')
         report.record(row['version'], 'retained', hashes=hashes)
     else:
-        ensure_hangar_channel(client, project, config['hangar_channel'])
-        data = {'version': row['version'], 'channel': config['hangar_channel'],
+        channel = config.get('hangar_release_channel', 'Release') if release_type(row, manifest) == 'release' else config['hangar_channel']
+        ensure_hangar_channel(client, project, channel)
+        data = {'version': row['version'], 'channel': channel,
                 'description': changelog(row, 'paper') + '\n\nAlso includes the dedicated Velocity proxy JAR.',
                 'platformDependencies': {'PAPER': game_versions(row, manifest),
                                          'VELOCITY': ['3.4', '4.2.0'] if '26.3' in game_versions(row, manifest) else ['3.4']},
