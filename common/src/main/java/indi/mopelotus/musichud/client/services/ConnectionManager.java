@@ -108,6 +108,7 @@ public class ConnectionManager implements IConnectionManager {
         lifecycle.disconnectIfClosed(physical -> ((net.minecraft.network.Connection) physical).isConnected(),
                 this::detachPlayer, this::resetPlayback);
         lifecycle.tick(this::continueWithPlayer);
+        handshake.tick();
     }
 
     /** A new PLAY listener on the same TCP connection keeps the chosen mode and public session. */
@@ -158,7 +159,11 @@ public class ConnectionManager implements IConnectionManager {
             MusicHud.setConnectStatus(MusicHud.ConnectStatus.NOT_CONNECTED);
             handshake.begin();
             scheduleConnectTimeoutFallback();
-            clientNetworkService.sendToServer(ConnectRequest.current());
+            ConnectRequest request = ConnectRequest.current();
+            var transport = (indi.mopelotus.musichud.client.network.vanilla.VanillaClientNetworkService) clientNetworkService;
+            handshake.sendWhenReady(() -> Minecraft.getInstance().getCurrentServer() == null
+                            || transport.isNetworkChannelReady(request),
+                    () -> clientNetworkService.sendToServer(request));
         }
     }
 

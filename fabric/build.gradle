@@ -64,6 +64,8 @@ configurations {
 }
 
 dependencies {
+    implementation "com.twelvemonkeys.imageio:imageio-webp:3.13.1"
+    shadowBundle "com.twelvemonkeys.imageio:imageio-webp:3.13.1"
     minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
 
     implementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
@@ -163,6 +165,9 @@ processResources {
 }
 
 shadowJar {
+    relocate 'com.twelvemonkeys', 'indi.mopelotus.musichud.shaded.twelvemonkeys'
+    // The private WebP reader is instantiated explicitly, without global ImageIO registration.
+    exclude 'META-INF/services/javax.imageio.spi.*'
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
     // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
@@ -172,6 +177,13 @@ shadowJar {
 }
 
 jar {
+    // Use the relocated decoder caller from shadowJar, not the original source-set output.
+    eachFile { details ->
+        if (details.path == 'indi/mopelotus/musichud/client/utils/image/WebpImages.class' &&
+                sourceSets.main.output.classesDirs.files.any { details.file.toPath().startsWith(it.toPath()) }) {
+            details.exclude()
+        }
+    }
     dependsOn shadowJar
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(zipTree(shadowJar.archiveFile))
@@ -211,3 +223,5 @@ tasks.named('test') {
     systemProperty 'musichud.test.fabricMetadata', layout.buildDirectory.file('resources/main/fabric.mod.json').get().asFile.absolutePath
     systemProperty 'musichud.test.fabricApiVersion', rootProject.fabric_api_version
 }
+
+apply from: rootProject.file('gradle/verify-shaded-webp.gradle')

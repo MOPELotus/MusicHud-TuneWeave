@@ -30,6 +30,8 @@ public final class ConnectionHandshake {
     private final Effects effects;
     private Attempt pending;
     private Attempt retired;
+    private PendingSend pendingSend;
+    private record PendingSend(Attempt attempt, java.util.function.BooleanSupplier ready, Runnable send) {}
 
     public ConnectionHandshake(Object lock, Effects effects) {
         this.lock = lock;
@@ -39,12 +41,36 @@ public final class ConnectionHandshake {
     public void begin() {
         synchronized (lock) {
             retired = null;
+            pendingSend = null;
             pending = new Attempt(effects.connection(), effects.player());
         }
     }
 
     public void invalidate() {
-        synchronized (lock) { pending = retired = null; }
+        synchronized (lock) { pending = retired = null; pendingSend = null; }
+    }
+
+    /** Some plugin channels are advertised after the world join callback. Keep only this attempt's send. */
+    public void sendWhenReady(java.util.function.BooleanSupplier ready, Runnable send) {
+        synchronized (lock) {
+            if (!isCurrent(pending, effects.player())) return;
+            pendingSend = new PendingSend(pending, ready, send);
+            tick();
+        }
+    }
+
+    public void tick() {
+        synchronized (lock) {
+            PendingSend waiting = pendingSend;
+            if (waiting == null) return;
+            if (!isCurrent(waiting.attempt(), effects.player())) {
+                pendingSend = null;
+                return;
+            }
+            if (!waiting.ready().getAsBoolean()) return;
+            pendingSend = null;
+            waiting.send().run();
+        }
     }
 
     public void receive(ConnectResponse response, Object originPlayer) {
@@ -66,6 +92,7 @@ public final class ConnectionHandshake {
                 synchronized (lock) {
                     if (!isCurrent(attempt, originPlayer)) return;
                     pending = null;
+                    pendingSend = null;
                     effects.resetPlayback();
                     if (response.accepted() && ProtocolInfo.isCompatible(response.projectId(),
                             response.serverVersion(), response.capabilities())) {
@@ -108,6 +135,7 @@ public final class ConnectionHandshake {
     private void retire() {
         Attempt attempt = pending;
         pending = null;
+        pendingSend = null;
         if (attempt != null && sameConnection(attempt, effects.player())) {
             retired = attempt;
             effects.leaveRemoteServer();

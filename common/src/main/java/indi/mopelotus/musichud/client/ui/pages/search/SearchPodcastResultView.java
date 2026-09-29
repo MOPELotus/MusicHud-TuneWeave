@@ -22,13 +22,13 @@ import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
 /** Search result list for podcast catalogs returned by the RADIO search type. */
-public final class SearchPodcastResultView extends FlexWrapLayout {
+public final class SearchPodcastResultView extends indi.mopelotus.musichud.client.ui.layouts.VirtualizedCardGrid<TuneWeavePodcast> {
     @Getter
     private static SearchPodcastResultView instance;
     private static final SearchResultBuffer<TuneWeavePodcast> results = new SearchResultBuffer<>(TuneWeavePodcast::reference);
 
     public SearchPodcastResultView(Context context) {
-        super(context);
+        super(context, 174, 280, podcast -> createCard(context, podcast));
         instance = this;
         refresh();
     }
@@ -39,26 +39,24 @@ public final class SearchPodcastResultView extends FlexWrapLayout {
     }
 
     public void refresh() {
-        List<TuneWeavePodcast> result = results.snapshot();
-        removeAllViews();
-        if (result != null) for (TuneWeavePodcast podcast : result) addPodcast(podcast);
+        setItems(results.snapshot());
     }
 
     public void append(List<TuneWeavePodcast> page) {
-        for (TuneWeavePodcast item : results.append(page)) addPodcast(item);
+        results.append(page); refresh();
     }
 
-    private void addPodcast(TuneWeavePodcast podcast) {
+    private static CollectionPreviewCard createCard(Context context, TuneWeavePodcast podcast) {
         Object account = indi.mopelotus.musichud.client.services.music.MusicEntityCache.captureGeneration();
-        CollectionPreviewCard card = new CollectionPreviewCard(getContext(), podcast.coverUrl(), podcast.name(),
+        CollectionPreviewCard card = new CollectionPreviewCard(context, podcast.coverUrl(), podcast.name(),
                 podcast.description(), I18n.get(MusicHud.MOD_ID + ".text.programs.episodes")
                 .replace("{}", Long.toString(podcast.episodeCount())));
         card.setOnClickListener(v -> {
             if (account != indi.mopelotus.musichud.client.services.music.MusicEntityCache.captureGeneration()) return;
             RouterContainer router = RouterContainer.getInstance();
-            if (router != null) router.pushNavigate(new indi.mopelotus.musichud.client.ui.pages.PodcastDetailView(getContext(), podcast));
+            if (router != null) router.pushNavigate(new indi.mopelotus.musichud.client.ui.pages.PodcastDetailView(context, podcast));
         });
-        addView(card);
+        return card;
     }
 
     @Override protected void onAttachedToWindow() {

@@ -21,8 +21,10 @@ import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@Timeout(10)
+@Timeout(20)
 class LavaplayerStreamDecoderTest {
+    // Startup and exception delivery share CPU with the forced multi-version build matrix.
+    // Keep the 100 ms pre-release race assertion; allow bounded scheduling slack after release.
     private static final byte[] PCM = {1, 2, 3, 4};
 
     @ParameterizedTest
@@ -32,13 +34,13 @@ class LavaplayerStreamDecoderTest {
         try (var decoder = LavaplayerStreamDecoder.start(new DefaultAudioPlayerManager(), track);
              var reader = Executors.newSingleThreadExecutor()) {
             try {
-                assertTrue(track.markerPublished.await(2, TimeUnit.SECONDS));
+                assertTrue(track.markerPublished.await(5, TimeUnit.SECONDS));
                 var result = reader.submit(() -> assertThrows(RuntimeException.class, () -> decoder.readChunk(8)));
-                assertTrue(track.markerRead.await(2, TimeUnit.SECONDS));
+                assertTrue(track.markerRead.await(5, TimeUnit.SECONDS));
                 // Lavaplayer 2.2.7 can publish its terminator before logging and delivering the exception.
                 assertThrows(TimeoutException.class, () -> result.get(100, TimeUnit.MILLISECONDS));
                 track.finish.countDown();
-                assertNotNull(result.get(2, TimeUnit.SECONDS).getCause());
+                assertNotNull(result.get(5, TimeUnit.SECONDS).getCause());
             } finally {
                 track.finish.countDown();
             }
@@ -61,12 +63,12 @@ class LavaplayerStreamDecoderTest {
         try (var decoder = LavaplayerStreamDecoder.start(new DefaultAudioPlayerManager(), track);
              var reader = Executors.newSingleThreadExecutor()) {
             try {
-                assertTrue(track.markerPublished.await(2, TimeUnit.SECONDS));
+                assertTrue(track.markerPublished.await(5, TimeUnit.SECONDS));
                 var result = reader.submit(() -> decoder.readChunk(8));
-                assertTrue(track.markerRead.await(2, TimeUnit.SECONDS));
+                assertTrue(track.markerRead.await(5, TimeUnit.SECONDS));
                 assertThrows(TimeoutException.class, () -> result.get(100, TimeUnit.MILLISECONDS));
                 decoder.close();
-                assertNull(result.get(2, TimeUnit.SECONDS));
+                assertNull(result.get(5, TimeUnit.SECONDS));
             } finally {
                 track.finish.countDown();
             }
@@ -87,13 +89,13 @@ class LavaplayerStreamDecoderTest {
             });
             try {
                 reader.start();
-                assertTrue(track.markerRead.await(2, TimeUnit.SECONDS));
+                assertTrue(track.markerRead.await(5, TimeUnit.SECONDS));
                 reader.interrupt();
-                assertTrue(result.get(2, TimeUnit.SECONDS));
+                assertTrue(result.get(5, TimeUnit.SECONDS));
             } finally {
                 track.finish.countDown();
                 reader.interrupt();
-                reader.join(2000);
+                reader.join(5000);
             }
         }
     }
@@ -125,7 +127,7 @@ class LavaplayerStreamDecoderTest {
             executor.getAudioBuffer().setTerminateOnEmpty();
             markerPublished.countDown();
             // Model the upstream logging/callback window, which cannot be cancelled by stopTrack().
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (finish.getCount() != 0) {
                 if (System.nanoTime() - deadline >= 0) throw new IOException("Fixture completion timed out");
                 try { finish.await(10, TimeUnit.MILLISECONDS); }

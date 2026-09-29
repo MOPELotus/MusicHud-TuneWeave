@@ -30,10 +30,12 @@ public class SearchResultTabPage extends FrameLayout {
     @Getter
     private final ViewPager pager;
     private final SearchView owner;
+    private final java.util.List<SearchType> types;
 
-    public SearchResultTabPage(Context context, SearchView owner) {
+    public SearchResultTabPage(Context context, SearchView owner, java.util.List<SearchType> types) {
         super(context);
         this.owner = owner;
+        this.types = java.util.List.copyOf(types);
 
         pager = new ViewPager(context);
         {
@@ -58,8 +60,8 @@ public class SearchResultTabPage extends FrameLayout {
             }
         });
         tabLayout.setElevation(dp(3));
-        tabLayout.setTabMode(TabLayout.MODE_AUTO);
-        tabLayout.setTabGravity(TabLayout.GRAVITY_CENTER);
+        tabLayout.setTabMode(types.size() == 1 ? TabLayout.MODE_FIXED : TabLayout.MODE_AUTO);
+        tabLayout.setTabGravity(types.size() == 1 ? TabLayout.GRAVITY_FILL : TabLayout.GRAVITY_CENTER);
         tabLayout.setupWithViewPager(pager);
         tabLayout.setBackground(null);
 
@@ -84,19 +86,38 @@ public class SearchResultTabPage extends FrameLayout {
                 if (pager.getAdapter() instanceof ResultAdapter adapter) {
                     adapter.unregisterAllListeners();
                 }
-                clearResult();
+
             }
         });
     }
 
+    public SearchType currentSearchType() {
+        return types.isEmpty() ? null : types.get(pager.getCurrentItem());
+    }
+
     public void clearResult() {
         if (SearchView.getInstance() != owner) return;
+        clearCachedResults();
+        if (pager.getAdapter() != null) pager.getAdapter().notifyDataSetChanged();
+    }
+
+    static void clearCachedResults() {
         SearchAlbumResultView.setResult(null);
         SearchArtistResultView.setResult(null);
         SearchPlaylistResultView.setResult(null);
         SearchMusicResultView.setResult(null);
         SearchPodcastResultView.setResult(null);
-        if (pager.getAdapter() != null) pager.getAdapter().notifyDataSetChanged();
+    }
+
+    static void clearCachedResults(SearchType type) {
+        switch (type) {
+            case MUSIC -> SearchMusicResultView.setResult(null);
+            case ALBUM -> SearchAlbumResultView.setResult(null);
+            case ARTIST -> SearchArtistResultView.setResult(null);
+            case PLAYLIST -> SearchPlaylistResultView.setResult(null);
+            case RADIO -> SearchPodcastResultView.setResult(null);
+            default -> { }
+        }
     }
 
     private class ResultAdapter extends PagerAdapter {
@@ -104,7 +125,7 @@ public class SearchResultTabPage extends FrameLayout {
 
         @Override
         public int getCount() {
-            return 5; // 页面数量
+            return types.size();
         }
 
         @NonNull
@@ -136,32 +157,13 @@ public class SearchResultTabPage extends FrameLayout {
             });
             container.addView(sv);
 
-            SearchType searchType;
-            ViewGroup layout = switch (position) {
-                case 0 -> {
-                    searchType = SearchType.MUSIC;
-                    yield new SearchMusicResultView(context);
-                }
-                case 1 -> {
-                    searchType = SearchType.PLAYLIST;
-                    yield new SearchPlaylistResultView(context);
-                }
-                case 2 -> {
-                    searchType = SearchType.ALBUM;
-                    yield new SearchAlbumResultView(context);
-                }
-                case 3 -> {
-                    searchType = SearchType.ARTIST;
-                    yield new SearchArtistResultView(context);
-                }
-                case 4 -> {
-                    searchType = SearchType.RADIO;
-                    yield new SearchPodcastResultView(context);
-                }
-                default -> {
-                    searchType = SearchType.MUSIC;
-                    yield new SearchMusicResultView(context);
-                }
+            SearchType searchType = types.get(position);
+            ViewGroup layout = switch (searchType) {
+                case PLAYLIST -> new SearchPlaylistResultView(context);
+                case ALBUM -> new SearchAlbumResultView(context);
+                case ARTIST -> new SearchArtistResultView(context);
+                case RADIO -> new SearchPodcastResultView(context);
+                default -> new SearchMusicResultView(context);
             };
             Consumer<SearchView.SearchMeta> refreshListener = (searchMeta) -> {
                 if (searchMeta.getSearchType() == searchType) {
@@ -238,14 +240,6 @@ public class SearchResultTabPage extends FrameLayout {
         public void destroyItem(@NonNull ViewGroup container, int position, @NonNull Object object) {
             if (object instanceof View view) {
                 container.removeView(view);
-                SearchType searchType = switch (position) {
-                    case 0 -> SearchType.MUSIC;
-                    case 1 -> SearchType.PLAYLIST;
-                    case 2 -> SearchType.ALBUM;
-                    case 3 -> SearchType.ARTIST;
-                    case 4 -> SearchType.RADIO;
-                    default -> SearchType.MUSIC;
-                };
                 SearchView instance = owner;
                 if (instance != null) {
                     Consumer<SearchView.SearchMeta> listener = registeredListeners.remove(object);
@@ -271,12 +265,12 @@ public class SearchResultTabPage extends FrameLayout {
 
         @Override
         public CharSequence getPageTitle(int position) {
-            return I18n.get(switch (position) {
-                case 0 -> MusicHud.MOD_ID + ".text.page.search.music";
-                case 1 -> MusicHud.MOD_ID + ".text.page.search.playlist";
-                case 2 -> MusicHud.MOD_ID + ".text.page.search.album";
-                case 3 -> MusicHud.MOD_ID + ".text.page.search.artist";
-                case 4 -> MusicHud.MOD_ID + ".text.page.search.radio";
+            return I18n.get(switch (types.get(position)) {
+                case MUSIC -> MusicHud.MOD_ID + ".text.page.search.music";
+                case PLAYLIST -> MusicHud.MOD_ID + ".text.page.search.playlist";
+                case ALBUM -> MusicHud.MOD_ID + ".text.page.search.album";
+                case ARTIST -> MusicHud.MOD_ID + ".text.page.search.artist";
+                case RADIO -> MusicHud.MOD_ID + ".text.page.search.radio";
                 default -> "";
             });
         }

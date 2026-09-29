@@ -540,6 +540,7 @@ public class ClientConfigDefinition implements ClientConfig {
         return switch (platform.trim().toLowerCase(java.util.Locale.ROOT)) {
             case "qq", "tencent" -> "qq";
             case "bilibili", "bili" -> "bilibili";
+            case "soda", "kugou", "kuwo", "migu" -> platform.trim().toLowerCase(java.util.Locale.ROOT);
             default -> "netease";
         };
     }
@@ -557,4 +558,3 @@ public class ClientConfigDefinition implements ClientConfig {
         connectServerFilterType = AutoConnectServerFilterType.BLACK_LIST;
     }
 }
-

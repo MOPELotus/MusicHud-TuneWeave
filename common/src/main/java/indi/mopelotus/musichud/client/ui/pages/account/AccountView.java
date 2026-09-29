@@ -14,6 +14,10 @@ import icyllis.modernui.text.Spanned;
 import icyllis.modernui.graphics.drawable.InsetDrawable;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import icyllis.modernui.widget.LinearLayout;
+import icyllis.modernui.widget.HorizontalScrollView;
+import indi.mopelotus.musichud.client.ui.layouts.VirtualizedCardGrid;
+import java.util.List;
+import java.util.ArrayList;
 import icyllis.modernui.widget.ProgressBar;
 import icyllis.modernui.widget.TextView;
 import indi.mopelotus.musichud.MusicHud;
@@ -62,11 +66,13 @@ public class AccountView extends LinearLayout {
     private TuneWeavePlatform selectedPlatform = tuneWeave.defaultPlatform();
     private boolean showingUniPlaylists;
     private final CallbackGeneration callbacks = new CallbackGeneration();
-    private final Map<ElementKey, View> elementMap = new HashMap<>();
-    private FlexWrapLayout myPlaylistCards;
-    private FlexWrapLayout mySubscribedPlaylistCards;
-    private FlexWrapLayout albumCards;
-    private FlexWrapLayout artistCards;
+    private final CallbackGeneration playlistCallbacks = new CallbackGeneration();
+    private final CallbackGeneration albumCallbacks = new CallbackGeneration();
+    private final CallbackGeneration artistCallbacks = new CallbackGeneration();
+    private VirtualizedCardGrid<Playlist> myPlaylistCards;
+    private VirtualizedCardGrid<Playlist> mySubscribedPlaylistCards;
+    private VirtualizedCardGrid<Album> albumCards;
+    private VirtualizedCardGrid<Artist> artistCards;
     private LinearLayout myPlaylistsContent;
     private LinearLayout mySubscribedPlaylistsContent;
     private LinearLayout mySubscribedAlbumsContent;
@@ -77,53 +83,6 @@ public class AccountView extends LinearLayout {
     private Unregister albumRemoveRegister;
     private Unregister artistAddRegister;
     private Unregister artistRemoveRegister;
-    private void createPlaylistCard(Playlist playlist, long generation) {
-        post(generation, () -> {
-            if (!isAttachedToWindow()) {
-                return;
-            }
-            long id = playlist.getId();
-            elementMap.computeIfAbsent(new ElementKey(Playlist.class, id), (key) -> {
-                MusicCollectionCard card = new MusicCollectionCard(getContext(), playlist);
-                card.setTag(id);
-                mySubscribedPlaylistCards.addView(card);
-                mySubscribedPlaylistsContent.setVisibility(VISIBLE);
-                return card;
-            });
-        });
-    }
-    private void createAlbumCard(Album album, long generation) {
-        post(generation, () -> {
-            if (!isAttachedToWindow()) {
-                return;
-            }
-            long id = album.getId();
-            elementMap.computeIfAbsent(new ElementKey(Album.class, id), (key) -> {
-                MusicCollectionCard card = new MusicCollectionCard(getContext(), album);
-                card.setTag(id);
-                albumCards.addView(card);
-                mySubscribedAlbumsContent.setVisibility(VISIBLE);
-                return card;
-            });
-        });
-    }
-    private void createArtistCard(Artist artist, long generation) {
-        post(generation, () -> {
-            if (!isAttachedToWindow()) {
-                return;
-            }
-            long id = artist.getId();
-            elementMap.computeIfAbsent(new ElementKey(Artist.class, id), (key) -> {
-                ArtistCard artistCard = new ArtistCard(getContext());
-                artistCard.setTag(artist.getId());
-                artistCard.bindData(artist);
-                artistCards.addView(artistCard);
-                mySubscribedArtistsContent.setVisibility(VISIBLE);
-                return artistCard;
-            });
-        });
-    }
-
     public AccountView(Context context) {
         super(context);
         if (!tuneWeave.hasCredential(selectedPlatform)) {
@@ -152,7 +111,7 @@ public class AccountView extends LinearLayout {
         });
     }
 
-    private void buildCard(Context context, InsetBackgroundFactory background, ViewGroup target,
+    private Button buildCard(Context context, InsetBackgroundFactory background, ViewGroup target,
                            String key, String icon, View.OnClickListener onClick) {
         Button button = new Button(context);
         button.setTextSize(Theme.TEXT_SIZE_LARGE);
@@ -160,9 +119,15 @@ public class AccountView extends LinearLayout {
         Image image = ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/" + icon);
         if (image != null) label.setSpan(ImageUtils.getIconSpan(image), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         button.setText(label);
+        button.setSingleLine(true);
+        button.setGravity(Gravity.CENTER);
         background.applyBackgroundTo(button);
         button.setOnClickListener(onClick);
-        target.addView(button, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        // Capability-dependent text actions can arrive after refresh/logout were added.
+        int index = 0;
+        while (index < target.getChildCount() && !(target.getChildAt(index) instanceof ImageButton)) index++;
+        target.addView(button, index, new LayoutParams(WRAP_CONTENT, dp(40)));
+        return button;
     }
 
     private void buildIcon(Context context, InsetBackgroundFactory background, ViewGroup target,
@@ -179,6 +144,9 @@ public class AccountView extends LinearLayout {
     }
 
     private void unregisterCollectionListeners() {
+        playlistCallbacks.next();
+        albumCallbacks.next();
+        artistCallbacks.next();
         if (playlistAddRegister != null) {
             playlistAddRegister.unregister();
             playlistAddRegister = null;
@@ -209,7 +177,6 @@ public class AccountView extends LinearLayout {
         long generation = callbacks.next();
         unregisterCollectionListeners();
         removeAllViews();
-        elementMap.clear();
         setOrientation(LinearLayout.VERTICAL);
         setLayoutParams(new LayoutParams(MATCH_PARENT, MATCH_PARENT));
         Context context = getContext();
@@ -241,7 +208,10 @@ public class AccountView extends LinearLayout {
         platformTabs.addView(platformSelector, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         LayoutParams platformTabsParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
         platformTabsParams.setMargins(0, dp(16), 0, dp(8));
-        addView(platformTabs, platformTabsParams);
+        HorizontalScrollView tabsScroll = new HorizontalScrollView(context);
+        tabsScroll.setFillViewport(true);
+        tabsScroll.addView(platformTabs, new ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        addView(tabsScroll, platformTabsParams);
 
         tuneWeave.setDefaultPlatform(selectedPlatform);
         if (showingUniPlaylists) {
@@ -249,7 +219,7 @@ public class AccountView extends LinearLayout {
             return;
         }
         if (!tuneWeave.hasCredential(selectedPlatform)) {
-            LoginView loginView = new LoginView(context);
+            LoginView loginView = new LoginView(context, false);
             addView(loginView, new LayoutParams(MATCH_PARENT, 0, 1));
             return;
         }
@@ -311,7 +281,7 @@ public class AccountView extends LinearLayout {
                     () -> tuneWeave.loadMembership(membershipPlatform)), MusicHud.EXECUTOR).thenAccept(value -> post(generation, () -> {
                 if (membershipAccount != indi.mopelotus.musichud.client.services.music.MusicEntityCache.captureGeneration()) return;
                 if (value.level() == null && value.active() == null && value.iconUrl().isBlank()) return;
-                if (!value.iconUrl().isBlank()) {
+                if (membershipPlatform != TuneWeavePlatform.QQ && !value.iconUrl().isBlank()) {
                     UrlImageView icon = new UrlImageView(context);
                     icon.setAspectRatio(0);
                     icon.setSquareCrop(false);
@@ -337,8 +307,9 @@ public class AccountView extends LinearLayout {
                 .padding(new InsetBackgroundFactory.Padding(dp(8), dp(6), dp(8), dp(6))).build();
         FlexWrapLayout buttons = new FlexWrapLayout(context);
         buttons.setAnimationsEnabled(false);
+        buttons.setLineGravity(Gravity.CENTER_VERTICAL);
         infoLayout.addView(buttons, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
-        buildCard(context, cardBackground, buttons, ".button.history", "rotate_ccw_clock.png", view -> {
+        Button historyButton = buildCard(context, cardBackground, buttons, ".button.history", "rotate_ccw_clock.png", view -> {
             if (!callbacks.isCurrent(generation)) return;
             RouterContainer router = RouterContainer.getInstance();
             if (router != null) router.pushNavigate(new RecentHistoryView(context, selectedPlatform));
@@ -349,10 +320,10 @@ public class AccountView extends LinearLayout {
             buildCard(context, cardBackground, buttons, ".button.programs", "radio.png", view ->
                     RouterContainer.getInstance().pushNavigate(new PodcastRadioView(context)));
         }
-        if (selectedPlatform != TuneWeavePlatform.BILIBILI) {
-            buildCard(context, cardBackground, buttons, ".button.managePlaylists", "list_music.png", view ->
-                    RouterContainer.getInstance().pushNavigate(new PlatformPlaylistManagerView(context)));
-        }
+        Button managerButton = buildCard(context, cardBackground, buttons, ".button.managePlaylists", "list_music.png", view ->
+                RouterContainer.getInstance().pushNavigate(new PlatformPlaylistManagerView(context)));
+        historyButton.setVisibility(GONE);
+        managerButton.setVisibility(GONE);
         InsetBackgroundFactory iconBackground = InsetBackgroundFactory.builder()
                 .backgroundColor(Theme.GHOST_BUTTON_STATES).inset(dp(1)).cornerRadius(dp(4))
                 .padding(new InsetBackgroundFactory.Padding(dp(6), dp(6), dp(6), dp(6))).build();
@@ -379,12 +350,12 @@ public class AccountView extends LinearLayout {
             TextView myPlaylistsText = new TextView(context);
             myPlaylistsText.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
             myPlaylistsText.setTextSize(Theme.TEXT_SIZE_LARGE);
-            myPlaylistsText.setText(I18n.get(MusicHud.MOD_ID + ".text.myPlaylists"));
+            myPlaylistsText.setText(I18n.get(MusicHud.MOD_ID + (tuneWeave.defaultPlatform() == TuneWeavePlatform.BILIBILI ? ".text.myBilibiliCollections" : ".text.myPlaylists")));
             LayoutParams titleParam = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
             titleParam.setMargins(0, 0, 0, dp(16));
             myPlaylistsContent.addView(myPlaylistsText, titleParam);
 
-            myPlaylistCards = new FlexWrapLayout(context);
+            myPlaylistCards = new VirtualizedCardGrid<>(context, 174, 280, item -> new MusicCollectionCard(context, item));
             myPlaylistsContent.addView(myPlaylistCards, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
         }
         {
@@ -398,12 +369,12 @@ public class AccountView extends LinearLayout {
             TextView subscribedPlaylistsText = new TextView(context);
             subscribedPlaylistsText.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
             subscribedPlaylistsText.setTextSize(Theme.TEXT_SIZE_LARGE);
-            subscribedPlaylistsText.setText(I18n.get(MusicHud.MOD_ID + ".text.mySubscribedPlaylists"));
+            subscribedPlaylistsText.setText(I18n.get(MusicHud.MOD_ID + (tuneWeave.defaultPlatform() == TuneWeavePlatform.BILIBILI ? ".text.myCollectedBilibiliCollections" : ".text.mySubscribedPlaylists")));
             LayoutParams titleParam = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
             titleParam.setMargins(0, 0, 0, dp(16));
             mySubscribedPlaylistsContent.addView(subscribedPlaylistsText, titleParam);
 
-            mySubscribedPlaylistCards = new FlexWrapLayout(context);
+            mySubscribedPlaylistCards = new VirtualizedCardGrid<>(context, 174, 280, item -> new MusicCollectionCard(context, item));
             mySubscribedPlaylistsContent.addView(mySubscribedPlaylistCards, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
         }
         {
@@ -422,7 +393,7 @@ public class AccountView extends LinearLayout {
             titleParam.setMargins(0, 0, 0, dp(16));
             mySubscribedAlbumsContent.addView(subscribedAlbumsText, titleParam);
 
-            albumCards = new FlexWrapLayout(context);
+            albumCards = new VirtualizedCardGrid<>(context, 174, 280, item -> new MusicCollectionCard(context, item));
             mySubscribedAlbumsContent.addView(albumCards, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
         }
         {
@@ -441,23 +412,52 @@ public class AccountView extends LinearLayout {
             titleParam.setMargins(0, 0, 0, dp(16));
             mySubscribedArtistsContent.addView(artistText, titleParam);
 
-            artistCards = new FlexWrapLayout(context);
+            artistCards = new VirtualizedCardGrid<>(context, 140, 210, item -> {
+                ArtistCard card = new ArtistCard(context); card.bindData(item); return card;
+            });
             mySubscribedArtistsContent.addView(artistCards, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
         }
 
-        MusicService musicService = MusicService.getInstance();
-        this.<UserCategoryPlaylists>loadModule(musicService::loadAccountPlaylists, myPlaylistsContent,
-                category -> renderPlaylists(category, generation), generation, ignoreCache);
-        this.<ObservableSequencedSet<Album>>loadModule(musicService::loadAccountAlbums, mySubscribedAlbumsContent,
-                albums -> renderAlbums(albums, generation), generation, ignoreCache);
-        this.<ObservableSequencedSet<Artist>>loadModule(musicService::loadAccountArtists, mySubscribedArtistsContent,
-                artists -> renderArtists(artists, generation), generation, ignoreCache);
+        TuneWeavePlatform platform = selectedPlatform;
+        this.<java.util.Set<String>>loadModule((refresh, partial) -> CompletableFuture.supplyAsync(
+                tuneWeave.prepareViewRequest(() -> tuneWeave.capabilities(platform)), MusicHud.EXECUTOR), content, capabilities -> {
+            historyButton.setVisibility(capabilities.stream().anyMatch(c -> c.startsWith("recent_") && c.endsWith("_history")) ? VISIBLE : GONE);
+            managerButton.setVisibility(capabilities.contains("playlist_write") ? VISIBLE : GONE);
+            for (var kind : indi.mopelotus.musichud.client.services.tuneweave.TuneWeavePersonalLibrary.Kind.values()) {
+                if (capabilities.contains(kind.capability))
+                    buildCard(context, cardBackground, buttons, ".library." + kind.key(), "list_music.png", view -> {
+                        if (!callbacks.isCurrent(generation)) return;
+                        var router = RouterContainer.getInstance();
+                        if (router != null) router.pushNavigate(new PersonalLibraryView(context, platform, kind));
+                    });
+            }
+            MusicService musicService = MusicService.getInstance();
+            if (AccountCapabilities.hasPlaylists(platform, capabilities))
+                this.<UserCategoryPlaylists>loadModule(musicService::loadAccountPlaylists, myPlaylistsContent,
+                        category -> renderPlaylists(category, generation), generation, ignoreCache);
+            if (capabilities.contains("account_albums"))
+                this.<ObservableSequencedSet<Album>>loadModule(musicService::loadAccountAlbums, mySubscribedAlbumsContent,
+                        albums -> renderAlbums(albums, generation), generation, ignoreCache);
+            if (platform != TuneWeavePlatform.SODA && capabilities.contains("account_following_artists"))
+                this.<ObservableSequencedSet<Artist>>loadModule(musicService::loadAccountArtists, mySubscribedArtistsContent,
+                        artists -> renderArtists(artists, generation), generation, ignoreCache);
+        }, generation, ignoreCache);
     }
 
     private void post(long generation, Runnable callback) {
         callbacks.post(MuiModApi::postToUiThread, generation, () -> {
             if (isAttachedToWindow()) callback.run();
         });
+    }
+
+    private Runnable coalescedPost(long generation, Runnable callback) {
+        var pending = new java.util.concurrent.atomic.AtomicBoolean();
+        return () -> {
+            if (pending.compareAndSet(false, true)) post(generation, () -> {
+                pending.set(false);
+                callback.run();
+            });
+        };
     }
 
     private <T> void loadModule(java.util.function.BiFunction<Boolean, Consumer<T>, CompletableFuture<T>> request, LinearLayout section,
@@ -469,97 +469,94 @@ public class AccountView extends LinearLayout {
         ProgressBar loading = new ProgressBar(getContext());
         loading.setIndeterminate(true);
         status.addView(loading, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        var latest = new java.util.concurrent.atomic.AtomicReference<T>();
+        var completed = new java.util.concurrent.atomic.AtomicBoolean();
+        Runnable publishPartial = coalescedPost(generation, () -> {
+            if (!completed.get()) { render.accept(latest.get()); section.setVisibility(VISIBLE); }
+        });
         CompletableFuture<T> future;
         try {
-            future = request.apply(refresh, partial -> post(generation, () -> {
-                render.accept(partial);
-                section.setVisibility(VISIBLE);
-            }));
+            future = request.apply(refresh, partial -> { latest.set(partial); publishPartial.run(); });
         } catch (RuntimeException error) {
             future = CompletableFuture.failedFuture(error);
         }
-        future.whenComplete((value, error) -> post(generation, () -> {
-            status.removeAllViews();
-            if (error == null) {
-                section.removeView(status);
-                render.accept(value);
-            } else {
-                section.setVisibility(VISIBLE);
-                TextView message = new TextView(getContext());
-                message.setText(I18n.get(MusicHud.MOD_ID + ".text.accountLoadError"));
-                message.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-                status.addView(message);
-                Button retry = new Button(getContext());
-                retry.setText(I18n.get(MusicHud.MOD_ID + ".button.retry"));
-                retry.setOnClickListener(view -> {
-                    if (!callbacks.isCurrent(generation)) return;
+        future.whenComplete((value, error) -> {
+            completed.set(true);
+            post(generation, () -> {
+                status.removeAllViews();
+                if (error == null) {
                     section.removeView(status);
-                    loadModule(request, section, render, generation, false);
-                });
-                status.addView(retry);
-            }
-        }));
-    }
-
-    private void renderPlaylists(UserCategoryPlaylists category, long generation) {
-        if (playlistAddRegister != null) playlistAddRegister.unregister();
-        if (playlistRemoveRegister != null) playlistRemoveRegister.unregister();
-        myPlaylistCards.removeAllViews();
-        mySubscribedPlaylistCards.removeAllViews();
-        elementMap.keySet().removeIf(key -> key.clazz() == Playlist.class);
-        Playlist liked = category.getLikeList();
-        boolean hasLiked = liked != null && liked != Playlist.EMPTY;
-        if (hasLiked) addCreatedPlaylist(liked);
-        var created = category.getCreatedPlaylist();
-        if (created != null) created.forEach(this::addCreatedPlaylist);
-        var subscribed = category.getSubscribedPlaylist();
-        if (subscribed != null) {
-            subscribed.forEach(playlist -> createPlaylistCard(playlist, generation));
-            playlistAddRegister = subscribed.registerOnAdd(playlist -> createPlaylistCard(playlist, generation));
-            playlistRemoveRegister = subscribed.registerOnRemove(playlist -> post(generation, () -> {
-                View card = elementMap.remove(new ElementKey(Playlist.class, playlist.getId()));
-                if (card != null) mySubscribedPlaylistCards.removeView(card);
-                mySubscribedPlaylistsContent.setVisibility(subscribed.isEmpty() ? GONE : VISIBLE);
-            }));
-        }
-        myPlaylistsContent.setVisibility(!hasLiked && (created == null || created.isEmpty()) ? GONE : VISIBLE);
-        mySubscribedPlaylistsContent.setVisibility(subscribed == null || subscribed.isEmpty() ? GONE : VISIBLE);
-    }
-
-    private void addCreatedPlaylist(Playlist playlist) {
-        elementMap.computeIfAbsent(new ElementKey(Playlist.class, playlist.getId()), key -> {
-            MusicCollectionCard card = new MusicCollectionCard(getContext(), playlist);
-            card.setTag(playlist.getId());
-            myPlaylistCards.addView(card);
-            return card;
+                    render.accept(value);
+                } else {
+                    section.setVisibility(VISIBLE);
+                    TextView message = new TextView(getContext());
+                    message.setText(I18n.get(MusicHud.MOD_ID + ".text.accountLoadError"));
+                    message.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+                    status.addView(message);
+                    Button retry = new Button(getContext());
+                    retry.setText(I18n.get(MusicHud.MOD_ID + ".button.retry"));
+                    retry.setOnClickListener(view -> {
+                        if (!callbacks.isCurrent(generation)) return;
+                        section.removeView(status);
+                        loadModule(request, section, render, generation, false);
+                    });
+                    status.addView(retry);
+                }
+            });
         });
     }
 
+    private void renderPlaylists(UserCategoryPlaylists category, long generation) {
+        long collectionGeneration = playlistCallbacks.next();
+        if (playlistAddRegister != null) playlistAddRegister.unregister();
+        if (playlistRemoveRegister != null) playlistRemoveRegister.unregister();
+        List<Playlist> created = new ArrayList<>();
+        Playlist liked = category.getLikeList();
+        if (liked != null && liked != Playlist.EMPTY) created.add(liked);
+        if (category.getCreatedPlaylist() != null) created.addAll(category.getCreatedPlaylist());
+        myPlaylistCards.setItems(created);
+        myPlaylistsContent.setVisibility(created.isEmpty() ? GONE : VISIBLE);
+        var subscribed = category.getSubscribedPlaylist();
+        Runnable render = () -> {
+            if (!playlistCallbacks.isCurrent(collectionGeneration)) return;
+            mySubscribedPlaylistCards.setItems(subscribed == null ? List.of() : List.copyOf(subscribed));
+            mySubscribedPlaylistsContent.setVisibility(subscribed == null || subscribed.isEmpty() ? GONE : VISIBLE);
+        };
+        render.run();
+        if (subscribed != null) {
+            Runnable update = coalescedPost(generation, render);
+            playlistAddRegister = subscribed.registerOnAdd(item -> update.run());
+            playlistRemoveRegister = subscribed.registerOnRemove(item -> update.run());
+        }
+    }
+
     private void renderAlbums(ObservableSequencedSet<Album> albums, long generation) {
+        long collectionGeneration = albumCallbacks.next();
         if (albumAddRegister != null) albumAddRegister.unregister();
         if (albumRemoveRegister != null) albumRemoveRegister.unregister();
-        albums.forEach(album -> createAlbumCard(album, generation));
-        albumAddRegister = albums.registerOnAdd(album -> createAlbumCard(album, generation));
-        albumRemoveRegister = albums.registerOnRemove(album -> post(generation, () -> {
-            View card = elementMap.remove(new ElementKey(Album.class, album.getId()));
-            if (card != null) albumCards.removeView(card);
+        Runnable render = () -> {
+            if (!albumCallbacks.isCurrent(collectionGeneration)) return;
+            albumCards.setItems(List.copyOf(albums));
             mySubscribedAlbumsContent.setVisibility(albums.isEmpty() ? GONE : VISIBLE);
-        }));
-        mySubscribedAlbumsContent.setVisibility(albums.isEmpty() ? GONE : VISIBLE);
+        };
+        render.run();
+        Runnable update = coalescedPost(generation, render);
+        albumAddRegister = albums.registerOnAdd(item -> update.run());
+        albumRemoveRegister = albums.registerOnRemove(item -> update.run());
     }
 
     private void renderArtists(ObservableSequencedSet<Artist> artists, long generation) {
+        long collectionGeneration = artistCallbacks.next();
         if (artistAddRegister != null) artistAddRegister.unregister();
         if (artistRemoveRegister != null) artistRemoveRegister.unregister();
-        artists.forEach(artist -> createArtistCard(artist, generation));
-        artistAddRegister = artists.registerOnAdd(artist -> createArtistCard(artist, generation));
-        artistRemoveRegister = artists.registerOnRemove(artist -> post(generation, () -> {
-            View card = elementMap.remove(new ElementKey(Artist.class, artist.getId()));
-            if (card != null) artistCards.removeView(card);
+        Runnable render = () -> {
+            if (!artistCallbacks.isCurrent(collectionGeneration)) return;
+            artistCards.setItems(List.copyOf(artists));
             mySubscribedArtistsContent.setVisibility(artists.isEmpty() ? GONE : VISIBLE);
-        }));
-        mySubscribedArtistsContent.setVisibility(artists.isEmpty() ? GONE : VISIBLE);
-    }
-    private record ElementKey(Class<?> clazz, long id) {
+        };
+        render.run();
+        Runnable update = coalescedPost(generation, render);
+        artistAddRegister = artists.registerOnAdd(item -> update.run());
+        artistRemoveRegister = artists.registerOnRemove(item -> update.run());
     }
 }
