@@ -267,7 +267,7 @@ public class MusicListItem extends LinearLayout {
             if (index != 0) {
                 TextView split = new TextView(context);
                 split.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-                split.setTextSize(Theme.TEXT_SIZE_SMALL);
+                split.setTextSize(Theme.TEXT_SIZE_NORMAL);
                 split.setText(" / ");
                 split.setSingleLine();
                 row2.addView(split);
@@ -297,7 +297,7 @@ public class MusicListItem extends LinearLayout {
         if (!artists.isEmpty() && !artists.getFirst().getName().isBlank() && !albumName.isBlank()) {
             TextView split = new TextView(context);
             split.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-            split.setTextSize(Theme.TEXT_SIZE_SMALL);
+            split.setTextSize(Theme.TEXT_SIZE_NORMAL);
             split.setText(" - ");
             split.setSingleLine();
             row2.addView(split);

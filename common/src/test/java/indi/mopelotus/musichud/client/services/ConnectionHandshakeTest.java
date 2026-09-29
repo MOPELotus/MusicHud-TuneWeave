@@ -149,6 +149,58 @@ class ConnectionHandshakeTest {
         }
     }
 
+    @Test void delayedChannelRegistrationSendsExactlyOnce() {
+        Fixture fixture = new Fixture(false);
+        boolean[] ready = {false};
+        int[] sent = {0};
+        fixture.handshake.begin();
+        fixture.handshake.sendWhenReady(() -> ready[0], () -> sent[0]++);
+        fixture.handshake.tick();
+        assertEquals(0, sent[0]);
+        ready[0] = true;
+        fixture.handshake.tick();
+        fixture.handshake.tick();
+        assertEquals(1, sent[0]);
+    }
+
+    @Test void pendingSendIsRetiredOnTimeoutIsolationDisconnectAndReplacement() {
+        for (String change : List.of("timeout", "isolate", "invalidate", "connection", "player", "disable", "restart", "response")) {
+            Fixture fixture = new Fixture(false);
+            boolean[] ready = {false};
+            int[] sent = {0};
+            fixture.handshake.begin();
+            fixture.handshake.sendWhenReady(() -> ready[0], () -> sent[0]++);
+            switch (change) {
+                case "timeout" -> fixture.handshake.timeout();
+                case "isolate" -> fixture.handshake.isolate();
+                case "invalidate" -> fixture.handshake.invalidate();
+                case "connection" -> fixture.connection = new Object();
+                case "player" -> fixture.player = new Object();
+                case "disable" -> fixture.enabled = false;
+                case "restart" -> fixture.handshake.begin();
+                case "response" -> { fixture.handshake.receive(ConnectResponse.current(true), fixture.player); fixture.drain(); }
+            }
+            ready[0] = true;
+            fixture.handshake.tick();
+            assertEquals(0, sent[0], change);
+        }
+    }
+
+    @Test void rapidRetryRetainsOnlyNewestUnsentHandshake() {
+        Fixture fixture = new Fixture(false);
+        boolean[] ready = {false};
+        List<Integer> sent = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            int attempt = i;
+            fixture.handshake.begin();
+            fixture.handshake.sendWhenReady(() -> ready[0], () -> sent.add(attempt));
+        }
+        ready[0] = true;
+        fixture.handshake.tick();
+        fixture.handshake.tick();
+        assertEquals(List.of(99), sent);
+    }
+
     private static final class Fixture implements ConnectionHandshake.Effects {
         final ConnectionHandshake handshake = new ConnectionHandshake(this, this);
         final List<Runnable> queue = new ArrayList<>();

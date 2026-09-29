@@ -11,6 +11,8 @@ import net.minecraft.client.Minecraft;
 public interface VanillaClientNetworkService extends IClientNetworkService {
     void sendToNetworkServer(C2SPayload payload);
 
+    default boolean isNetworkChannelReady(C2SPayload payload) { return true; }
+
     @Override
     default <T extends C2SPayload> void sendToServer(T payload) {
         Minecraft minecraft = Minecraft.getInstance();

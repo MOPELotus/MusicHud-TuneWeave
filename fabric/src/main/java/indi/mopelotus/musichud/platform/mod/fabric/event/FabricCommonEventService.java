@@ -10,15 +10,15 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
-import java.util.HashSet;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.Set;
 import java.util.function.Consumer;
 
 @SuppressWarnings("unused")
 public class FabricCommonEventService implements ICommonEventService {
     private static volatile FabricCommonEventService instance;
-    private final Set<Consumer<IPlayerClient>> disconnectListeners = new HashSet<>();
-    private final Set<Runnable> stoppingListeners = new HashSet<>();
+    private final Set<Consumer<IPlayerClient>> disconnectListeners = new CopyOnWriteArraySet<>();
+    private final Set<Runnable> stoppingListeners = new CopyOnWriteArraySet<>();
 
     private FabricCommonEventService() {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {

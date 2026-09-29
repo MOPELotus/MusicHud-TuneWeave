@@ -58,9 +58,12 @@ public class HudRendererManager {
     private volatile Layout baseLayout;
     private float contentInterval;
     private volatile String musicDurationString = "";
-    private record LyricStyles(ScrollingLyricLineRenderer.Line first, ScrollingLyricLineRenderer.Line second) {}
-    private final indi.mopelotus.musichud.client.ui.LatestAsyncLoader<LyricStyles> lyrics = new indi.mopelotus.musichud.client.ui.LatestAsyncLoader<>(
-            task -> Minecraft.getInstance().execute(task), Runnable::run, 1);
+    private record LyricStyles(ScrollingLyricLineRenderer.Line first, ScrollingLyricLineRenderer.Line second, NowPlayingInfo.PlaybackSnapshot source) {}
+    private final indi.mopelotus.musichud.client.ui.TimedUiQueue<LyricStyles> lyrics =
+            new indi.mopelotus.musichud.client.ui.TimedUiQueue<>(System::nanoTime,
+                    (delay, task) -> CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.NANOSECONDS, MusicHud.EXECUTOR).execute(task),
+                    task -> Minecraft.getInstance().execute(task),
+                    this::publishLyricStyles, 256);
     private final indi.mopelotus.musichud.client.ui.LatestAsyncLoader<BackgroundData> artwork = new indi.mopelotus.musichud.client.ui.LatestAsyncLoader<>(
             task -> Minecraft.getInstance().execute(task),
             task -> CompletableFuture.delayedExecutor(1, java.util.concurrent.TimeUnit.SECONDS, MusicHud.EXECUTOR).execute(task), 3);
@@ -68,13 +71,21 @@ public class HudRendererManager {
     private Logger logger;
     private int albumImageThumbnailSize = -1;
 
+    private void publishLyricStyles(LyricStyles lines) {
+        var current = nowPlayingInfo.snapshot();
+        if (closed || current.musicDetail() != lines.source().musicDetail()
+                || !java.util.Objects.equals(current.startedAt(), lines.source().startedAt())) return;
+        LYRICS_LINE_RENDERER.setLines(lines.first(), lines.second());
+    }
+
     protected HudRendererManager() {
         nowPlayingInfo.getLyricLineUpdateListener().add(lyricLine -> {
             if (closed) return;
-            Duration totalDuration = nowPlayingInfo.snapshot().duration();
+            var source = nowPlayingInfo.snapshot();
+            Duration totalDuration = source.duration();
             long delay = lyricLine == null ? 0 : indi.mopelotus.musichud.client.utils.lyrics.LyricTiming.delayMillis(
                     nowPlayingInfo.getPlayedDuration(), lyricLine.getStartTime());
-            lyrics.load(() -> CompletableFuture.supplyAsync(() -> {
+            {
                 String text = lyricLine == null ? "" : lyricLine.getText();
                 String translated = lyricLine == null ? "" : lyricLine.getTranslatedText();
                 long scrollMillis = -1;
@@ -83,12 +94,10 @@ public class HudRendererManager {
                     if (duration == null && totalDuration != null) duration = totalDuration.minus(lyricLine.getStartTime());
                     if (duration != null) scrollMillis = Math.max(0, (long)(duration.toMillis() * .8));
                 }
-                return new LyricStyles(
+                lyrics.add(new LyricStyles(
                         new ScrollingLyricLineRenderer.Line(lyricLine, text, Theme.HUD_FADE_COLOR, Theme.HUD_EMPHASIZE_COLOR, scrollMillis),
-                        new ScrollingLyricLineRenderer.Line(lyricLine, translated, Theme.HUD_FADE_COLOR, Theme.HUD_FADE_COLOR, scrollMillis));
-            }, CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS, MusicHud.EXECUTOR)),
-                    lines -> LYRICS_LINE_RENDERER.setLines(lines.first(), lines.second()),
-                    error -> MusicHud.LOGGER.debug("HUD lyric update failed", error));
+                        new ScrollingLyricLineRenderer.Line(lyricLine, translated, Theme.HUD_FADE_COLOR, Theme.HUD_FADE_COLOR, scrollMillis), source), delay);
+            }
         });        PLAYER_HEAD_RENDERER.setPlayerSkinSupplier(() -> {
             PlayerInfo pusherPlayerInfo = nowPlayingInfo.getPusherPlayerInfo();
             return PlayerInfoUtil.getPlayerSkin(pusherPlayerInfo);

@@ -46,6 +46,30 @@ gradle.projectsEvaluated {
                     }
                 }
                 inspect(file.bytes, file.name, 0)
+                if (target.name == 'neoforge') {
+                    def gamePackages = ['org/apache/http/', 'org/apache/commons/io/',
+                                        'org/apache/commons/codec/', 'org/apache/commons/logging/']
+                    if (names.any { name -> name.endsWith('.class') && gamePackages.any { name.startsWith(it) } }) {
+                        throw new GradleException('NeoForge JAR exports packages owned by Minecraft runtime libraries')
+                    }
+                }
+                if (target.name == 'neoforge') {
+                    // Checking package names alone misses unrelocated callers from
+                    // main output masking the correctly relocated shadow classes.
+                    new java.util.zip.ZipFile(target.tasks.shadowJar.archiveFile.get().asFile).withCloseable { shaded ->
+                        new java.util.zip.ZipFile(file).withCloseable { deployed ->
+                            shaded.entries().each { entry ->
+                                if (!entry.directory && entry.name.endsWith('.class')) {
+                                    def actual = deployed.getEntry(entry.name)
+                                    if (actual == null || !Arrays.equals(shaded.getInputStream(entry).readAllBytes(),
+                                            deployed.getInputStream(actual).readAllBytes())) {
+                                        throw new GradleException('NeoForge deployment differs from relocated class: ' + entry.name)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 // Source attachments must match the feature selection as well.
                 sourceTasks.each { sourceTask ->
                     def sourceJar = sourceTask.archiveFile.get().asFile

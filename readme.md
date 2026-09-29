@@ -2,7 +2,7 @@
 
 MusicHud TuneWeave 是由 [TuneWeave](https://github.com/MOPELotus/TuneWeave) 驱动的 Minecraft 音乐播放与同步项目，支持点歌、队列、歌词、HUD 和多人同步。
 
-MusicHud TuneWeave is an independent LGPL fork of [MusicHud](https://github.com/Etern-34520/MusicHud), also derived from the former MusicHud-Paper implementation. It is not an official MusicHud release and does not guarantee API or protocol compatibility with upstream MusicHud.
+MusicHud TuneWeave is an independent LGPL fork of [MusicHud](https://github.com/Ephern/MusicHud), also derived from the former MusicHud-Paper implementation. It is not an official MusicHud release and does not guarantee API or protocol compatibility with upstream MusicHud.
 
 ## 支持范围
 

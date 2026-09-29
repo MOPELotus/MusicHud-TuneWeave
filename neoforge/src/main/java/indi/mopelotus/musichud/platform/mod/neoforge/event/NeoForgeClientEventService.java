@@ -8,15 +8,15 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
-import java.util.HashSet;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.Set;
 import java.util.function.Consumer;
 
 public class NeoForgeClientEventService implements IClientEventService {
     private static volatile NeoForgeClientEventService instance;
-    private final Set<Consumer<Player>> joinListeners = new HashSet<>();
-    private final Set<Consumer<Player>> quitListeners = new HashSet<>();
-    private final Set<Runnable> tickPostListeners = new HashSet<>();
+    private final Set<Consumer<Player>> joinListeners = new CopyOnWriteArraySet<>();
+    private final Set<Consumer<Player>> quitListeners = new CopyOnWriteArraySet<>();
+    private final Set<Runnable> tickPostListeners = new CopyOnWriteArraySet<>();
 
     private NeoForgeClientEventService() {
         NeoForge.EVENT_BUS.register(this);

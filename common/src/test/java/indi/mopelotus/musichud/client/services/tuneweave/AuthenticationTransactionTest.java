@@ -35,7 +35,7 @@ class AuthenticationTransactionTest {
                 paths.add(path);
                 Runnable callback = duringResponse; duringResponse = () -> {}; callback.run();
                 if (path.equals("/v1/auth/qr") || path.equals("/v1/auth/challenges"))
-                    return response("{\"transaction_id\":\"transaction\",\"url\":\"https://example.com/qr\"}");
+                    return response("{\"state\":\"waiting\",\"transaction_id\":\"transaction\",\"url\":\"https://example.com/qr\"}");
                 if (path.equals("/v1/auth/session"))
                     return response("{\"platform\":\"" + profilePlatform + "\",\"user_id\":\"user\",\"nickname\":\"Name\",\"avatar_url\":\"https://example.com/a\",\"authenticated\":true}");
                 if (path.endsWith("/verify")) submittedCode = body.getAsJsonObject().get("code").getAsString();
