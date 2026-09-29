@@ -43,8 +43,18 @@ public final class ClientGraphicsResources {
         return UI.create(() -> new OwnedRoundedDrawable(resources, image));
     }
 
+    public static icyllis.modernui.graphics.drawable.ImageDrawable createPlainDrawable(Resources resources, Image image) {
+        return UI.create(() -> new OwnedImageDrawable(resources, image));
+    }
+
+    private static final class OwnedImageDrawable extends icyllis.modernui.graphics.drawable.ImageDrawable implements AutoCloseable {
+        OwnedImageDrawable(Resources resources, Image image) { super(resources, image); }
+        @Override public void close() { getPaint().setShader(null); }
+    }
+
     public static void releaseDrawable(Drawable drawable) {
         if (drawable instanceof OwnedRoundedDrawable owned) UI.release(owned);
+        else if (drawable instanceof OwnedImageDrawable owned) UI.release(owned);
     }
 
     // RoundedImageDrawable caches a shader that owns an additional native image reference.

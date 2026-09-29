@@ -190,7 +190,8 @@ final class TuneWeaveCatalogService {
         for (JsonElement item : elements(gateway.requestForPlatform(
                 platform, "GET", "/v1/artists/"
                         + TuneWeaveApiClient.encodePathSegment(reference) + "/tracks",
-                Map.of("limit", "50", "offset", Integer.toString(Math.max(0, offset))), null).data())) {
+                Map.of("limit", "50", "offset", Integer.toString(Math.max(0, offset)), "order",
+                        platform == TuneWeavePlatform.KUWO || platform == TuneWeavePlatform.MIGU ? "platform_default" : "hot"), null).data())) {
             MusicDetail track = entities.toTrack(platform, unwrap(item));
             if (track != MusicDetail.NONE) {
                 result.add(track);
@@ -384,7 +385,12 @@ final class TuneWeaveCatalogService {
         }
 
         List<JsonObject> rawItems = new ArrayList<>();
-        var page = OffsetPagination.readPage(gateway.requestForPlatform(platform, "GET", "/v1/search", query, null), offset);
+        boolean publicSearch = platform == TuneWeavePlatform.KUWO
+                || (platform == TuneWeavePlatform.KUGOU || platform == TuneWeavePlatform.MIGU) && searchType != SearchType.MUSIC;
+        var response = publicSearch
+                ? gateway.requestWithoutCredential("GET", "/v1/search", query, null)
+                : gateway.requestForPlatform(platform, "GET", "/v1/search", query, null);
+        var page = OffsetPagination.readPage(response, offset);
         for (JsonElement item : page.items()) {
             JsonObject value = unwrap(item);
             if (!value.isEmpty()) {
@@ -392,7 +398,14 @@ final class TuneWeaveCatalogService {
             }
         }
         List<?> mapped = switch (searchType) {
-            case ALBUM -> rawItems.stream().map(value -> entities.toAlbum(platform, value)).toList();
+            case ALBUM -> page.items().stream().map(item -> {
+                JsonObject wrapper = TuneWeaveJson.object(item);
+                JsonObject value = unwrap(item);
+                if ("digital_album".equals(TuneWeaveJson.string(wrapper, "type")))
+                    return (Object) TuneWeavePersonalLibrary.parse(entities, platform,
+                            TuneWeavePersonalLibrary.Kind.DIGITAL_ALBUMS, 0, value);
+                return (Object) entities.toAlbum(platform, value);
+            }).toList();
             case ARTIST -> rawItems.stream().map(value -> entities.toArtist(platform, value)).toList();
             case PLAYLIST -> rawItems.stream().map(value -> entities.toPlaylist(platform, value)).toList();
             case RADIO -> rawItems.stream().map(value -> entities.toPodcast(platform, value)).toList();

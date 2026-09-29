@@ -107,6 +107,8 @@ neoForge {
 }
 
 dependencies {
+    implementation "com.twelvemonkeys.imageio:imageio-webp:3.13.1"
+    shadowBundle "com.twelvemonkeys.imageio:imageio-webp:3.13.1"
     common(project(path: ':common', configuration: 'namedElements')) { transitive = false }
     coreLib(project(path: ':core')) { transitive = false }
     shadowBundle(project(path: ':common', configuration: 'namedElements')) { transitive = false }
@@ -203,17 +205,39 @@ processResources {
 }
 
 shadowJar {
+    relocate 'com.twelvemonkeys', 'indi.mopelotus.musichud.shaded.twelvemonkeys'
+    // The private WebP reader is instantiated explicitly, without global ImageIO registration.
+    exclude 'META-INF/services/javax.imageio.spi.*'
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
     // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
     relocate 'com.fasterxml.jackson', 'indi.mopelotus.musichud.shaded.jackson'
+    // FML 4 resolves game libraries as named modules. Private audio/SVG copies
+    // must not export the same packages as Minecraft's HttpClient/Commons jars.
+    relocate 'org.apache.http', 'indi.mopelotus.musichud.shaded.http'
+    relocate 'org.apache.commons.io', 'indi.mopelotus.musichud.shaded.commons.io'
+    relocate 'org.apache.commons.codec', 'indi.mopelotus.musichud.shaded.commons.codec'
+    relocate 'org.apache.commons.logging', 'indi.mopelotus.musichud.shaded.commons.logging'
     mergeServiceFiles { setIncludes(['META-INF/services/com.fasterxml.jackson.*']) }
     exclude 'org/slf4j/**'
 }
 
 jar {
+    // Use the relocated decoder caller from shadowJar, not the original source-set output.
+    eachFile { details ->
+        if (details.path == 'indi/mopelotus/musichud/client/utils/image/WebpImages.class' &&
+                sourceSets.main.output.classesDirs.files.any { details.file.toPath().startsWith(it.toPath()) }) {
+            details.exclude()
+        }
+    }
     dependsOn shadowJar
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // The Java plugin adds the original main output before our shadow archive.
+    // Exclude that input so unrelocated project classes cannot mask shaded ones.
+    eachFile { details ->
+        def outputRoots = sourceSets.main.output.files.collect { it.toPath() }
+        if (outputRoots.any { details.file.toPath().startsWith(it) }) details.exclude()
+    }
     from(zipTree(shadowJar.archiveFile))
 }
 
@@ -244,3 +268,5 @@ tasks.named('createMinecraftArtifacts') {
 }
 
 apply from: rootProject.file('gradle/verify-shaded-jackson.gradle')
+
+apply from: rootProject.file('gradle/verify-shaded-webp.gradle')

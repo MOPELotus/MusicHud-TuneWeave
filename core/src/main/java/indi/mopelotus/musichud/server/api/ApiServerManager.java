@@ -413,7 +413,7 @@ public class ApiServerManager implements ServerRegister {
         Map<String, String> environment = builder.environment();
         environment.put("TUNEWEAVE_BIND", "127.0.0.1:" + serverConfig.getPort());
         environment.put("TUNEWEAVE_DATA_DIR", installationDirectory().resolve("tuneweave-data").toString());
-        return builder.start();
+        return SodaSignerSupport.launch(executable, builder);
     }
 
     private synchronized PrintWriter openLog() {
@@ -542,8 +542,8 @@ public class ApiServerManager implements ServerRegister {
     }
 
     public void log(String line, boolean error) {
-        if (error || line.contains("ERROR")) apiLogger.error(line.replace("[ERROR]", ""));
-        else apiLogger.debug(line.replace("[INFO]", ""));
+        var entry = TuneWeaveConsoleLine.parse(line, error);
+        apiLogger.log(entry.level(), entry.text());
     }
 
     private void setApiStatus(BinaryApiServerStatus status, long expectedGeneration) {

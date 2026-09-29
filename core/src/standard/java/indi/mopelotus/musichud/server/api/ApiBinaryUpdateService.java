@@ -53,7 +53,15 @@ public class ApiBinaryUpdateService {
             String tempFileName = artifact.getFile() + "." + manifest.getTag() + ".temp";
             Path tempFile = targetDir.resolve(tempFileName);
             return ApiServerFetcher.downloadTuneWeaveArtifact(artifact, tempFile, proxy, progress, cancelled)
-                    .thenApply(v -> new DownloadedRelease(manifest.getTag(), manifest.getVersion(), tempFile));
+                    .thenApply(v -> {
+                        try {
+                            var signer = "windows".equalsIgnoreCase(artifact.getPlatform())
+                                    ? SodaSignerInstaller.download(targetDir, proxy, progress, cancelled) : null;
+                            SodaSignerInstaller.checkCancelled(cancelled);
+                            return new DownloadedRelease(manifest.getTag(), manifest.getVersion(), tempFile, signer);
+                        } catch (IOException error) { throw new java.util.concurrent.CompletionException(error); }
+                        catch (InterruptedException error) { Thread.currentThread().interrupt(); throw new java.util.concurrent.CancellationException("Download cancelled"); }
+                    });
         });
     }
 
@@ -115,7 +123,27 @@ public class ApiBinaryUpdateService {
 
     public record ReleaseMeta(String version, String file) {}
 
-    public record DownloadedRelease(String tag, String version, Path tempFile) {}
+    public record DownloadedRelease(String tag, String version, Path tempFile, SodaSignerSupport.Installation signer) {
+        public DownloadedRelease(String tag, String version, Path tempFile) { this(tag, version, tempFile, null); }
+    }
+
+    public Path resolveFinalPath(DownloadedRelease release) {
+        if (release.signer() == null) return resolveFinalPath(release.tempFile(), release.tag());
+        try {
+            Path temporary = release.tempFile().toAbsolutePath();
+            Path directory = temporary.getParent();
+            if (!Files.isRegularFile(temporary, LinkOption.NOFOLLOW_LINKS)) return null;
+            SodaSignerSupport.validate(directory, release.signer());
+            // New main+descriptor pair: running and unrelated binaries are never overwritten.
+            Path target = directory.resolve("tuneweave-" + java.util.UUID.randomUUID() + ".exe");
+            SodaSignerSupport.writeNew(target, release.signer());
+            Files.move(temporary, target);
+            return target;
+        } catch (IOException invalid) {
+            LOGGER.warn("Could not install the managed TuneWeave/Soda signer pair");
+            return null;
+        }
+    }
 
     public boolean recordManagedInstallation(Path targetDir, String releaseTag, String version, String fileName) {
         if (releaseTag == null || releaseTag.isBlank() || version == null || version.isBlank()) {

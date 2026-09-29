@@ -25,6 +25,13 @@ public class NeoForgeClientNetworkService implements VanillaClientNetworkService
     }
 
     @Override
+    public boolean isNetworkChannelReady(C2SPayload payload) {
+        var listener = net.minecraft.client.Minecraft.getInstance().getConnection();
+        return listener != null && net.neoforged.neoforge.network.registration.NetworkRegistry.hasChannel(
+                listener, new CustomPacketPayloadWrapper<>(payload).type().id());
+    }
+
+    @Override
     public void sendToNetworkServer(C2SPayload payload) {
         // NeoForge moved its distributor helper within 1.21.6–1.21.8; the listener API is stable.
         Objects.requireNonNull(Minecraft.getInstance().getConnection())

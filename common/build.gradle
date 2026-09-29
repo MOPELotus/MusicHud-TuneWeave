@@ -64,6 +64,7 @@ configurations {
 }
 
 dependencies {
+    implementation "com.twelvemonkeys.imageio:imageio-webp:3.13.1"
     api project(':core')
 
     minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
