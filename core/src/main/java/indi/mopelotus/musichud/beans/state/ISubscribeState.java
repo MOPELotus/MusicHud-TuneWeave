@@ -8,6 +8,8 @@ import java.util.function.Consumer;
 public interface ISubscribeState<T> {
     long getBeanId();
 
+    default CompletableFuture<Boolean> isSupported() { return CompletableFuture.completedFuture(true); }
+
     CompletableFuture<Boolean> isSubscribed();
 
     CompletableFuture<Void> subscribe();

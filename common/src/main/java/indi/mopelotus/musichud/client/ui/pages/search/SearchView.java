@@ -21,7 +21,7 @@ import indi.mopelotus.musichud.beans.music.Playlist;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.services.music.MusicEntityCache;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveSearchPage;
-import indi.mopelotus.musichud.client.ui.components.PlatformSelector;
+import indi.mopelotus.musichud.client.ui.components.PlatformDropdown;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeavePodcast;
 import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
@@ -52,8 +52,10 @@ public class SearchView extends LinearLayout {
     private final HashSet<Consumer<SearchMeta>> searchRefreshListeners = new HashSet<>();
     private static final ClientConfig clientConfig = ClientConfig.getInstance();
     private EditText searchTextInput;
-    private PlatformSelector platformSelector;
+    private PlatformDropdown platformSelector;
     private SearchResultTabPage searchResultTabPage;
+    private Object capabilityRequest;
+    private TextView capabilityStatus;
     @Getter
     private String searchText;
     private final SearchRequestGate<SearchType> requests = new SearchRequestGate<>(MusicEntityCache::captureGeneration);
@@ -65,6 +67,7 @@ public class SearchView extends LinearLayout {
     }
 
     public void refresh() {
+        capabilityRequest = null;
         cancelSearches();
         Context context = getContext();
         removeAllViews();
@@ -81,14 +84,6 @@ public class SearchView extends LinearLayout {
             return;
         }
 
-        LinearLayout providers = new LinearLayout(context);
-        providers.setGravity(Gravity.CENTER);
-        platformSelector = new PlatformSelector(context, TuneWeavePlatform.values());
-        platformSelector.setSelectedPlatform(TuneWeaveClientService.getInstance().defaultPlatform());
-        providers.addView(platformSelector, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
-        LayoutParams providerParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
-        providerParams.setMargins(0, dp(16), 0, 0);
-        addView(providers, providerParams);
         LinearLayout top = new LinearLayout(context);
         top.setGravity(Gravity.CENTER);
         top.setOrientation(HORIZONTAL);
@@ -98,18 +93,22 @@ public class SearchView extends LinearLayout {
 
         LinearLayout searchWidget = new LinearLayout(context) {
             @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                int width = Math.min(MeasureSpec.getSize(widthSpec), dp(480));
+                int width = Math.min(MeasureSpec.getSize(widthSpec), dp(640));
                 super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), heightSpec);
                 setMeasuredDimension(width, getMeasuredHeight());
             }
         };
         searchWidget.setOrientation(HORIZONTAL);
+        searchWidget.setGravity(Gravity.CENTER_VERTICAL);
+        platformSelector = new PlatformDropdown(context);
+        platformSelector.setSelectedPlatform(TuneWeaveClientService.getInstance().defaultPlatform());
+        searchWidget.addView(platformSelector, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
         searchTextInput = new EditText(context, null, R.attr.editTextOutlinedStyle);
         searchTextInput.setTextAlignment(SearchView.TEXT_ALIGNMENT_CENTER);
         searchTextInput.setHint(I18n.get(MusicHud.MOD_ID + ".field.hint.searchMusic"));
         searchTextInput.setSingleLine();
         LayoutParams params = new LayoutParams(0, WRAP_CONTENT, 1);
-        params.setMargins(dp(52), 0, 0, 0);
+        params.setMargins(dp(8), 0, 0, 0);
         searchWidget.addView(searchTextInput, params);
 
         Button searchButton = new Button(context);
@@ -124,11 +123,11 @@ public class SearchView extends LinearLayout {
 
         top.addView(searchWidget, new LayoutParams(MATCH_PARENT, MATCH_PARENT));
 
-        searchResultTabPage = new SearchResultTabPage(context, this);
-        searchResultTabPage.clearResult();
-
-        LayoutParams resultAreaParams = new LayoutParams(MATCH_PARENT, 0, 1);
-        addView(searchResultTabPage, resultAreaParams);
+        capabilityStatus = new TextView(context);
+        capabilityStatus.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+        capabilityStatus.setTextAlignment(TEXT_ALIGNMENT_CENTER);
+        capabilityStatus.setOnClickListener(v -> loadSearchCapabilities());
+        addView(capabilityStatus, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 
         searchTextInput.setOnKeyListener((v, keyCode, event) -> {
             if (keyCode == KeyEvent.KEY_ENTER && event.getAction() == KeyEvent.ACTION_DOWN) {
@@ -138,31 +137,70 @@ public class SearchView extends LinearLayout {
             return false;
         });
         searchButton.setOnClickListener((v) -> refreshSearch(true));
-        platformSelector.setOnPlatformSelectedListener(platform -> {
-            cancelSearches(); searchResultTabPage.clearResult(); refreshSearch(true);
-        });
+        platformSelector.setOnPlatformSelectedListener(platform -> loadSearchCapabilities());
+        if (isAttachedToWindow()) loadSearchCapabilities();
 
     }
 
     @Override protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         instance = this;
-        post(() -> { if (instance == this && isAttachedToWindow()) refreshSearch(false); });
+        post(() -> { if (instance == this && isAttachedToWindow() && platformSelector != null) loadSearchCapabilities(); });
     }
 
     @Override protected void onDetachedFromWindow() {
+        capabilityRequest = null;
         if (instance == this) instance = null;
         cancelSearches();
         super.onDetachedFromWindow();
+    }
+
+    private void loadSearchCapabilities() {
+        if (instance != this || !isAttachedToWindow() || capabilityStatus == null) return;
+        Object ticket = capabilityRequest = new Object();
+        cancelSearches();
+        if (searchResultTabPage != null) {
+            searchResultTabPage.clearResult();
+            removeView(searchResultTabPage);
+            searchResultTabPage = null;
+        } else {
+            // Result buffers outlive individual pages. A rebuilt page must not
+            // display another platform's rows while its new request is pending.
+            SearchResultTabPage.clearCachedResults();
+        }
+        capabilityStatus.setVisibility(VISIBLE);
+        capabilityStatus.setText(I18n.get(MusicHud.MOD_ID + ".text.loading"));
+        TuneWeavePlatform platform = platformSelector.getSelectedPlatform();
+        var service = TuneWeaveClientService.getInstance();
+        var request = service.prepareViewRequest(() -> service.capabilities(platform));
+        MusicHud.EXECUTOR.execute(() -> {
+            try {
+                var capabilities = request.get();
+                var types = SearchPlatformPolicy.types(capabilities, platform);
+                MuiModApi.postToUiThread(() -> {
+                    if (instance != this || !isAttachedToWindow() || capabilityRequest != ticket) return;
+                    capabilityStatus.setVisibility(types.isEmpty() ? VISIBLE : GONE);
+                    capabilityStatus.setText(I18n.get(MusicHud.MOD_ID + ".text.platformUnavailable"));
+                    searchResultTabPage = new SearchResultTabPage(getContext(), this, types);
+                    addView(searchResultTabPage, new LayoutParams(MATCH_PARENT, 0, 1));
+                    refreshSearch(true);
+                });
+            } catch (RuntimeException failure) {
+                MuiModApi.postToUiThread(() -> {
+                    if (instance != this || !isAttachedToWindow() || capabilityRequest != ticket) return;
+                    capabilityStatus.setText(I18n.get(MusicHud.MOD_ID + ".button.loadingError"));
+                });
+            }
+        });
     }
 
     public void refreshSearch(boolean force) {
         if (searchResultTabPage == null || searchTextInput == null) return;
         searchText = searchTextInput.getText().toString().trim();
         if (searchText == null || searchText.isEmpty()) return;
-        int currentItem = searchResultTabPage.getPager().getCurrentItem();
-        SearchType[] searchTypes = {SearchType.MUSIC, SearchType.PLAYLIST, SearchType.ALBUM, SearchType.ARTIST, SearchType.RADIO};
-        SearchType searchType = searchTypes[currentItem];
+        if (searchResultTabPage == null) return;
+        SearchType searchType = searchResultTabPage.currentSearchType();
+        if (searchType == null) return;
         SearchMeta searchMeta = searchMetas.get(searchType);
         if (force || searchMeta == null || !searchMeta.text.equals(searchText)
                 || searchMeta.platform != platformSelector.getSelectedPlatform() || searchMeta.account != MusicEntityCache.captureGeneration()) {
@@ -172,15 +210,16 @@ public class SearchView extends LinearLayout {
             SearchMeta searchMeta1 = new SearchMeta(searchType, searchText, platformSelector.getSelectedPlatform(), MusicEntityCache.captureGeneration());
             searchMeta1.pendingFuture = new CompletableFuture<>();
             searchMetas.put(searchType, searchMeta1);
+            SearchResultTabPage.clearCachedResults(searchType);
             List.copyOf(searchRefreshListeners).forEach(listener -> listener.accept(searchMeta1));
             sendSearchRequest(searchText, searchType, 0);
         }
     }
 
     public void loadMoreSearchResult() {
-        int currentItem = searchResultTabPage.getPager().getCurrentItem();
-        SearchType[] searchTypes = {SearchType.MUSIC, SearchType.PLAYLIST, SearchType.ALBUM, SearchType.ARTIST, SearchType.RADIO};
-        SearchType searchType = searchTypes[currentItem];
+        if (searchResultTabPage == null) return;
+        SearchType searchType = searchResultTabPage.currentSearchType();
+        if (searchType == null) return;
         SearchMeta searchMeta = searchMetas.get(searchType);
         if (searchMeta != null && (searchMeta.platform != platformSelector.getSelectedPlatform()
                 || searchMeta.account != MusicEntityCache.captureGeneration())) { refreshSearch(true); return; }
@@ -227,7 +266,7 @@ public class SearchView extends LinearLayout {
         switch (type) {
             case MUSIC -> setSearchMusicResult(offset, (List<MusicDetail>) result);
             case PLAYLIST -> setSearchPlaylistResult(offset, (List<Playlist>) result);
-            case ALBUM -> setSearchAlbumResult(offset, (List<Album>) result);
+            case ALBUM -> setSearchAlbumResult(offset, result);
             case ARTIST -> setSearchArtistResult(offset, (List<Artist>) result);
             case RADIO -> setSearchRadioResult(offset, (List<TuneWeavePodcast>) result);
             default -> { }
@@ -293,7 +332,7 @@ public class SearchView extends LinearLayout {
         }
     }
 
-    public void setSearchAlbumResult(int offset, List<Album> result) {
+    public void setSearchAlbumResult(int offset, List<?> result) {
         SearchType searchType = SearchType.ALBUM;
         if (offset == 0) {
             SearchAlbumResultView.setResult(result);

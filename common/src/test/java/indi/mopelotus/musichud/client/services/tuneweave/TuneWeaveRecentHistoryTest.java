@@ -96,6 +96,7 @@ class TuneWeaveRecentHistoryTest {
         assertThrows(TuneWeaveException.class, () -> f.service.load(NETEASE, Kind.ALBUMS));
         assertFalse(f.service.load(NETEASE, Kind.PLAYLISTS).entries().isEmpty());
         for (String code : List.of("authentication_required", "permission_denied", "rate_limited", "upstream_error", "upstream_timeout")) {
+            f.credentials.put(NETEASE, "account-a");
             TuneWeaveException failure = new TuneWeaveException("normalized", 502, code, false, JsonNull.INSTANCE);
             f.onHistory = () -> { throw failure; };
             assertSame(failure, assertThrows(TuneWeaveException.class, () -> f.service.load(NETEASE, Kind.TRACKS)));
@@ -250,6 +251,8 @@ class TuneWeaveRecentHistoryTest {
                         case "getTuneWeaveBaseUrl" -> "http://127.0.0.1:7832";
                         case "getDefaultMusicPlatform" -> "netease";
                         case "getTuneWeaveCredential" -> credentials.getOrDefault(TuneWeavePlatform.fromApiName((String) args[0]), "");
+                        case "clearTuneWeaveCredential" -> { credentials.remove(TuneWeavePlatform.requireApiName((String) args[0])); yield null; }
+                        case "save" -> null;
                         default -> throw new AssertionError(method.getName());
                     });
             TuneWeaveGateway gateway = new TuneWeaveGateway(config, (base, method, path, query, body, headers) -> {

@@ -1,6 +1,9 @@
 package indi.mopelotus.musichud.client.ui.pages.search;
 
 import icyllis.modernui.core.Context;
+import icyllis.modernui.view.ViewGroup;
+import indi.mopelotus.musichud.client.ui.layouts.ViewportListLayout;
+import indi.mopelotus.musichud.client.ui.layouts.VirtualizedListLayout;
 import icyllis.modernui.widget.LinearLayout;
 import icyllis.modernui.widget.Toast;
 import indi.mopelotus.musichud.MusicHud;
@@ -18,59 +21,45 @@ import net.minecraft.client.resources.language.I18n;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class SearchMusicResultView extends LinearLayout {
-    @Getter
-    private static SearchMusicResultView instance;
+public class SearchMusicResultView extends ViewportListLayout<MusicDetail, MusicListItem> {
+    @Getter private static SearchMusicResultView instance;
     private static final SearchResultBuffer<MusicDetail> results = new SearchResultBuffer<>(MusicDetail::getSourceRef);
-
     public SearchMusicResultView(Context context) {
-        super(context);
-        instance = this;
-        setOrientation(LinearLayout.VERTICAL);
-        refresh();
-    }
-
-    public static void setResult(List<MusicDetail> result) {
-        results.replace(result);
-        if (instance != null) {
-            instance.refresh();
-        }
-    }
-
-    public void refresh() {
-        List<MusicDetail> result = results.snapshot();
-        removeAllViews();
-        if (result != null) {
-            for (MusicDetail musicDetail : result) {
-                addItem(getContext(), musicDetail);
+        super(context, new VirtualizedListLayout.Adapter<>() {
+            public long idOf(MusicDetail music) { return music.getId(); }
+            public MusicListItem createItem(ViewGroup parent) {
+                var item = new MusicListItem(context);
+                InsetBackgroundFactory.builder().cornerRadius(item.dp(12)).inset(item.dp(1))
+                        .padding(new InsetBackgroundFactory.Padding(item.dp(4), item.dp(4), item.dp(4), item.dp(4)))
+                        .build().applyBackgroundTo(item);
+                return item;
             }
-        }
-    }
-
-    public void append(List<MusicDetail> page) {
-        for (MusicDetail item : results.append(page)) addItem(getContext(), item);
-    }
-
-    private void addItem(Context context, MusicDetail musicDetail) {
-        var musicLayout = new MusicListItem(context);
-        musicLayout.bindData(musicDetail);
-        InsetBackgroundFactory background = InsetBackgroundFactory.builder()
-                .cornerRadius(dp(12))
-                .inset(dp(1))
-                .padding(new InsetBackgroundFactory.Padding(dp(4), dp(4), dp(4), dp(4))).build();
-        background.applyBackgroundTo(musicLayout);
-
-        musicLayout.setClickable(true);
-        String artistsName = musicDetail.getArtists().stream()
-                .map(Artist::getName).collect(Collectors.joining(" / "));
-        musicLayout.setOnClickListener((view) -> {
-            if ("video".equals(musicDetail.getSourceKind())) {
-                RouterContainer.getInstance().pushNavigate(new VideoDetailView(context, musicDetail));
-                return;
+            public void clearItem(MusicListItem item) { item.clearData(); item.setOnClickListener(null); }
+            public long boundIdOf(MusicListItem item) { return item.getMusicDetail() == null ? -1 : item.getMusicDetail().getId(); }
+            public void bindItem(MusicListItem item, MusicDetail music) {
+                Object account = indi.mopelotus.musichud.client.services.music.MusicEntityCache.captureGeneration();
+                item.bindData(music);
+                item.setClickable(true);
+                item.setOnClickListener(view -> {
+                    if (account != indi.mopelotus.musichud.client.services.music.MusicEntityCache.captureGeneration()) return;
+                    if ("video".equals(music.getSourceKind())) {
+                        RouterContainer.getInstance().pushNavigate(new VideoDetailView(context, music)); return;
+                    }
+                    MusicService.getInstance().sendPushMusicToQueue(music);
+                    String artists = music.getArtists().stream().map(Artist::getName).collect(Collectors.joining(" / "));
+                    ToastUtil.show(Toast.makeText(context, I18n.get(MusicHud.MOD_ID + ".text.pushedMusicToPlaylist")
+                            + "\n" + music.getName() + " - " + artists, Toast.LENGTH_SHORT));
+                });
             }
-            MusicService.getInstance().sendPushMusicToQueue(musicDetail);
-            ToastUtil.show(Toast.makeText(context, I18n.get(MusicHud.MOD_ID + ".text.pushedMusicToPlaylist") + "\n" + musicDetail.getName() + " - " + artistsName, Toast.LENGTH_SHORT));
         });
-        addView(musicLayout, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        setDefaultItemHeight(dp(72)); setAnimationsEnabled(false);
+        instance = this; refresh();
     }
+    public static void setResult(List<MusicDetail> values) {
+        results.replace(values); if (instance != null) instance.refresh();
+    }
+    public void refresh() { resetItems(results.snapshot() == null ? List.of() : results.snapshot()); }
+    public void append(List<MusicDetail> page) { results.append(page); syncItems(results.snapshot()); }
+    @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); instance = this; refresh(); }
+    @Override protected void onDetachedFromWindow() { if (instance == this) instance = null; super.onDetachedFromWindow(); }
 }

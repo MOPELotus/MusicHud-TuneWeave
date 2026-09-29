@@ -26,6 +26,25 @@ final class TuneWeaveGateway {
                 Map<String, String> query, JsonElement body, List<String> credentials);
     }
     private final Transport transport;
+    private final Map<TuneWeavePlatform, CredentialState> states = new EnumMap<>(TuneWeavePlatform.class);
+    private static final class CredentialState {
+        volatile String value;
+        CredentialState(String value) { this.value = value; }
+    }
+    private synchronized CredentialState state(TuneWeavePlatform platform) {
+        String value = config.getTuneWeaveCredential(platform.apiName());
+        CredentialState state = states.get(platform);
+        if (state == null || !state.value.equals(value)) {
+            state = new CredentialState(value);
+            states.put(platform, state);
+        }
+        return state;
+    }
+    synchronized Object accountIdentity(TuneWeavePlatform platform) { return state(platform); }
+    synchronized void publishIfAccountCurrent(TuneWeavePlatform platform, Object identity, Runnable publish) {
+        if (state(platform) != identity) throw new CancellationException("TuneWeave account changed");
+        publish.run();
+    }
     private final ThreadLocal<RequestContext> boundContext = new ThreadLocal<>();
 
     TuneWeaveGateway() { this(ClientConfig.getInstance()); }
@@ -39,20 +58,20 @@ final class TuneWeaveGateway {
     private static final class RequestContext {
         final String baseUrl;
         final TuneWeavePlatform platform;
-        final Map<TuneWeavePlatform, String> credentials;
-        RequestContext(String baseUrl, TuneWeavePlatform platform, Map<TuneWeavePlatform, String> credentials) {
+        final Map<TuneWeavePlatform, CredentialState> credentials;
+        RequestContext(String baseUrl, TuneWeavePlatform platform, Map<TuneWeavePlatform, CredentialState> credentials) {
             this.baseUrl = baseUrl;
             this.platform = platform;
             this.credentials = Map.copyOf(credentials);
         }
     }
 
-    private RequestContext snapshot() {
+    private synchronized RequestContext snapshot() {
         RequestContext active = boundContext.get();
         if (active == null) {
-            Map<TuneWeavePlatform, String> credentials = new EnumMap<>(TuneWeavePlatform.class);
+            Map<TuneWeavePlatform, CredentialState> credentials = new EnumMap<>(TuneWeavePlatform.class);
             for (TuneWeavePlatform platform : TuneWeavePlatform.values()) {
-                credentials.put(platform, config.getTuneWeaveCredential(platform.apiName()));
+                credentials.put(platform, state(platform));
             }
             active = new RequestContext(config.getTuneWeaveBaseUrl(), defaultPlatform(), credentials);
         }
@@ -85,11 +104,15 @@ final class TuneWeaveGateway {
     private void requireCurrentContext() {
         RequestContext context = boundContext.get();
         if (context == null) return;
+        requireCurrentContext(context);
+    }
+
+    private void requireCurrentContext(RequestContext context) {
         if (!context.baseUrl.equals(config.getTuneWeaveBaseUrl())) {
             throw new CancellationException("TuneWeave endpoint changed during request");
         }
         for (var credential : context.credentials.entrySet()) {
-            if (!credential.getValue().equals(config.getTuneWeaveCredential(credential.getKey().apiName()))) {
+            if (credential.getValue() != state(credential.getKey())) {
                 throw new CancellationException("TuneWeave account changed during request");
             }
         }
@@ -115,16 +138,23 @@ final class TuneWeaveGateway {
 
     String credential(TuneWeavePlatform platform) {
         requireCurrentContext();
-        if (boundContext.get() != null) return boundContext.get().credentials.get(platform);
+        if (boundContext.get() != null) return boundContext.get().credentials.get(platform).value;
         return config.getTuneWeaveCredential(Objects.requireNonNull(platform).apiName());
     }
 
     TuneWeaveApiClient.TuneWeaveResponse requestForPlatform(
             TuneWeavePlatform platform, String method, String path,
             Map<String, String> query, JsonElement body) {
-        String value = credential(platform);
-        List<String> credentials = value.isBlank() ? List.of() : List.of(value);
-        return request(method, path, query, body, credentials);
+        // beta.1 exposes these catalog reads only in public scope. Never apply this to
+        // account libraries, playlists, track authorization, or mutations.
+        if ("GET".equals(method) && (platform == TuneWeavePlatform.KUGOU || platform == TuneWeavePlatform.KUWO || platform == TuneWeavePlatform.MIGU)
+                && (path.startsWith("/v1/albums/") || path.startsWith("/v1/artists/")))
+            return requestWithoutCredential(method, path, query, body);
+        return capture(() -> {
+            String value = credential(platform);
+            List<String> credentials = value.isBlank() ? List.of() : List.of(value);
+            return request(method, path, query, body, credentials);
+        }).get();
     }
 
     TuneWeaveApiClient.TuneWeaveResponse requestWithAllCredentials(
@@ -143,24 +173,27 @@ final class TuneWeaveGateway {
     }
 
     synchronized void saveCredential(TuneWeavePlatform expectedPlatform, JsonElement element) {
-        JsonObject credential = TuneWeaveJson.object(element);
-        String format = TuneWeaveJson.requiredString(credential, "format");
-        String platform = TuneWeaveJson.requiredString(credential, "platform");
-        String value = TuneWeaveJson.requiredString(credential, "value");
-        if (!CREDENTIAL_FORMAT.equals(format)
-                || TuneWeaveReference.requirePlatform(platform) != expectedPlatform
-                || !value.startsWith(CREDENTIAL_PREFIX)) {
-            throw new TuneWeaveApiClient.TuneWeaveException(
-                    "TuneWeave returned an invalid caller credential", false);
-        }
+        JsonObject meta = new JsonObject(); meta.add("caller_credential", element);
+        var values = indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveCredentialUpdates.parse(meta, List.of());
+        String value = values.get(expectedPlatform.apiName());
+        if (value == null || values.size() != 1) throw new TuneWeaveApiClient.TuneWeaveException("Unexpected credential platform", false);
         config.setTuneWeaveCredential(expectedPlatform.apiName(), value);
+        states.put(expectedPlatform, new CredentialState(value));
         config.setDefaultMusicPlatform(expectedPlatform.apiName());
         config.save();
     }
 
     synchronized void clearCredential(TuneWeavePlatform platform) {
         config.clearTuneWeaveCredential(Objects.requireNonNull(platform).apiName());
+        states.put(platform, new CredentialState(""));
         config.save();
+    }
+
+    synchronized boolean clearCredentialIfCurrent(TuneWeavePlatform platform, Object expected, Runnable clearSession) {
+        if (state(platform) != expected) return false;
+        clearSession.run();
+        clearCredential(platform);
+        return true;
     }
 
     synchronized boolean clearCredentialIfUnchanged(TuneWeavePlatform platform, String expected, Runnable clearSession) {
@@ -181,11 +214,52 @@ final class TuneWeaveGateway {
             String method, String path, Map<String, String> query,
             JsonElement body, List<String> credentials) {
         requireCurrentContext();
-        RequestContext context = boundContext.get();
-        var response = transport.request(
-                context == null ? config.getTuneWeaveBaseUrl() : context.baseUrl,
-                method, path, query, body, credentials);
-        requireCurrentContext();
-        return response;
+        RequestContext context = snapshot();
+        Map<TuneWeavePlatform, String> sent = new EnumMap<>(TuneWeavePlatform.class);
+        synchronized (this) {
+            requireCurrentContext(context);
+            context.credentials.forEach((platform, state) -> {
+                if (!state.value.isBlank() && credentials.contains(state.value)) sent.put(platform, state.value);
+            });
+            if (!sent.values().containsAll(credentials))
+                throw new CancellationException("TuneWeave credential changed before request");
+        }
+        try {
+            var response = transport.request(context.baseUrl, method, path, query, body, credentials);
+            applyUpdates(context, sent, response.credentialUpdates(), false, null);
+            requireCurrentContext(context);
+            return response;
+        } catch (TuneWeaveApiClient.TuneWeaveException error) {
+            boolean invalid = "authentication_required".equals(error.getCode()) || "conflict".equals(error.getCode());
+            applyUpdates(context, sent, error.getCredentialUpdates(), invalid, error.getPlatform());
+            throw error;
+        }
+    }
+
+    private synchronized void applyUpdates(RequestContext context, Map<TuneWeavePlatform, String> sent,
+                                           Map<String, String> updates, boolean invalid, TuneWeavePlatform affected) {
+        requireCurrentContext(context);
+        // Even a late failed request must never delete or overwrite a newer login/rotation.
+        for (var entry : sent.entrySet()) {
+            if (!state(entry.getKey()).value.equals(entry.getValue()))
+                throw new CancellationException("TuneWeave credential changed during request");
+        }
+        if (invalid) {
+            if (affected != null) {
+                if (sent.containsKey(affected)) clearCredential(affected);
+            } else if (sent.size() == 1) clearCredential(sent.keySet().iterator().next());
+            return;
+        }
+        for (var entry : updates.entrySet()) {
+            TuneWeavePlatform platform = TuneWeavePlatform.requireApiName(entry.getKey());
+            if (!sent.containsKey(platform))
+                throw new TuneWeaveApiClient.TuneWeaveException("Unexpected TuneWeave credential update platform", false);
+        }
+        for (var entry : updates.entrySet()) {
+            TuneWeavePlatform platform = TuneWeavePlatform.requireApiName(entry.getKey());
+            config.setTuneWeaveCredential(platform.apiName(), entry.getValue());
+            context.credentials.get(platform).value = entry.getValue();
+        }
+        if (!updates.isEmpty()) config.save();
     }
 }

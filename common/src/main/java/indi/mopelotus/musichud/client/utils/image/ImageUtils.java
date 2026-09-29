@@ -217,6 +217,7 @@ public class ImageUtils {
     }
 
     private static Bitmap decodeBounded(byte[] bytes, BitmapFactory.Options options) throws IOException {
+        bytes = WebpImages.normalize(bytes);
         return ModernUiBitmapAdapter.decodeBounded(bytes, options);
     }
 

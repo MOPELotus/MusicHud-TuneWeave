@@ -33,8 +33,7 @@ public final class TuneWeaveRoutePolicy {
             return false;
         }
         if ("GET".equalsIgnoreCase(method)
-                && normalized.startsWith("/v1/users/")
-                && normalized.endsWith("/playlists/created")) {
+                && normalized.matches("/v1/users/[^/]+/(playlists/created|favorites/playlists)")) {
             return true;
         }
         return !isSocialPath(normalized);
