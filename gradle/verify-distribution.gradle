@@ -17,7 +17,7 @@ gradle.projectsEvaluated {
             doLast {
                 def file = deploymentTask.archiveFile.get().asFile
                 boolean cf = rootProject.distribution == 'cf'
-                def forbidden = ['ApiServerFetcher', 'ApiBinaryUpdateService', 'ApiDownloadSession',
+                def forbidden = ['UpdateInstaller', 'UpdateBackupCleanup', 'installer.jar', 'ApiServerFetcher', 'ApiBinaryUpdateService', 'ApiDownloadSession',
                                  'release-manifest.json', 'NeteaseCloudMusicApiEnhanced/api-enhanced/releases',
                                  'com/sedmelluq/discord/lavaplayer/source/youtube/',
                                  'com.sedmelluq.discord.lavaplayer.source.youtube.',

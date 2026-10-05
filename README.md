@@ -128,3 +128,15 @@ CF 版不包含 TuneWeave 下载器、更新器或下载界面。用户需自行
 两种版本使用相同的模组标识、配置路径及通信协议，请只安装其中一种。CF 后缀标识发行方式，不代表已经通过 CurseForge 审核。构建会检查最终 JAR、嵌套依赖和源码 JAR，防止 CF 版残留下载实现。
 
 插件分支也接受该参数并添加 `-cf` 后缀，功能不变：服务器和代理始终不运行 TuneWeave。Actions 手动运行时可选择 `distribution=cf` 获取全版本送审产物；该模式不自动发布 GitHub Release 或上传平台；平台发布由前述独立的 `Platform publishing` 工作流控制。
+
+## 致谢与许可
+
+感谢 [Ephern / Etern 的 MusicHud](https://github.com/Ephern/MusicHud)、[ModernUI](https://github.com/BloCamLimb/ModernUI-MC)、mVUS 维护者，以及 [TuneWeave](https://github.com/MOPELotus/TuneWeave)。本项目由 MOPELotus 维护，保留上游署名，按 [LGPL-3.0](license) 发布。
+
+### 客户端更新
+
+客户端启动后检查 GitHub Release 中匹配当前发行版、游戏版本和加载器的更新，正式版与测试版都会提示；设置页也提供手动检查。普通版只自动更新普通版，CF 版只提示匹配的 CF 更新并打开下载页面。CF 版选择“去下载”后打开对应的 GitHub Release 页面，退出游戏后手动替换匹配的 CF JAR，不含自动安装器。普通版选择“立即更新”后下载并校验文件，退出游戏后由独立 Java 进程安装，下次启动生效。请正常退出并稍等安装完成后再启动；旧版 JAR 与安装日志保留在 `mods/.musichud-tuneweave-updates/`。开发目录、符号链接或非 `mods` 目录安装不执行自动替换。
+
+更新目录只接受本仓库发布流程产生、含有客户端身份元数据的文件。历史版本没有更新目录时不会被作为自动更新候选。CF 首次提示与更新提示均说明精简范围，并提供 [完整版下载](https://github.com/MOPELotus/MusicHud-TuneWeave/releases) 入口；请只安装一种发行版。
+
+普通版更新备份只保留到新版首次正常启动：进入主菜单或游戏并持续正常运行一秒后，验证当前 JAR 与安装记录一致，清理对应更新会话目录（旧 JAR、安装器和日志）；更新根目录为空时一并移除。失败、待安装、身份不匹配或含未知文件的目录不自动删除。
