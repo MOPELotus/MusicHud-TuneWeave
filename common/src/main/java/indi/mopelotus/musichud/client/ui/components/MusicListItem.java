@@ -5,9 +5,11 @@ import icyllis.modernui.graphics.Image;
 import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.text.SpannableString;
 import icyllis.modernui.text.Spanned;
+import icyllis.modernui.text.TextUtils;
 import icyllis.modernui.text.style.ImageSpan;
 import icyllis.modernui.view.Gravity;
 import icyllis.modernui.view.View;
+import icyllis.modernui.view.MeasureSpec;
 import icyllis.modernui.widget.Button;
 import icyllis.modernui.widget.LinearLayout;
 import icyllis.modernui.widget.TextView;
@@ -51,6 +53,9 @@ public class MusicListItem extends LinearLayout {
     @Getter
     private UrlImageView albumImageView;
     private TextView musicName;
+    private LinearLayout detailsRow;
+    private boolean compactActions;
+    private final int minimumDetailsWidth;
     private boolean platformActionsEnabled = true;
 
     public void setPlatformActionsEnabled(boolean enabled) {
@@ -79,6 +84,9 @@ public class MusicListItem extends LinearLayout {
 
     public MusicListItem(Context context) {
         super(context);
+        // Match the pixel dimensions assigned to this row, even if GUI density changes
+        // while an existing virtualized item is reused.
+        minimumDetailsWidth = dp(imageSize + 12 + 160 + 10);
         initView(context);
     }
 
@@ -88,28 +96,34 @@ public class MusicListItem extends LinearLayout {
         setLayoutParams(musicLayoutParams);
         setGravity(Gravity.CENTER_VERTICAL);
 
+        detailsRow = new LinearLayout(context);
+        detailsRow.setOrientation(HORIZONTAL);
+        detailsRow.setGravity(Gravity.CENTER_VERTICAL);
+        addView(detailsRow, new LayoutParams(0, WRAP_CONTENT, 1));
+
         albumImageView = new UrlImageView(context);
         albumImageView.setCornerRadius(dp(4));
         albumImageView.setAspectRatio(1);
-        addView(albumImageView, new LayoutParams(dp(imageSize), dp(imageSize)));
+        detailsRow.addView(albumImageView, new LayoutParams(dp(imageSize), dp(imageSize)));
 
         LinearLayout musicTexts = new LinearLayout(context);
         musicTexts.setOrientation(VERTICAL);
         musicTexts.setGravity(Gravity.CENTER_VERTICAL);
         LayoutParams textsParams = new LayoutParams(0, WRAP_CONTENT, 1);
         textsParams.setMargins(dp(12), 0, 0, 0);
-        addView(musicTexts, textsParams);
+        detailsRow.addView(musicTexts, textsParams);
 
         LinearLayout row1 = new LinearLayout(context);
         row1.setOrientation(HORIZONTAL);
         row1.setGravity(Gravity.CENTER_VERTICAL);
-        musicTexts.addView(row1);
+        musicTexts.addView(row1, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 
         musicName = new TextView(context);
         musicName.setSingleLine(true);
+        musicName.setEllipsize(TextUtils.TruncateAt.END);
         musicName.setTextSize(Theme.TEXT_SIZE_LARGE);
         musicName.setTextColor(Theme.NORMAL_TEXT_COLOR);
-        row1.addView(musicName, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+        row1.addView(musicName, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
 
         row2 = new FlexWrapLayout(context);
         row2.setAnimationsEnabled(false);
@@ -196,6 +210,31 @@ public class MusicListItem extends LinearLayout {
 
     public void setRowAnimationsEnabled(boolean enabled) {
         row2.setAnimationsEnabled(enabled);
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        buttonsLayout.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+        int available = MeasureSpec.getSize(widthMeasureSpec) - getPaddingLeft() - getPaddingRight();
+        boolean compact = MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED
+                && available < minimumDetailsWidth + buttonsLayout.getMeasuredWidth();
+        if (compact != compactActions) {
+            compactActions = compact;
+            setOrientation(compact ? VERTICAL : HORIZONTAL);
+            LayoutParams details = (LayoutParams) detailsRow.getLayoutParams();
+            details.width = compact ? MATCH_PARENT : 0;
+            details.weight = compact ? 0 : 1;
+            detailsRow.setLayoutParams(details);
+            LayoutParams actions = (LayoutParams) buttonsLayout.getLayoutParams();
+            actions.height = compact ? WRAP_CONTENT : MATCH_PARENT;
+            actions.gravity = compact ? Gravity.END : Gravity.CENTER_VERTICAL;
+            actions.topMargin = compact ? dp(4) : 0;
+            buttonsLayout.setLayoutParams(actions);
+            musicName.setSingleLine(!compact);
+            musicName.setMaxLines(compact ? 2 : 1);
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
     public void clearData() {

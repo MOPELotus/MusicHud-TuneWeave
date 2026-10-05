@@ -712,6 +712,12 @@ public class RouterContainer extends FrameLayout {
         return currentPageKey;
     }
 
+    /** Incoming page owns visibility decisions before the transition animation finishes. */
+    @Nullable
+    public String getEffectivePageKey() {
+        return isTransitioning && transitionTargetKey != null ? transitionTargetKey : currentPageKey;
+    }
+
     @Nullable
     public View getCurrentPage() {
         if (currentPageKey == null) {

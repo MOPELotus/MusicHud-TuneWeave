@@ -39,6 +39,9 @@ public final class CommonInitializer {
         ServerConfigDefinition.getInstance().load();
         if (inClient) {
             ClientConfigDefinition.getInstance().load();
+            indi.mopelotus.musichud.client.update.ClientUpdateService.initialize(
+                    container.getModInfo().getOwningFile().getFile().getFilePath(), container.getModInfo().getVersion().toString(),
+                    "neoforge", net.minecraft.SharedConstants.getCurrentVersion().getName());
             container.registerExtensionPoint(IConfigScreenFactory.class, new ConfigScreenFactory());
         }
         MusicHud.init();
@@ -48,6 +51,7 @@ public final class CommonInitializer {
             modEventBus.register(NeoForgeKeyRegistryService.getInstance());
         }
         MusicHud.onConfigLoaded();
+        if (inClient) indi.mopelotus.musichud.client.update.ClientUpdateService.watchSuccessfulStartup();
     }
 
     @SubscribeEvent
