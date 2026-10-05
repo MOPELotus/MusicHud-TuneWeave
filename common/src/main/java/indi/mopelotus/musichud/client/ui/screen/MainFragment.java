@@ -49,6 +49,7 @@ import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
 public class MainFragment extends Fragment {
+    private indi.mopelotus.musichud.client.update.ClientUpdateUi updateUi;
     private static final ClientConfig clientConfig = ClientConfig.getInstance();
     private static final ConnectionManager connectionManager = ConnectionManager.getInstance();
     private final FrameProgressUpdater progressUpdater = new FrameProgressUpdater(
@@ -566,6 +567,7 @@ public class MainFragment extends Fragment {
             playbackStateRegister = playingInfo.addPlaybackStateListener(playbackStateListener);
             applySnapshot(playingInfo.snapshot(), false);
             base.post(() -> { if (instance == this && visible) updateLyricsPanelVisibility(); });
+            updateUi = indi.mopelotus.musichud.client.update.ClientUpdateUi.attach(base);
             return base;
         } catch (Exception e) {
             onDestroyView();
@@ -591,7 +593,7 @@ public class MainFragment extends Fragment {
     private void updateLyricsPanelVisibility() {
         RouterContainer rc = RouterContainer.getInstance();
         if (rc == null) return;
-        String currentKey = rc.getCurrentPageKey();
+        String currentKey = rc.getEffectivePageKey();
         if ("Home".equals(currentKey) || currentKey == null) return;
         if (shouldShowLyricsPanel()) {
             showLyricsPanel();
@@ -731,6 +733,7 @@ public class MainFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        if (updateUi != null) { updateUi.close(); updateUi = null; }
         visible = false;
         progressUpdater.stop();
         if (playbackStateRegister != null) { playbackStateRegister.unregister(); playbackStateRegister = null; }
