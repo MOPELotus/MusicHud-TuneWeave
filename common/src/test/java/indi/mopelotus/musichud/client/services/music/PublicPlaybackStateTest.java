@@ -8,6 +8,43 @@ import java.util.concurrent.CompletableFuture;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PublicPlaybackStateTest {
+    @Test void currentWrappedTimeoutIsLoggedWithoutSecretsAndRetiredFailureIsSilent() {
+        var logger = (org.apache.logging.log4j.core.Logger) indi.mopelotus.musichud.MusicHud.getLogger(PublicPlaybackState.class);
+        var messages = new ArrayList<String>();
+        var capture = new org.apache.logging.log4j.core.appender.AbstractAppender(
+                "playback-failure-test", null, org.apache.logging.log4j.core.layout.PatternLayout.createDefaultLayout(),
+                false, org.apache.logging.log4j.core.config.Property.EMPTY_ARRAY) {
+            @Override public void append(org.apache.logging.log4j.core.LogEvent event) {
+                messages.add(event.getMessage().getFormattedMessage());
+                assertNull(event.getThrown(), "raw exceptions may contain credentials");
+            }
+        };
+        capture.start(); logger.addAppender(capture);
+        try {
+            Fixture f = new Fixture();
+            f.state.accept(session(1), MusicDetail.NONE);
+            f.starts.getFirst().completeExceptionally(new java.util.concurrent.TimeoutException("retired"));
+            PlaybackSession latest = session(2);
+            f.state.accept(latest, MusicDetail.NONE);
+            f.drain();
+            assertTrue(messages.isEmpty(), "a delayed failure must not describe the new song");
+            f.starts.getLast().completeExceptionally(new java.util.concurrent.CompletionException(
+                    "https://cdn.invalid?token=secret", new java.util.concurrent.TimeoutException("Cookie: private")));
+            f.drain();
+            assertEquals(1, messages.size());
+            String message = messages.getFirst();
+            assertTrue(message.contains("kind=timeout"));
+            assertTrue(message.contains("session=" + latest.sessionId()));
+            assertTrue(message.contains("elapsedMs="));
+            assertTrue(message.contains("TimeoutException"));
+            assertFalse(message.contains("secret"));
+            assertFalse(message.contains("Cookie"));
+            assertEquals(List.of(latest), f.failures);
+        } finally {
+            logger.removeAppender(capture); capture.stop();
+        }
+    }
+
     @Test void logoutRecoveryKeepsPublicStateAndRejectsPreRecoveryFailure() {
         Fixture f = new Fixture();
         PlaybackSession session = session(1);

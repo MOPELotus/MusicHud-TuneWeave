@@ -125,9 +125,16 @@ def prepare(tag, output):
     release.require(not info['draft'] and info['tag_name'] == tag, 'GitHub release is not published')
     output.mkdir(parents=True, exist_ok=False)
     standard = output / 'standard'
+    # Use the original checksummed file set; CF updater assets may be attached later.
     subprocess.run(['gh', 'release', 'download', tag, '--repo', REPOSITORY, '--dir', str(standard),
-                    '--pattern', '*.jar', '--pattern', 'SHA256SUMS', '--pattern', 'build-manifest.json',
-                    '--pattern', 'license', '--pattern', 'RELEASE_NOTES.md'], check=True)
+                    '--pattern', 'SHA256SUMS'], check=True)
+    names = []
+    for line in (standard / 'SHA256SUMS').read_text().splitlines():
+        match = re.fullmatch(r'[0-9a-f]{64}  ([A-Za-z0-9_.+-]+)', line)
+        release.require(match and match[1] not in ('.', '..', 'SHA256SUMS'), 'Invalid release checksum filename')
+        names += ['--pattern', match[1]]
+    release.require(0 < len(names) <= 128, 'Invalid release file count')
+    subprocess.run(['gh', 'release', 'download', tag, '--repo', REPOSITORY, '--dir', str(standard), *names], check=True)
     manifest = verify_standard(standard, tag)
     target = release.release_target(manifest)
     release.require(release.api(REPOSITORY, 'commits/' + tag)['sha'] == target, 'Release tag/source mismatch')

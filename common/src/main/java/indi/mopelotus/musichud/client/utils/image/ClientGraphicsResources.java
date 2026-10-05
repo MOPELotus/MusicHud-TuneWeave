@@ -27,6 +27,17 @@ public final class ClientGraphicsResources {
         uiShutdown = shutdown;
     }
 
+    /** Called only on the ModernUI owner thread; resources remain owned until release or shutdown. */
+    public static <T extends AutoCloseable> T createUiResource(java.util.function.Supplier<T> factory) {
+        Core.checkUiThread();
+        return UI.create(factory);
+    }
+
+    public static void releaseUiResource(AutoCloseable resource) {
+        Core.checkUiThread();
+        UI.release(resource);
+    }
+
     public static Image createImage(Bitmap bitmap) {
         if (UI.isStopped()) return null;
         if (Core.isOnUiThread()) return UI.create(() -> Image.createTextureFromBitmap(bitmap));

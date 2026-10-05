@@ -172,7 +172,7 @@ def filename(row, module):
 
 def verify_cf_contents(jar, depth=0):
     require(depth <= 8, 'Excessive nested archives')
-    forbidden = (b'ApiServerFetcher', b'ApiBinaryUpdateService', b'ApiDownloadSession',
+    forbidden = (b'UpdateInstaller', b'UpdateBackupCleanup', b'installer.jar', b'ApiServerFetcher', b'ApiBinaryUpdateService', b'ApiDownloadSession',
                  b'release-manifest.json', b'NeteaseCloudMusicApiEnhanced/api-enhanced/releases')
     youtube = (b'com/sedmelluq/discord/lavaplayer/source/youtube/',
                b'com.sedmelluq.discord.lavaplayer.source.youtube.',
@@ -296,6 +296,10 @@ def bundle(downloads, output):
     for name in ('license', 'LICENSE', 'COPYING', 'COPYING.LESSER'):
         if Path(name).is_file():
             shutil.copy2(name, output / name)
+    import client_updates
+    if manifest.get('tag'):
+        edition = rows[0].get('distribution', 'standard')
+        dump(output / f'client-updates-{edition}.json', client_updates.catalog(output, manifest['tag'], edition))
     sums = ''.join(f'{digest(p)}  {p.name}\n' for p in sorted(output.iterdir()))
     (output / 'SHA256SUMS').write_text(sums)
 
@@ -319,6 +323,11 @@ def verify_bundle(folder):
     require({a['name'] for a in manifest['artifacts']} == {n for n in listed if n.endswith('.jar')}, 'Release manifest differs from files')
     for a in manifest['artifacts']:
         require(digest(folder / a['name']) == a['sha256'], 'Manifest checksum mismatch')
+    for edition in ('standard', 'cf'):
+        metadata = folder / f'client-updates-{edition}.json'
+        if metadata.exists():
+            import client_updates
+            require(load_json(metadata) == client_updates.catalog(folder, manifest['tag'], edition), 'Updater catalog differs from verified JARs')
     return manifest
 
 

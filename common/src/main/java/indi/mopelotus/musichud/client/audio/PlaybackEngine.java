@@ -184,6 +184,8 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
         if (disposed || generation != playbackGeneration.get())
             return CompletableFuture.failedFuture(new CancellationException("Playback generation was superseded"));
         currentMusicDetail = musicDetail;
+        LOGGER.info("Audio preparation started: session={} revision={} trackId={} generation={}",
+                currentPlaybackSession.sessionId(), currentPlaybackSession.revision(), musicDetail.getId(), generation);
         setStatus(Status.BUFFERING);
         CompletableFuture<Void> ready = new CompletableFuture<>();
         CompletableFuture<ZonedDateTime> started = startGate.begin();
@@ -198,6 +200,9 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
             } catch (Exception error) {
                 synchronized (this) {
                     if (generation != playbackGeneration.get() || download != downloadFuture) return;
+                    LOGGER.warn("Audio preparation worker failed: session={} revision={} generation={} kind={} diagnostic={}",
+                            currentPlaybackSession.sessionId(), currentPlaybackSession.revision(), generation,
+                            PlaybackFailureDiagnostics.kind(error), PlaybackFailureDiagnostics.describe(error));
                     pcm.finish(pcm.token(), error);
                     download.completeExceptionally(error);
                     ready.completeExceptionally(error);
@@ -246,6 +251,9 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                     result = controller.tick(position, outputMode, gain);
                     switch (result) {
                         case PLAYING -> {
+                            if (!began) LOGGER.info("Audio output started: session={} revision={} trackId={} generation={} positionMs={}",
+                                    currentPlaybackSession.sessionId(), currentPlaybackSession.revision(),
+                                    currentMusicDetail.getId(), generation, position);
                             setStatus(Status.PLAYING);
                             started.complete(serverStartTime);
                             if (!began && clientConfig.getDisableVanillaMusic()) {
@@ -261,6 +269,9 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                         case BUFFERING -> setStatus(Status.BUFFERING);
                         case RECOVERING -> setStatus(Status.RETRYING);
                         case COMPLETED -> {
+                            LOGGER.info("Audio output completed: session={} revision={} trackId={} generation={} positionMs={}",
+                                    currentPlaybackSession.sessionId(), currentPlaybackSession.revision(),
+                                    currentMusicDetail.getId(), generation, position);
                             // EOF (including a timeline already elapsed during reload) is not a retryable download error.
                             submitScrobble(generation);
                             setStatus(Status.IDLE);
@@ -276,7 +287,9 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
         } catch (RuntimeException error) {
             synchronized (this) {
                 if (generation == playbackGeneration.get() && playing == playingFuture) {
-                    LOGGER.error("Audio playback failed", error);
+                    LOGGER.error("Audio playback failed: session={} revision={} generation={} kind={} diagnostic={}",
+                            currentPlaybackSession.sessionId(), currentPlaybackSession.revision(), generation,
+                            PlaybackFailureDiagnostics.kind(error), PlaybackFailureDiagnostics.describe(error));
                     setStatus(Status.ERROR);
                     started.completeExceptionally(error);
                 }
@@ -334,7 +347,10 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                 }
                 if (resourceUrls.isEmpty()) throw new IllegalStateException("No audio resource URLs available");
 
-                LOGGER.debug("Starting audio download (attempt {})", localRetryCount + 1);
+                long decoderStartedAt = System.nanoTime();
+                LOGGER.info("Audio decoder opening: session={} revision={} trackId={} generation={} attempt={} candidate={} format={}",
+                        localPlaybackSession.sessionId(), localPlaybackSession.revision(), currentMusicDetail.getId(),
+                        generation, localRetryCount + 1, resourceUrlIndex, musicResourceInfo.getType());
                 if (resourceUrlIndex > 0) {
                     LOGGER.info("Trying backup audio URL {}/{}", resourceUrlIndex, resourceUrls.size() - 1);
                 }
@@ -351,6 +367,10 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                         return;
                     }
                     if (!decoderSlot.adopt(generation, decoder)) return;
+                    LOGGER.info("Audio decoder ready: session={} revision={} generation={} elapsedMs={} sampleRate={} frameSize={}",
+                            localPlaybackSession.sessionId(), localPlaybackSession.revision(), generation,
+                            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - decoderStartedAt),
+                            decoder.getSampleRate(), decoder.getFrameSize());
                     currentDecoder = decoder;
                     playedBytes = 0;
                     decoderToken = pcm.reset(generation);
@@ -417,7 +437,8 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                     // Retain decoded audio while the server coordinates a new public revision.
                     // Bad duration metadata cannot cause an unbounded refresh loop.
                 }
-                LOGGER.debug("Audio download completed");
+                LOGGER.info("Audio download completed: session={} revision={} generation={} decodedBytes={}",
+                        localPlaybackSession.sessionId(), localPlaybackSession.revision(), generation, playedBytes);
                 pcm.finish(decoderToken, null);
                 currentDownloadFuture.complete(null);
                 break;
@@ -427,7 +448,9 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
             } catch (Exception e) {
                 if (generation != playbackGeneration.get() || currentDownloadFuture != downloadFuture || currentDownloadFuture.isDone()) return;
                 if (e instanceof SocketException e1 && "Closed by interrupt".equals(e1.getMessage())) break;
-                LOGGER.error("Download error (attempt {})\n{} : {}", localRetryCount + 1, e.getClass().getSimpleName(), e.getMessage());
+                LOGGER.error("Download error: session={} revision={} generation={} attempt={} kind={} diagnostic={}",
+                        localPlaybackSession.sessionId(), localPlaybackSession.revision(), generation, localRetryCount + 1,
+                        PlaybackFailureDiagnostics.kind(e), PlaybackFailureDiagnostics.describe(e));
 
                 String failureMessage = e.getMessage();
                 if (e.getCause() instanceof java.util.concurrent.TimeoutException

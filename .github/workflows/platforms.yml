@@ -207,3 +207,26 @@ jobs:
           name: platform-bundle
           path: bundle/
           if-no-files-found: error
+
+  cf-update-assets:
+    needs: [dispatch, publish]
+    if: inputs.mode == 'publish' && (inputs.target == 'all' || inputs.target == 'curseforge')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: platform-bundle
+          path: bundle
+          run-id: ${{ inputs.prepared_run || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Publish verified CF updater assets after platform publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: python .github/scripts/client_updates.py --input bundle --tag "$RELEASE_TAG" --output update-catalog

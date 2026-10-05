@@ -22,7 +22,7 @@ public record ClientPushMusicToQueueMessage(MusicDetail musicDetail) implements 
         public void register() {
             INetworkRegister.getInstance().autoRegisterPayload(
                     ClientPushMusicToQueueMessage.class, CODEC,
-                    ServerDataPacketVThreadExecutor.execute((message, player) -> {
+                    ServerDataPacketVThreadExecutor.executeOrdered((message, player) -> {
                         MusicPlayerServerService.getInstance().pushMusicToQueue(
                                 message.musicDetail, PusherInfo.ofPlayer(player));
                     })
