@@ -1,6 +1,6 @@
 # MusicHud TuneWeave — CurseForge edition
 
-> **This is the feature-limited CurseForge edition.** TuneWeave downloading and updating are not included. For the full-featured edition, we recommend the standard builds on [GitHub](https://github.com/MOPELotus/MusicHud-TuneWeave/actions), or Modrinth when the project is published there. Music playback, lyrics, the HUD and shared queues remain available.
+> **This is the feature-limited CurseForge edition.** TuneWeave downloading and updating are not included. For the full-featured edition, we recommend the standard builds on [GitHub](https://github.com/MOPELotus/MusicHud-TuneWeave/releases), or Modrinth when the project is published there. Music playback, lyrics, the HUD and shared queues remain available.
 
 MusicHud TuneWeave adds an in-game music browser, playback controls, synchronized lyrics and a configurable HUD. Play independently or join a shared queue with other players using compatible clients and a supported server or proxy plugin.
 
@@ -35,3 +35,9 @@ Please report reproducible problems with Minecraft, loader, mod and TuneWeave ve
 这是功能有所精简的 CurseForge 专版，移除了 TuneWeave 下载和更新功能。推荐需要完整功能的用户使用 GitHub 上的普通版；Modrinth 项目发布后也会提供普通版。音乐播放、歌词、HUD 和共享队列仍可使用。
 
 用户需要自行准备 TuneWeave，在设置中填写本地程序路径后启动，或连接已经运行的服务。新配置默认关闭自动启动，程序路径为空。普通版与 CF 版使用同一模组标识和协议，请只安装其中一种。
+
+## Edition notice and mod updates
+
+The first MusicHud screen and every update prompt explain the CF edition limitations and link to the full standard edition. Update checks include releases and prereleases matching the CF edition, Minecraft version and loader. “Go to download” opens the matching GitHub Release page in your browser. Choose the matching CF JAR and replace the old file after exiting the game. This edition does not download or install mod updates, start an update helper, or manage update backups. The TuneWeave service downloader/updater also remains absent.
+
+首次打开模组界面及更新提示均说明 CF 精简范围并提供 GitHub 完整版入口。更新检测包含正式版和测试版，只匹配 CF 发行版、游戏版本与加载器。“去下载”打开对应版本的 GitHub Release 页面；请选择匹配的 CF 文件，退出游戏后手动替换旧 JAR。CF 版不自动下载或安装模组更新，也不启动更新安装器或管理更新备份。TuneWeave 服务程序的下载/更新功能仍不包含在 CF 版中。

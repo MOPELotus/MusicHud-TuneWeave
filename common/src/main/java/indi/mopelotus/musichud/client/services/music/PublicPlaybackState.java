@@ -6,6 +6,8 @@ import indi.mopelotus.musichud.beans.music.PlaybackSession;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import indi.mopelotus.musichud.MusicHud;
+import indi.mopelotus.musichud.client.audio.PlaybackFailureDiagnostics;
 
 /** Accepts server state before starting local audio; local completion never publishes public state. */
 final class PublicPlaybackState {
@@ -112,18 +114,27 @@ final class PublicPlaybackState {
     }
 
     private void start(PlaybackSession update, long ticket, boolean recovering) {
+        long startedAt = System.nanoTime();
         CompletableFuture<?> started;
         try { started = Objects.requireNonNull(recovering ? output.restart(update) : output.play(update)); }
-        catch (RuntimeException error) { failed(update, ticket); return; }
+        catch (RuntimeException error) { failed(update, ticket, error, startedAt, recovering); return; }
         started.whenComplete((ignored, error) -> {
-            if (error != null) failed(update, ticket);
+            if (error != null) failed(update, ticket, error, startedAt, recovering);
         });
     }
 
-    private void failed(PlaybackSession update, long ticket) {
+    private void failed(PlaybackSession update, long ticket, Throwable error, long startedAt, boolean recovering) {
+        long elapsedMillis = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
         notifications.execute(() -> {
             synchronized (lock) {
-                if (generation == ticket && session == update) output.failed(update);
+                if (generation == ticket && session == update) {
+                    MusicHud.getLogger(PublicPlaybackState.class).warn(
+                            "Local playback preparation failed: session={} sequence={} revision={} trackId={} generation={} recovering={} elapsedMs={} kind={} diagnostic={}",
+                            update.sessionId(), update.sequence(), update.revision(), update.musicDetail().getId(),
+                            ticket, recovering, elapsedMillis, PlaybackFailureDiagnostics.kind(error),
+                            PlaybackFailureDiagnostics.describe(error));
+                    output.failed(update);
+                }
             }
         });
     }

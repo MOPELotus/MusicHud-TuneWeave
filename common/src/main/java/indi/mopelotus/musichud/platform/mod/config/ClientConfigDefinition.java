@@ -23,6 +23,7 @@ public class ClientConfigDefinition implements ClientConfig {
     private static final ClientConfigDefinition instance = new ClientConfigDefinition();
 
     private boolean enable = getDefaultEnable();
+    private volatile boolean enableLyricBlur = getDefaultEnableLyricBlur();
     private boolean showTranslatedCnLyrics = getDefaultShowTranslatedCnLyrics();
     private boolean disableVanillaMusic = getDefaultDisableVanillaMusic();
     private boolean hideHudWhenNotPlaying = getDefaultHideHudWhenNotPlaying();
@@ -66,6 +67,7 @@ public class ClientConfigDefinition implements ClientConfig {
         Path path = SimpleTomlConfig.path(FILE_NAME);
         Map<String, String> values = SimpleTomlConfig.read(path);
         enable = SimpleTomlConfig.getBoolean(values, "enable", enable);
+        enableLyricBlur = SimpleTomlConfig.getBoolean(values, "enableLyricBlur", getDefaultEnableLyricBlur());
         showTranslatedCnLyrics = SimpleTomlConfig.getBoolean(values, "showTranslatedCnLyrics", showTranslatedCnLyrics);
         disableVanillaMusic = SimpleTomlConfig.getBoolean(values, "disableVanillaMusic", disableVanillaMusic);
         hideHudWhenNotPlaying = SimpleTomlConfig.getBoolean(values, "hideHudWhenNotPlaying", hideHudWhenNotPlaying);
@@ -113,6 +115,9 @@ public class ClientConfigDefinition implements ClientConfig {
     public void setEnable(boolean enable) {
         this.enable = enable;
     }
+
+    @Override public boolean getEnableLyricBlur() { return enableLyricBlur; }
+    @Override public void setEnableLyricBlur(boolean enabled) { enableLyricBlur = enabled; save(); }
 
     @Override
     public void setShowTranslatedCnLyrics(boolean showTranslatedCnLyrics) {
@@ -450,6 +455,7 @@ public class ClientConfigDefinition implements ClientConfig {
     public synchronized void save() {
         SimpleTomlConfig.write(SimpleTomlConfig.path(FILE_NAME), List.of(
                 new SimpleTomlConfig.Entry("enable", "Enable MusicHud TuneWeave functions", enable),
+                new SimpleTomlConfig.Entry("enableLyricBlur", "Blur non-highlighted lyric lines", enableLyricBlur),
                 new SimpleTomlConfig.Entry("showTranslatedCnLyrics", "Show translated Chinese lyrics", showTranslatedCnLyrics),
                 new SimpleTomlConfig.Entry("disableVanillaMusic", "Disable vanilla game music", disableVanillaMusic),
                 new SimpleTomlConfig.Entry("hideHudWhenNotPlaying", "Hide HUD when not playing music", hideHudWhenNotPlaying),
