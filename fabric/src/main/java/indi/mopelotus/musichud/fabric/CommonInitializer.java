@@ -21,8 +21,13 @@ public final class CommonInitializer implements ModInitializer {
         ServerConfigDefinition.getInstance().load();
         if (inClient) {
             ClientConfigDefinition.getInstance().load();
+            var mod = FabricLoader.getInstance().getModContainer(MusicHud.MOD_ID).orElseThrow();
+            indi.mopelotus.musichud.client.update.ClientUpdateService.initialize(mod.getOrigin().getPaths().getFirst(),
+                    mod.getMetadata().getVersion().getFriendlyString(), "fabric",
+                    FabricLoader.getInstance().getModContainer("minecraft").orElseThrow().getMetadata().getVersion().getFriendlyString());
         }
         MusicHud.init();
         MusicHud.onConfigLoaded();
+        if (inClient) indi.mopelotus.musichud.client.update.ClientUpdateService.watchSuccessfulStartup();
     }
 }

@@ -10,6 +10,25 @@ import java.util.function.BiConsumer;
 
 public class ServerDataPacketVThreadExecutor {
     private static final ServerConnectionControlQueue CONTROL = new ServerConnectionControlQueue(MusicHud.EXECUTOR);
+    private static final ServerOrderedPacketQueue ORDERED = new ServerOrderedPacketQueue(MusicHud.EXECUTOR);
+
+    public static <T extends IPayload> NetworkReceiver<T> executeOrdered(BiConsumer<T, IPlayerClient> consumer) {
+        return orderedReceiver(ORDERED, consumer);
+    }
+
+    public static <T extends IPayload> NetworkReceiver<T> orderedReceiver(
+            ServerOrderedPacketQueue queue, BiConsumer<T, IPlayerClient> consumer) {
+        return (payload, player) -> {
+            var admission = indi.mopelotus.musichud.network.ServerPacketAdmission.capture(payload, player);
+            if (!admission.allowed()) return;
+            boolean accepted = queue.execute(player.controlConnectionIdentity(), () -> {
+                if (!admission.allowed()) return;
+                try { consumer.accept(payload, player); }
+                catch (Exception error) { MusicHud.getLogger(payload.getClass()).error(error); }
+            });
+            if (!accepted) MusicHud.getLogger(payload.getClass()).warn("Too many pending ordered music queue requests");
+        };
+    }
 
     public static <T extends IPayload> NetworkReceiver<T> executeControl(BiConsumer<T, IPlayerClient> consumer) {
         return controlReceiver(CONTROL, consumer);

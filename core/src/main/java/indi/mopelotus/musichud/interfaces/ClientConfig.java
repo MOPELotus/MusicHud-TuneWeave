@@ -27,6 +27,12 @@ public interface ClientConfig {
 
     void setEnable(boolean enable);
 
+    boolean getEnableLyricBlur();
+
+    void setEnableLyricBlur(boolean enabled);
+
+    default boolean getDefaultEnableLyricBlur() { return true; }
+
     boolean getShowTranslatedCnLyrics();
 
     void setShowTranslatedCnLyrics(boolean showTranslatedCnLyrics);

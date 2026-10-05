@@ -54,6 +54,21 @@ class RouterContainerTest {
         assertEquals(1f, first.getAlpha());
     }
 
+    @Test void effectiveRouteTracksIncomingPageAndRejectsStaleEnterAfterClear() {
+        var router = new Router();
+        router.registerPage("detail", View::new); router.registerPage("Home", View::new);
+        router.navigateToRoot("detail"); router.drain();
+        router.navigateToRoot("Home");
+        assertEquals("detail", router.getCurrentPageKey());
+        assertEquals("Home", router.getEffectivePageKey());
+        router.clearAllPageCache();
+        assertNull(router.getEffectivePageKey());
+        router.navigateToRoot("detail"); router.drain();
+        assertEquals("detail", router.getEffectivePageKey());
+        router.navigateToRoot("Home"); router.drain();
+        assertEquals("Home", router.getEffectivePageKey());
+    }
+
     private final class Router extends RouterContainer {
         final ArrayDeque<Runnable> frames = new ArrayDeque<>();
         Router() { super(context); setAnimationStyle(AnimationStyle.NONE); }

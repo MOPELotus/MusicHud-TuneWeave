@@ -76,4 +76,17 @@ class ConfigIdentityMigrationTest {
             MusicHud.setConfigDirectory(previous);
         }
     }
+    @Test void lyricBlurPersistsAndMalformedOrMissingSettingRestoresDefault() throws Exception {
+        Path active = directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-client.toml");
+        Path previous = MusicHud.getConfigDirectory(); MusicHud.setConfigDirectory(directory);
+        try {
+            var constructor = ClientConfigDefinition.class.getDeclaredConstructor(); constructor.setAccessible(true);
+            var config = constructor.newInstance(); config.load(); assertTrue(config.getEnableLyricBlur());
+            config.setEnableLyricBlur(false);
+            var next = constructor.newInstance(); next.load(); assertFalse(next.getEnableLyricBlur());
+            for (String text : new String[]{"enableLyricBlur = invalid\n", "enableLyricBlur = 2\n", "soundVolume = 25\n"}) {
+                Files.writeString(active, text); next.load(); assertTrue(next.getEnableLyricBlur());
+            }
+        } finally { MusicHud.setConfigDirectory(previous); }
+    }
 }
