@@ -84,6 +84,12 @@ public class ConfigView extends LinearLayout {
             scrollView.addView(view, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
             view.addView(new View(context), new LayoutParams(MATCH_PARENT, dp(32)));
 
+            Button updateButton = new Button(context);
+            updateButton.setText(indi.mopelotus.musichud.client.update.ClientUpdateUi.tr("check"));
+            updateButton.setTextColor(Theme.PRIMARY_COLOR);
+            updateButton.setOnClickListener(v -> indi.mopelotus.musichud.client.update.ClientUpdateUi.manualCheck());
+            view.addView(updateButton, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+
             HudRendererManager hudRendererManager = HudRendererManager.getInstance();
 
             var commonCategory = PreferencesFragment.createCategoryList(view, I18n.get(MusicHud.MOD_ID + ".config.category.common"));
@@ -100,6 +106,12 @@ public class ConfigView extends LinearLayout {
                     connectionManager.disconnect();
                 }
             });
+            new PreferencesFragment.BooleanOption(context,
+                    I18n.get(MusicHud.MOD_ID + ".config.common.enableLyricBlur"),
+                    clientConfig::getEnableLyricBlur, clientConfig::setEnableLyricBlur)
+                    .setDefaultValue(clientConfig.getDefaultEnableLyricBlur())
+                    .setOnChanged(MainFragment::refreshLyricViews)
+                    .create(commonCategory);
             PreferencesFragment.BooleanOption translatedLyricOption = new PreferencesFragment.BooleanOption(context,
                     I18n.get(MusicHud.MOD_ID + ".config.common.showTranslatedCnLyrics"),
                     clientConfig::getShowTranslatedCnLyrics,

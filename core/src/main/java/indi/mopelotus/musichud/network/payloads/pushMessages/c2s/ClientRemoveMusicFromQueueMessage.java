@@ -27,7 +27,7 @@ public record ClientRemoveMusicFromQueueMessage(int index, long id, UUID queueUn
         public void register() {
             INetworkRegister.getInstance().autoRegisterPayload(
                     ClientRemoveMusicFromQueueMessage.class, CODEC,
-                    ServerDataPacketVThreadExecutor.execute((message, player) -> {
+                    ServerDataPacketVThreadExecutor.executeOrdered((message, player) -> {
                             MusicPlayerServerService.getInstance().removeMusicDetailFromQueue(
                                     message.index, message.id, message.queueUniqueID, player.getUUID()
                             );
