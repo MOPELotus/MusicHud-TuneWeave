@@ -42,6 +42,7 @@ public class UrlImageView extends FrameLayout {
     private ImageView imageView;
     private ImageView nextImageView;
     private String currentURLString;
+    private int loadTargetWidth, loadTargetHeight;
     @Setter
     private int cornerRadius = -1;
     // 延迟加载相关字段
@@ -118,7 +119,7 @@ public class UrlImageView extends FrameLayout {
         background.applyBackgroundTo(retryButton);
         retryButton.setOnClickListener(v -> {
             if (currentURLString != null) {
-                loadUrl(currentURLString);
+                loadUrl(currentURLString, loadTargetWidth, loadTargetHeight);
             }
         });
         errorLayout.addView(retryButton, new LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
@@ -232,7 +233,12 @@ public class UrlImageView extends FrameLayout {
     /**
      * 公开的加载方法,设置待加载的 URL
      */
-    public void loadUrl(String urlString) {
+    public void loadUrl(String urlString) { loadUrl(urlString, 0, 0); }
+
+    public void loadUrl(String urlString, int targetWidth, int targetHeight) {
+        if (targetWidth < 0 || targetHeight < 0 || (targetWidth == 0) != (targetHeight == 0))
+            throw new IllegalArgumentException("Invalid artwork target dimensions");
+        loadTargetWidth = targetWidth; loadTargetHeight = targetHeight;
         cancelLoad();
         if (autoSquareCrop) applySquareCrop(isBilibiliImage(urlString));
         currentURLString = urlString;
@@ -266,7 +272,9 @@ public class UrlImageView extends FrameLayout {
         long ticket = publication.current();
         CompletableFuture<ImageTextureData> future = owned
                 ? CompletableFuture.supplyAsync(() -> ImageUtils.loadBase64(source), MusicHud.EXECUTOR)
-                : ImageUtils.downloadAsync(source);
+                 : loadTargetWidth > 0
+                    ? ImageUtils.downloadScaledAsync(source, loadTargetWidth, loadTargetHeight)
+                    : ImageUtils.downloadAsync(source);
         future.whenComplete((data, error) -> publication.complete(ticket, data, error, owned, value -> {
             if (!isAttachedToWindow) return;
             if (value == null) throw new IllegalStateException("Missing image");
@@ -297,7 +305,7 @@ public class UrlImageView extends FrameLayout {
         // rectangular images; its zero-radius path therefore clips wide challenges.
         if (!circular && cornerRadius == 0) {
             var drawable = ClientGraphicsResources.createPlainDrawable(getContext().getResources(), image);
-            drawable.setFilter(false);
+            drawable.setFilter((long) image.getWidth() * image.getHeight() >= 0.25 * getWidth() * getHeight());
             setImageWithAnimation(drawable, image);
             return;
         }
@@ -306,7 +314,7 @@ public class UrlImageView extends FrameLayout {
                 getContext().getResources(),
                 image
         );
-        drawable.setFilter(false);
+        drawable.setFilter((long) image.getWidth() * image.getHeight() >= 0.25 * getWidth() * getHeight());
 
         if (circular) {
             drawable.setCircular(true);

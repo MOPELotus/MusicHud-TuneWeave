@@ -257,7 +257,7 @@ public class MusicInfoCard extends LinearLayout {
         } else {
             titleText.setTextColor(Theme.NORMAL_TEXT_COLOR);
             Album album = musicDetail.getAlbum();
-            albumImage.loadUrl(album.getThumbnailPicUrl(sideWidth));
+            albumImage.loadUrl(album.getPicUrl(), sideWidth, sideWidth);
             titleText.setText(musicDetail.getName());
             var platform = indi.mopelotus.musichud.client.utils.image.PlatformIconUtils.platform(musicDetail);
             var platformImage = platform == null ? null : indi.mopelotus.musichud.client.utils.image.PlatformIconUtils.image(platform, dp(16));

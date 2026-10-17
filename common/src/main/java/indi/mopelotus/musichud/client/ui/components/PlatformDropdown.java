@@ -69,7 +69,7 @@ public final class PlatformDropdown extends Spinner {
     public void setSelectedPlatform(TuneWeavePlatform platform) {
         if (platform == null) return;
         selected = platform;
-        setSelection(platform.ordinal());
+        setSelection(PlatformDisplayOrder.platforms().indexOf(platform));
     }
     public void setOnPlatformSelectedListener(Consumer<TuneWeavePlatform> listener) { this.listener = listener; }
 }

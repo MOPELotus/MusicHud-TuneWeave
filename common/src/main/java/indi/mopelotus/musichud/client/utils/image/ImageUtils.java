@@ -51,6 +51,7 @@ public class ImageUtils {
             .build();
     private static final ImageRequests<PendingKey, Object> pendingDownloads = new ImageRequests<>();
     private static final ImageRequests<TextureCacheKey, ImageTextureData> textureDownloads = new ImageRequests<>();
+    private static final SharedImageBytes sourceBytes = new SharedImageBytes(64L * 1024 * 1024);
     private static volatile Object cacheEpoch = new Object();
     // 使用虚拟线程的 ExecutorService
     private static ExecutorService downloadExecutor;
@@ -124,19 +125,30 @@ public class ImageUtils {
      * 异步下载图片
      */
     public static CompletableFuture<ImageTextureData> downloadAsync(String url) {
-        return downloadTextureAsync(url, false);
+        return downloadTextureAsync(url, false, 0, 0);
     }
 
     public static CompletableFuture<ImageTextureData> downloadSquareAsync(String url) {
-        return downloadTextureAsync(url, true);
+        return downloadTextureAsync(url, true, 0, 0);
     }
 
-    private static CompletableFuture<ImageTextureData> downloadTextureAsync(String url, boolean squareCrop) {
+    public static CompletableFuture<ImageTextureData> downloadScaledAsync(String url, int width, int height) {
+        return downloadTextureAsync(url, false, width, height);
+    }
+
+    public static CompletableFuture<ImageTextureData> downloadSquareScaledAsync(String url, int width, int height) {
+        return downloadTextureAsync(url, true, width, height);
+    }
+
+    private static CompletableFuture<ImageTextureData> downloadTextureAsync(String url, boolean squareCrop, int width, int height) {
+        if (width < 0 || height < 0 || (width == 0) != (height == 0)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid artwork target dimensions"));
+        }
         if (ClientGraphicsResources.RENDER.isStopped()) {
             return CompletableFuture.failedFuture(new CancellationException("Artwork is shutting down"));
         }
         Object epoch = cacheEpoch;
-        TextureCacheKey cacheKey = new TextureCacheKey(url, squareCrop);
+        TextureCacheKey cacheKey = new TextureCacheKey(url, squareCrop, width, height);
         ImageTextureData cached = cachedTexturesData.getIfPresent(cacheKey);
         if (cached != null) {
             LOGGER.debug("Artwork cache hit");
@@ -146,10 +158,10 @@ public class ImageUtils {
             var opts = new BitmapFactory.Options();
             opts.inPreferredFormat = Bitmap.Format.RGBA_8888;
 
-            try (Bitmap source = decodeBounded(ImageInputLimits.read(inputStream), opts)) {
+            try (Bitmap scaled = ImageDownscale.resize(decodeBounded(ImageInputLimits.read(inputStream), opts), width, height, squareCrop)) {
                 ImageTextureData imageTextureData = squareCrop
-                        ? getSquareImageTextureData(url, source)
-                        : getImageTextureData(url, source);
+                        ? getSquareImageTextureData(url, scaled)
+                        : getImageTextureData(url, scaled);
                 synchronized (ImageUtils.class) {
                     if (epoch == cacheEpoch) cachedTexturesData.put(cacheKey, imageTextureData);
                 }
@@ -178,13 +190,19 @@ public class ImageUtils {
     }
 
     private static <R> @NotNull CompletableFuture<R> downloadAsyncInternal(String url, Function<InputStream, R> streamProcessor) {
-        return CompletableFuture.supplyAsync(() -> {
+        if (ClientGraphicsResources.RENDER.isStopped()) {
+            return CompletableFuture.failedFuture(new CancellationException("Artwork is shutting down"));
+        }
+        return sourceBytes.get(url, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 downloadSemaphore.acquire();
                 try {
                     LOGGER.debug("Starting artwork download (active: {}, queued: {})", getActiveDownloads(), getQueuedDownloads());
 
-                    R r = downloadImage(url, streamProcessor);
+                    byte[] r = downloadImage(url, stream -> {
+                        try { return ImageInputLimits.read(stream); }
+                        catch (IOException error) { throw new CompletionException(error); }
+                    });
                     LOGGER.debug("Artwork download completed");
                     return r;
                 } finally {
@@ -197,13 +215,18 @@ public class ImageUtils {
                 LOGGER.warn("Artwork download failed ({})", e.getClass().getSimpleName());
                 throw new CompletionException(e);
             }
-        }, downloadExecutor);
+        }, downloadExecutor)).thenApplyAsync(bytes ->
+                streamProcessor.apply(new java.io.ByteArrayInputStream(bytes)), downloadExecutor);
     }
 
     /**
      * 同步下载图片(阻塞当前线程)
      */
     private static <R> R downloadImage(String url, Function<InputStream, R> streamProcessor) throws IOException {
+        if (url.startsWith("data:")) {
+            byte[] bytes = ImageInputLimits.base64(url);
+            return streamProcessor.apply(new java.io.ByteArrayInputStream(bytes));
+        }
         URI uri = URI.create(url);
         boolean qqCdn = isQqImageHost(uri.getHost());
         var headers = new java.util.LinkedHashMap<String, String>();
@@ -278,6 +301,7 @@ public class ImageUtils {
             cachedTexturesData.invalidateAll();
             pendingDownloads.clear();
             textureDownloads.clear();
+            sourceBytes.clear();
         }
 
         // Never wait on downloads here: they can be waiting for a queued render-thread upload.
@@ -383,6 +407,6 @@ public class ImageUtils {
     record PendingKey(String url, Function<InputStream, ?> consumer) {
     }
 
-    private record TextureCacheKey(String url, boolean squareCrop) {
+    private record TextureCacheKey(String url, boolean squareCrop, int width, int height) {
     }
 }

@@ -5,6 +5,10 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CfUpdatePolicyTest {
+    @Test void uiOnlyExposesTheProjectHomepage() {
+        assertEquals("https://github.com/MOPELotus/MusicHud-TuneWeave", ClientUpdateUi.PROJECT_HOME.toString());
+        assertThrows(NoSuchFieldException.class, () -> ClientUpdateUi.class.getField("FULL_EDITION"));
+    }
     @Test void directAndRepeatedDownloadRequestsCannotStartInstallation() {
         List<Runnable> work = new ArrayList<>(); int[] operations = {0};
         var offer = new ClientUpdateCatalog.Offer("v1.4.0-beta.1", "1.4.0-beta.1-cf.1+26.3", "cf", "fabric", List.of("26.3"), "fixture.jar", "a".repeat(64), 1, "");
