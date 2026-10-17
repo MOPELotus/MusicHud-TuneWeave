@@ -22,6 +22,9 @@
     ],
     "modmenu": [
       "indi.mopelotus.musichud.fabric.config.ModMenuConfigurer"
+    ],
+    "preLaunch": [
+      "indi.mopelotus.musichud.fabric.FabricClientDependencies"
     ]
   },
   "mixins": [
@@ -31,10 +34,12 @@
     "fabricloader": "*",
     "minecraft": ">=26.1 <=26.1.2",
     "java": ">=25",
-    "fabric-api": "*",
-    "modernui": ">=3.13.0.5"
+    "fabric-api": "*"
   },
   "recommends": {
     "modmenu": "*"
+  },
+  "custom": {
+    "musichud_tuneweave_client_modernui": ">=3.13.0.5"
   }
 }

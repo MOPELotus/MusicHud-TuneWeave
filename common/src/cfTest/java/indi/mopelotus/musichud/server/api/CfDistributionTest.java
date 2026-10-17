@@ -1,5 +1,8 @@
 package indi.mopelotus.musichud.server.api;
 
+import indi.mopelotus.musichud.MusicHud;
+import indi.mopelotus.musichud.ProjectIdentity;
+import indi.mopelotus.musichud.interfaces.ServerConfig;
 import indi.mopelotus.musichud.platform.mod.config.ServerConfigDefinition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -9,43 +12,36 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CfDistributionTest {
     @TempDir Path directory;
-
-    @Test
-    void acquisitionClassesAreAbsentFromTheRuntimeClasspath() {
-        for (String name : new String[]{
-                "indi.mopelotus.musichud.server.api.ApiServerFetcher",
-                "indi.mopelotus.musichud.server.api.ApiBinaryUpdateService",
-                "indi.mopelotus.musichud.client.ui.pages.ApiDownloadSession"}) {
-            assertThrows(ClassNotFoundException.class, () -> Class.forName(name));
+    @Test void programAcquisitionAndProcessManagementClassesAreAbsent() {
+        for (String name : new String[]{"ApiServerFetcher", "ApiBinaryUpdateService", "ApiBinaryMaintenance", "ApiServerManager", "SodaSignerSupport", "SodaSignerProcess"})
+            assertThrows(ClassNotFoundException.class, () -> Class.forName("indi.mopelotus.musichud.server.api." + name));
+        for (String name : new String[]{"ApiDownloadSession", "ApiDistributionUi"})
+            assertThrows(ClassNotFoundException.class, () -> Class.forName("indi.mopelotus.musichud.client.ui.pages." + name));
+    }
+    @Test void executableConfigurationIsAbsentFromTheCfContract() {
+        for (Class<?> type : new Class<?>[]{ServerConfig.class, ServerConfigDefinition.class}) {
+            assertThrows(NoSuchMethodException.class, () -> type.getMethod("getStartupBinaryApiServerWhenLaunch"));
+            assertThrows(NoSuchMethodException.class, () -> type.getMethod("setStartupBinaryApiServerWhenLaunch", boolean.class));
+            assertThrows(NoSuchMethodException.class, () -> type.getMethod("getServerApiBinaryExecutablePath"));
+            assertThrows(NoSuchMethodException.class, () -> type.getMethod("setServerApiBinaryExecutablePath", String.class));
         }
     }
-
-    @Test
-    void freshConfigRequiresUserSelectionAndExplicitStartupOptIn() throws Exception {
-        var constructor = ServerConfigDefinition.class.getDeclaredConstructor();
-        constructor.setAccessible(true);
-        var config = constructor.newInstance();
-        assertFalse(config.getStartupBinaryApiServerWhenLaunch());
-        assertEquals("", config.getServerApiBinaryExecutablePath());
-        config.setServerApiBinaryExecutablePath(directory.resolve("tuneweave").toString());
-        config.setStartupBinaryApiServerWhenLaunch(true);
-        assertTrue(config.getStartupBinaryApiServerWhenLaunch());
-        assertEquals(directory.resolve("tuneweave").toString(), config.getServerApiBinaryExecutablePath());
-    }
-
-    @Test
-    void startupLeavesExistingInstallationsAndUnrelatedFilesUntouched() throws Exception {
+    @Test void cfConnectionConfigPreservesStandardConfigAndExistingPrograms() throws Exception {
         Path active = Files.writeString(directory.resolve("tuneweave"), "active");
-        Path previous = Files.writeString(directory.resolve("previous"), "previous");
         Path user = Files.writeString(directory.resolve("user-file"), "user");
-        Path manifest = Files.writeString(directory.resolve("tuneweave-installations.json"),
-                "{\"a\":{\"file\":\"tuneweave\"},\"b\":{\"file\":\"previous\"},\"bad\":{\"file\":\"../outside\"}}");
-        String original = Files.readString(manifest);
-        ApiBinaryMaintenance.afterStartup(active);
-        ApiBinaryMaintenance.afterStartup(directory.resolve("missing"));
-        assertEquals("active", Files.readString(active));
-        assertEquals("previous", Files.readString(previous));
-        assertEquals("user", Files.readString(user));
-        assertEquals(original, Files.readString(manifest));
+        Path standard = Files.writeString(directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-server.toml"),
+                "startupBinaryApiServerWhenLaunch = true\nserverApiBinaryExecutablePath = \"tuneweave\"\n");
+        String original = Files.readString(standard);
+        Path previous = MusicHud.getConfigDirectory(); MusicHud.setConfigDirectory(directory);
+        try {
+            var constructor = ServerConfigDefinition.class.getDeclaredConstructor(); constructor.setAccessible(true);
+            var config = constructor.newInstance(); config.load();
+            config.setServerApiBaseUrl("http://127.0.0.1:18732"); config.save();
+            String saved = Files.readString(directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-cf-server.toml"));
+            assertTrue(saved.contains("http://127.0.0.1:18732"));
+            assertFalse(saved.contains("Executable")); assertFalse(saved.contains("startupBinary"));
+            assertEquals(original, Files.readString(standard));
+            assertEquals("active", Files.readString(active)); assertEquals("user", Files.readString(user));
+        } finally { MusicHud.setConfigDirectory(previous); }
     }
 }

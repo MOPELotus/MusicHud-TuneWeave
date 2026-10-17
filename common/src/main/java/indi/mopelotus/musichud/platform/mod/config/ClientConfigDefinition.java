@@ -47,7 +47,7 @@ public class ClientConfigDefinition implements ClientConfig {
     private int hudHeight = getDefaultHudHeight();
     private int hudCornerRadius = getDefaultHudCornerRadius();
     private String clientAccountConfig = "";
-    private String tuneWeaveBaseUrl = "http://127.0.0.1:7832";
+    private volatile String tuneWeaveBaseUrl = "http://127.0.0.1:7832";
     private String tuneWeaveCredentials = "{}";
     private String defaultMusicPlatform = "netease";
     private boolean enabledInIntegratedServer = getDefaultEnabledInIntegratedServer();

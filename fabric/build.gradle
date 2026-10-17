@@ -219,3 +219,9 @@ publishing {
 apply from: rootProject.file('gradle/verify-shaded-jackson.gradle')
 
 apply from: rootProject.file('gradle/verify-shaded-webp.gradle')
+
+tasks.withType(Test).configureEach {
+    systemProperty 'musichud.test.fabricMetadata', layout.buildDirectory.file('resources/main/fabric.mod.json').get().asFile.absolutePath
+}
+
+tasks.withType(Test).configureEach { useJUnitPlatform() }
