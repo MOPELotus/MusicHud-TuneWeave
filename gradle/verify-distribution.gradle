@@ -84,6 +84,12 @@ gradle.projectsEvaluated {
                         throw new GradleException("Stale distribution/version in ${file.name}")
                     }
                     if (target.name in ['fabric', 'neoforge']) {
+                        for (hostEntry in ['org/apache/http/impl/client/CloseableHttpClient.class', 'org/apache/http/HttpHost.class', 'org/apache/commons/logging/LogFactory.class']) {
+                            if (zip.getEntry(hostEntry) != null) throw new GradleException('Host HTTP library duplicated in client artifact: ' + hostEntry)
+                        }
+                        if (names.any { it.startsWith('org/apache/commons/io/') || it.startsWith('org/apache/commons/codec/') }) {
+                            throw new GradleException('Host-provided Commons IO/Codec duplicated in client artifact')
+                        }
                         if (zip.getEntry('META-INF/licenses/jmtc/LICENSE.txt') == null ||
                                 zip.getEntry('META-INF/licenses/jmtc/NOTICE.txt') == null) {
                             throw new GradleException('Missing JMTC license/attribution')
@@ -107,24 +113,26 @@ gradle.projectsEvaluated {
             }
         }
         target.tasks.named('build').configure { dependsOn verification }
-        if (rootProject.distribution == 'cf' && target.name in ['fabric', 'neoforge']) {
-            def smoke = target.tasks.register('verifyCfAudioPlayback') {
+        if (target.name in ['fabric', 'neoforge']) {
+            def smoke = target.tasks.register('verifyPackagedAudioPlayback') {
                 dependsOn verification
                 inputs.file(deploymentTask.archiveFile)
                 inputs.file(rootProject.file('gradle/CfAudioSmoke.java'))
                 doLast {
                     // Resolve the loader's own classpath under its task execution lock.
-                    def logging = target.configurations.runtimeClasspath.files.findAll {
-                        it.name.startsWith('slf4j-api-')
+                    def hostLibraries = []
+                    for (prefix in ['slf4j-api-', 'commons-io-', 'commons-codec-', 'httpclient-', 'httpcore-', 'commons-logging-']) {
+                        def matches = target.configurations.runtimeClasspath.files.findAll { it.name.startsWith(prefix) }
+                        if (matches.size() != 1) throw new GradleException("Expected one host library ${prefix}")
+                        hostLibraries.addAll(matches)
                     }
-                    if (logging.size() != 1) throw new GradleException('Expected one SLF4J API for audio smoke check')
                     def launcher = target.javaToolchains.launcherFor(target.java.toolchain).get()
                     // The final deployment JAR is the only source of LavaPlayer
                     // classes; the original dependency must not mask missing code.
                     providers.exec {
                         commandLine launcher.executablePath.asFile, '-cp',
-                                ([deploymentTask.archiveFile.get().asFile] + logging).join(File.pathSeparator),
-                                rootProject.file('gradle/CfAudioSmoke.java')
+                                ([deploymentTask.archiveFile.get().asFile] + hostLibraries).join(File.pathSeparator),
+                                rootProject.file('gradle/CfAudioSmoke.java'), rootProject.distribution
                     }.result.get().assertNormalExitValue()
                 }
             }
