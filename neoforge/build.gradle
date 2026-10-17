@@ -186,8 +186,10 @@ processResources {
 }
 
 shadowJar {
-    // Only QR encoding is used. Keep every other dependency intact (reflection/service loading).
-    minimize { exclude { it.moduleGroup != "com.google.zxing" } }
+    // Minimize only directly instantiated QR/WebP codecs; keep reflection-based dependencies intact.
+    minimize {
+        exclude { it.moduleGroup != "com.google.zxing" && !it.moduleGroup.startsWith("com.twelvemonkeys.") }
+    }
     sourceSetsClassesDirs.from(project(":common").sourceSets.main.output.classesDirs)
     relocate 'com.google.zxing', 'indi.mopelotus.musichud.shaded.zxing'
     relocate 'com.github.weisj.jsvg', 'indi.mopelotus.musichud.shaded.jsvg'
