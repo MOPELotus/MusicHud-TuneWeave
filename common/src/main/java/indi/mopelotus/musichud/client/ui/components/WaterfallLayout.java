@@ -5,21 +5,14 @@ import icyllis.modernui.view.MeasureSpec;
 import icyllis.modernui.view.View;
 import icyllis.modernui.view.ViewGroup;
 import icyllis.modernui.widget.LinearLayout;
-import org.jetbrains.annotations.NotNull;
-
 import java.util.ArrayList;
 import java.util.List;
 
-import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
-
-/** Upstream shortest-column layout; cached routes retain their children on detach. */
+/** Shortest-column placement without reparenting rows during measurement or resize. */
 public class WaterfallLayout extends LinearLayout {
-    private final List<View> allChildren = new ArrayList<>();
-    private final List<LinearLayout> columns = new ArrayList<>();
-    private final List<Integer> columnHeights = new ArrayList<>();
+    private record Cell(View child, int offset, int top, int rightMargin, int leftMargin) {}
+    private final List<Cell> cells = new ArrayList<>();
     private int rowMinWidth;
-    private int measuredContentWidth;
-    private boolean reflowPending = true;
 
     public WaterfallLayout(Context context) {
         super(context);
@@ -31,73 +24,52 @@ public class WaterfallLayout extends LinearLayout {
         if (rowMinWidth != width) { rowMinWidth = width; reflow(); }
     }
 
-    @Override public void addView(@NotNull View view) {
-        if (allChildren.contains(view) || view.getParent() != null) throw new IllegalStateException("View already has a parent");
-        allChildren.add(view);
-        reflow();
-    }
-
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
-        int width = Math.max(0, MeasureSpec.getSize(widthSpec) - getPaddingLeft() - getPaddingRight());
-        if (rowMinWidth > 0 && width > 0 && (reflowPending || measuredContentWidth != width)) {
-            measuredContentWidth = width;
-            rebuildColumns(Math.max(1, width / rowMinWidth));
-            reflowPending = false;
+        int width = MeasureSpec.getSize(widthSpec);
+        if (MeasureSpec.getMode(widthSpec) == MeasureSpec.UNSPECIFIED && width == 0) {
+            width = Math.max(getSuggestedMinimumWidth(), Math.max(1, rowMinWidth) + getPaddingLeft() + getPaddingRight());
         }
-        super.onMeasure(widthSpec, heightSpec);
-    }
-
-    private void rebuildColumns(int count) {
-        for (LinearLayout column : columns) column.removeAllViews();
-        super.removeAllViews();
-        columns.clear();
-        columnHeights.clear();
-        for (int i = 0; i < count; i++) {
-            LinearLayout column = new LinearLayout(getContext());
-            column.setOrientation(VERTICAL);
-            super.addView(column, new LayoutParams(0, WRAP_CONTENT, 1f));
-            columns.add(column);
-            columnHeights.add(0);
+        int available = Math.max(0, width - getPaddingLeft() - getPaddingRight());
+        int count = rowMinWidth > 0 ? Math.max(1, available / rowMinWidth) : 1;
+        int[] heights = new int[count];
+        int columnWidth = available / count, remainder = available % count;
+        cells.clear();
+        int contentHeight = 0;
+        for (int i = 0; i < getChildCount(); i++) {
+            View child = getChildAt(i);
+            if (child.getVisibility() == GONE) continue;
+            int column = 0;
+            for (int j = 1; j < count; j++) if (heights[j] < heights[column]) column = j;
+            var params = child.getLayoutParams();
+            int left = 0, top = 0, right = 0, bottom = 0;
+            if (params instanceof ViewGroup.MarginLayoutParams margins) {
+                left = margins.leftMargin; top = margins.topMargin;
+                right = margins.rightMargin; bottom = margins.bottomMargin;
+            }
+            int space = Math.max(0, columnWidth + (column < remainder ? 1 : 0) - left - right);
+            int childWidth = params.width >= 0 ? Math.min(space, params.width) : space;
+            child.measure(MeasureSpec.makeMeasureSpec(childWidth,
+                            params.width == LayoutParams.WRAP_CONTENT ? MeasureSpec.AT_MOST : MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(params.height >= 0 ? params.height : 0,
+                            params.height >= 0 ? MeasureSpec.EXACTLY : MeasureSpec.UNSPECIFIED));
+            int offset = column * columnWidth + Math.min(column, remainder);
+            cells.add(new Cell(child, offset, getPaddingTop() + heights[column] + top, right, left));
+            heights[column] += child.getMeasuredHeight() + top + bottom;
+            contentHeight = Math.max(contentHeight, heights[column]);
         }
-        for (View child : allChildren) addToShortestColumn(child);
+        setMeasuredDimension(resolveSize(width, widthSpec),
+                resolveSize(contentHeight + getPaddingTop() + getPaddingBottom(), heightSpec));
     }
 
-    private void addToShortestColumn(View child) {
-        int shortest = 0;
-        for (int i = 1; i < columns.size(); i++) {
-            if (columnHeights.get(i) < columnHeights.get(shortest)) shortest = i;
+    @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        for (Cell cell : cells) {
+            View child = cell.child();
+            if (child.getParent() != this || child.getVisibility() == GONE) continue;
+            int x = isLayoutRtl() ? right - left - getPaddingRight() - cell.offset() - cell.rightMargin() - child.getMeasuredWidth()
+                    : getPaddingLeft() + cell.offset() + cell.leftMargin();
+            child.layout(x, cell.top(), x + child.getMeasuredWidth(), cell.top() + child.getMeasuredHeight());
         }
-        ViewGroup.LayoutParams params = child.getLayoutParams();
-        int horizontalMargins = 0, verticalMargins = 0;
-        if (params instanceof ViewGroup.MarginLayoutParams margins) {
-            horizontalMargins = margins.leftMargin + margins.rightMargin;
-            verticalMargins = margins.topMargin + margins.bottomMargin;
-        }
-        int width = Math.max(0, measuredContentWidth / columns.size() - horizontalMargins);
-        int childWidth = params != null && params.width >= 0 ? Math.min(width, params.width) : width;
-        child.measure(MeasureSpec.makeMeasureSpec(childWidth,
-                        params != null && params.width == WRAP_CONTENT ? MeasureSpec.AT_MOST : MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(params != null && params.height >= 0 ? params.height : 0,
-                        params != null && params.height >= 0 ? MeasureSpec.EXACTLY : MeasureSpec.UNSPECIFIED));
-        int height = child.getMeasuredHeight() + verticalMargins;
-        columns.get(shortest).addView(child);
-        columnHeights.set(shortest, columnHeights.get(shortest) + height);
     }
 
-    public void reflow() { reflowPending = true; requestLayout(); }
-
-    @Override public void removeView(@NotNull View view) {
-        if (!allChildren.remove(view)) return;
-        for (LinearLayout column : columns) column.removeView(view);
-        reflow();
-    }
-
-    @Override public void removeAllViews() {
-        allChildren.clear();
-        for (LinearLayout column : columns) column.removeAllViews();
-        columns.clear();
-        columnHeights.clear();
-        super.removeAllViews();
-        reflow();
-    }
+    public void reflow() { requestLayout(); }
 }

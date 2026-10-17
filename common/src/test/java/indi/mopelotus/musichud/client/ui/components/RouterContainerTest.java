@@ -9,6 +9,22 @@ import static org.junit.jupiter.api.Assertions.*;
 class RouterContainerTest {
     private final LayoutTestContext context = new LayoutTestContext();
 
+    @Test void clickingTheCheckedSectionReturnsFromItsDetailPageToTheCachedRoot() {
+        var router = new Router();
+        var menu = new SideMenu(context, router);
+        var account = menu.createNavigationPage("Account", "/missing-test-icon", "Account", View::new);
+        account.getButton().setStateListAnimator(null);
+        account.select(); router.drain();
+        View root = router.getCurrentPage(), detail = new View(context);
+        router.pushNavigate(detail, RouterContainer.AnimationStyle.NONE); router.drain();
+        assertTrue(account.getButton().isChecked());
+        account.getButton().performClick(); router.drain();
+        assertEquals("Account", router.getCurrentPageKey());
+        assertSame(root, router.getCurrentPage());
+        assertNull(detail.getParent());
+        assertEquals(1, router.getChildCount());
+    }
+
     @Test void reselectingIncomingRootCancelsTheQueuedThirdRootWithoutConstructingIt() {
         var router = new Router();
         var third = new AtomicInteger();
