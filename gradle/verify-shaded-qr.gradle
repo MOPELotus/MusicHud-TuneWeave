@@ -1,13 +1,16 @@
 def qrDistribution = tasks.named(tasks.findByName('remapJar') == null ? 'jar' : 'remapJar')
-tasks.register('verifyShadedQr', Test) {
+def imageTestOwner = project(':common')
+def packagedImageTest = imageTestOwner.tasks.register("${project.name}VerifyShadedQr", Test) {
     group = 'verification'
     description = 'Scans generated QR codes from the isolated, minimized distribution JAR.'
-    dependsOn qrDistribution, project(':common').tasks.named('testClasses')
-    testClassesDirs = project(':common').sourceSets.test.output.classesDirs
-    classpath = project(':common').sourceSets.test.runtimeClasspath
+    dependsOn qrDistribution, imageTestOwner.tasks.named('testClasses')
+    testClassesDirs = imageTestOwner.sourceSets.test.output.classesDirs
+    classpath = imageTestOwner.sourceSets.test.runtimeClasspath
     useJUnitPlatform()
     filter { includeTestsMatching 'indi.mopelotus.musichud.client.utils.image.QrImageUtilsTest' }
     inputs.file(qrDistribution.flatMap { it.archiveFile })
     doFirst { systemProperty 'qr.distributionJar', qrDistribution.get().archiveFile.get().asFile.absolutePath }
 }
+// Execute with the owning project's lock, including when compilation is up to date.
+tasks.register('verifyShadedQr') { dependsOn packagedImageTest }
 tasks.named('check') { dependsOn tasks.named('verifyShadedQr') }

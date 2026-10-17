@@ -34,15 +34,18 @@ tasks.register('verifyShadedWebp') {
 tasks.named('check') { dependsOn tasks.named('verifyShadedWebp') }
 
 // Cover metadata, alpha, animation's first frame and malformed inputs after dependency minimization.
-tasks.register('verifyShadedWebpCases', Test) {
+def imageTestOwner = project(':common')
+def packagedImageTest = imageTestOwner.tasks.register("${project.name}VerifyShadedWebpCases", Test) {
     group = 'verification'
     description = 'Runs WebP compatibility and boundary cases against the isolated distribution JAR.'
-    dependsOn webpDistribution, project(':common').tasks.named('testClasses')
-    testClassesDirs = project(':common').sourceSets.test.output.classesDirs
-    classpath = project(':common').sourceSets.test.runtimeClasspath
+    dependsOn webpDistribution, imageTestOwner.tasks.named('testClasses')
+    testClassesDirs = imageTestOwner.sourceSets.test.output.classesDirs
+    classpath = imageTestOwner.sourceSets.test.runtimeClasspath
     useJUnitPlatform()
     filter { includeTestsMatching 'indi.mopelotus.musichud.client.utils.image.WebpImagesTest' }
     inputs.file(webpDistribution.flatMap { it.archiveFile })
     doFirst { systemProperty 'webp.distributionJar', webpDistribution.get().archiveFile.get().asFile.absolutePath }
 }
+// Execute with the owning project's lock, including when compilation is up to date.
+tasks.register('verifyShadedWebpCases') { dependsOn packagedImageTest }
 tasks.named('check') { dependsOn tasks.named('verifyShadedWebpCases') }
