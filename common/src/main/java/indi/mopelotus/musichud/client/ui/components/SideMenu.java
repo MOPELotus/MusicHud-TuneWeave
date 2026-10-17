@@ -130,6 +130,9 @@ public class SideMenu extends FrameLayout {
             button.setId(pagesMap1.size() + 1);
             button.setText(text);
             button.setClickable(true);
+            // A checked radio button does not emit another checked-change event.
+            // Clicking the current section must still return from its detail pages.
+            button.setOnClickListener(view -> routerContainer.navigateToRoot(key));
             button.setFocusable(true);
             button.setTextSize(Theme.TEXT_SIZE_LARGE);
             button.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);

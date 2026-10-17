@@ -1,6 +1,6 @@
 # MusicHud TuneWeave — CurseForge edition
 
-> **This is the feature-limited CurseForge edition.** TuneWeave downloading and updating are not included. For the full-featured edition, we recommend the standard builds on [GitHub](https://github.com/MOPELotus/MusicHud-TuneWeave/releases), or Modrinth when the project is published there. Music playback, lyrics, the HUD and shared queues remain available.
+> **This is the feature-limited CurseForge edition.** It only connects to an existing TuneWeave service. It does not install, update, start, or manage external programs. The project is fully open source; visit its [GitHub homepage](https://github.com/MOPELotus/MusicHud-TuneWeave) for source and other information. Music playback, lyrics, the HUD and shared queues remain available.
 
 MusicHud TuneWeave adds an in-game music browser, playback controls, synchronized lyrics and a configurable HUD. Play independently or join a shared queue with other players using compatible clients and a supported server or proxy plugin.
 
@@ -14,13 +14,11 @@ For Minecraft 26.2 / 26.3, use the matching [ModernUI 3.13.0.9 release](https://
 
 Press **M** in a world to open the music interface. Search for music, add tracks to the queue, or use a supported playlist as an idle playback source. Lyrics, account features and available audio quality depend on the music service and the user's access rights.
 
-### Local music service
+### External music service
 
-The CurseForge edition is identified by `-cf` in its file version. It does not contain the TuneWeave downloader or updater and does not bundle the TuneWeave executable.
+Install and start TuneWeave independently, outside the mod. Enter the service address in Settings (usually `http://127.0.0.1:7832`). This edition has no executable-path settings, program acquisition, automatic startup, child-process controls or process-log management. Audio playback and system media integration still use bundled native libraries.
 
-Users install TuneWeave separately. In settings, select an already installed executable and choose to start or restart it, or enter the address of a service you run independently. New configurations leave the executable path empty and automatic startup disabled. Users may explicitly enable startup on future game launches; existing user configuration is retained when changing editions.
-
-When the mod starts the configured executable, it invokes that file directly, without a shell command. It configures TuneWeave to listen on the loopback interface. Logs and TuneWeave data are stored beside the selected executable. The mod can stop the child process it owns. Audio playback and system media integration use bundled native libraries; those libraries are separate from the TuneWeave executable.
+CF service preferences use a separate `musichud_tuneweave-cf-server.toml` file, preserving the standard edition's process configuration when switching editions. Only install one edition at a time.
 
 ### Multiplayer
 
@@ -32,12 +30,14 @@ Please report reproducible problems with Minecraft, loader, mod and TuneWeave ve
 
 ## 中文说明
 
-这是功能有所精简的 CurseForge 专版，移除了 TuneWeave 下载和更新功能。推荐需要完整功能的用户使用 GitHub 上的普通版；Modrinth 项目发布后也会提供普通版。音乐播放、歌词、HUD 和共享队列仍可使用。
-
-用户需要自行准备 TuneWeave，在设置中填写本地程序路径后启动，或连接已经运行的服务。新配置默认关闭自动启动，程序路径为空。普通版与 CF 版使用同一模组标识和协议，请只安装其中一种。
+这是 CurseForge 精简版，仅连接已有 TuneWeave 服务，不负责外部程序的安装、更新、启动或管理。请自行在模组外安装并启动 TuneWeave，然后在设置中填写服务地址。音乐播放、歌词、HUD 和共享队列仍可使用。普通版与 CF 版使用同一模组标识和协议，请只安装其中一种。
 
 ## Edition notice and mod updates
 
-The first MusicHud screen and every update prompt explain the CF edition limitations and link to the full standard edition. Update checks include releases and prereleases matching the CF edition, Minecraft version and loader. “Go to download” opens the matching GitHub Release page in your browser. Choose the matching CF JAR and replace the old file after exiting the game. This edition does not download or install mod updates, start an update helper, or manage update backups. The TuneWeave service downloader/updater also remains absent.
+The first MusicHud screen explains the CF edition once. “Take a look” opens only the GitHub project homepage to view source and other content. “Understood” saves acknowledgement, so the notice does not repeat. Users who acknowledged the earlier notice see this changed connection-only policy once.
 
-首次打开模组界面及更新提示均说明 CF 精简范围并提供 GitHub 完整版入口。更新检测包含正式版和测试版，只匹配 CF 发行版、游戏版本与加载器。“去下载”打开对应版本的 GitHub Release 页面；请选择匹配的 CF 文件，退出游戏后手动替换旧 JAR。CF 版不自动下载或安装模组更新，也不启动更新安装器或管理更新备份。TuneWeave 服务程序的下载/更新功能仍不包含在 CF 版中。
+Version checks remain available, including matching releases and prereleases. A new-version notice offers the project-home link and “Later”; it never downloads or installs files or opens a Release download page. “Later” suppresses automatic reminders for that version during the current game process. A manual check can show it again. Manual checks show checking, current and failed states; background check failures do not open a dialog.
+
+首次打开模组 UI 时显示一次「CF 精简版」说明。「去看看」仅打开 GitHub 项目主页，查看源码及其他项目内容，不自动下载或安装文件。「知道了」保存确认记录，以后不再重复提示。此前确认过旧说明的用户会看到一次新的连接模式说明。
+
+发现新版本时，仅告知版本状态。「去看看」打开项目主页，「下次再说」使同一版本在本次游戏进程内不再自动提醒；手动检查仍可重新显示。手动检查显示「正在检查」「没有匹配的新版本」「检查失败」等状态，后台检查失败不主动弹窗。GitHub、Modrinth 等普通发行版继续保留完整的 TuneWeave 管理能力。

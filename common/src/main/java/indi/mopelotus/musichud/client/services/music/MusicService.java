@@ -507,10 +507,10 @@ public class MusicService implements IClientMusicService {
         QueueItem queued = musicQueue.peek();
         MusicDetail preload = queued == null ? next : queued.musicDetail();
         if (preload != null && preload != MusicDetail.NONE) {
-            ImageUtils.downloadAsync(preload.getAlbum().getThumbnailPicUrl(240));
+            ImageUtils.downloadScaledAsync(preload.getAlbum().getPicUrl(), 240, 240);
             HudRendererManager.getInstance().preloadAlbumImage(preload.getAlbum());
         }
-        if (session.isActive()) ImageUtils.downloadAsync(session.musicDetail().getAlbum().getThumbnailPicUrl(240));
+        if (session.isActive()) ImageUtils.downloadScaledAsync(session.musicDetail().getAlbum().getPicUrl(), 240, 240);
     }
 
     @Override

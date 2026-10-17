@@ -66,7 +66,15 @@ subprojects {
                         def translations = new groovy.json.JsonSlurper().parse(file)
                         translations.keySet().removeIf { key ->
                             key.startsWith('musichud_tuneweave.modal.downloadApiServer') ||
-                                    key.startsWith('musichud_tuneweave.button.downloadApiServer')
+                                    key.startsWith('musichud_tuneweave.button.downloadApiServer') ||
+                                    key.startsWith('musichud_tuneweave.modal.clearApiLogs') ||
+                                    key in ['musichud_tuneweave.config.apiServer.startupBinaryApiServerWhenLaunch',
+                                            'musichud_tuneweave.config.apiServer.serverApiBinaryExecutablePath',
+                                            'musichud_tuneweave.config.apiServer.port',
+                                            'musichud_tuneweave.button.localApiSetup', 'musichud_tuneweave.text.localApiSetup',
+                                            'musichud_tuneweave.button.localApiSetupClose',
+                                            'musichud_tuneweave.update.fullEdition', 'musichud_tuneweave.update.goDownload',
+                                            'musichud_tuneweave.update.manualDownloadNotice', 'musichud_tuneweave.update.restartNotice']
                         }
                         file.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(translations)) + '\n', 'UTF-8')
                     }

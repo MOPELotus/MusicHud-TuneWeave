@@ -532,7 +532,7 @@
   "musichud_tuneweave.text.myCollectedBilibiliCollections": "我收藏的收藏夹／合集",
   "musichud_tuneweave.update.title": "模组更新",
   "musichud_tuneweave.update.cfTitle": "CF 精简版",
-  "musichud_tuneweave.update.cfNotice": "这是 CurseForge（CF）精简版，未包含 TuneWeave 服务程序的下载、更新功能，也不内置该程序；需要自行安装或连接已有服务。音乐播放、歌词、HUD 和共享队列仍可使用。模组更新需手动下载并替换。需要完整功能，请点击“下载完整版”前往 GitHub Releases 下载普通版。两种版本请勿同时安装。",
+  "musichud_tuneweave.update.cfNotice": "这是 CurseForge（CF）精简版，仅连接已有 TuneWeave 服务，不负责外部程序的安装、更新、启动或管理。请自行在模组外安装并启动 TuneWeave，然后在设置中填写服务地址。音乐播放、歌词、HUD 和共享队列仍可使用。该项目完全开源，点击“去看看”可前往 GitHub 项目主页查看源码及其他内容；按钮仅打开项目主页，不会自动下载或安装任何文件。",
   "musichud_tuneweave.update.fullEdition": "下载完整版",
   "musichud_tuneweave.update.understood": "知道了",
   "musichud_tuneweave.update.check": "检查模组更新（含测试版）",
@@ -547,5 +547,12 @@
   "musichud_tuneweave.update.checking": "正在检查更新…",
   "musichud_tuneweave.update.downloading": "正在下载并校验更新…可以关闭此提示继续使用，完成后会通知。",
   "musichud_tuneweave.update.goDownload": "去下载",
-  "musichud_tuneweave.update.manualDownloadNotice": "点击“去下载”打开该版本的 GitHub Release 页面，选择匹配游戏版本和加载器的 CF 文件，退出游戏后手动替换旧 JAR。CF 版不会自动下载或安装更新。"
+  "musichud_tuneweave.update.manualDownloadNotice": "点击“去下载”打开该版本的 GitHub Release 页面，选择匹配游戏版本和加载器的 CF 文件，退出游戏后手动替换旧 JAR。CF 版不会自动下载或安装更新。",
+  "musichud_tuneweave.update.goLook": "去看看",
+  "musichud_tuneweave.update.cfAvailableTitle": "发现新版本",
+  "musichud_tuneweave.update.cfUpdateNotice": "如需查看新版的详细信息，可以点击“去看看”前往 GitHub 项目主页。CF 版只提示版本状态，不自动下载或安装更新。",
+  "musichud_tuneweave.update.cfFailed": "更新检查失败，请稍后重试。",
+  "musichud_tuneweave.update.cfUnavailable": "当前开发环境无法检查更新，请使用正式安装的模组 JAR。",
+  "musichud_tuneweave.text.externalApiSetup": "本版本仅连接已有 TuneWeave 服务。请在模组外自行安装并启动服务，然后填写服务地址（通常为 http://127.0.0.1:7832）。",
+  "musichud_tuneweave.text.invalidServiceUrl": "服务地址无效，请输入不含账号密码、查询参数或片段的 HTTP(S) 地址。"
 }
