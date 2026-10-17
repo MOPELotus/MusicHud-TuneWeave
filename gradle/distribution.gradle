@@ -12,6 +12,13 @@ ext.releaseVersion = rootProject.mod_version + (distribution == 'cf' ? '-cf.1' :
 
 subprojects {
     plugins.withId('com.gradleup.shadow') {
+        if (project.name in ['fabric', 'neoforge']) {
+            tasks.named('shadowJar').configure {
+                // Upstream command-line examples; no production metadata reader uses these.
+                exclude 'org/jaudiotagger/test/**'
+                exclude 'org/jaudiotagger/Test.class', 'org/jaudiotagger/Test2.class'
+            }
+        }
         if (distribution == 'cf' && project.name in ['fabric', 'neoforge']) {
             tasks.named('shadowJar').configure {
                 // Only HTTP streams and local audio are used. Remove the unused
