@@ -52,6 +52,21 @@ test {
     enabled = false
 }
 
+tasks.register('verifyNoDesktopMedia') {
+    group = 'verification'
+    description = 'Keeps desktop media integration out of shared server contracts.'
+    dependsOn tasks.named('jar')
+    inputs.file(tasks.named('jar').flatMap { it.archiveFile })
+    doLast {
+        new java.util.zip.ZipFile(tasks.named('jar').get().archiveFile.get().asFile).withCloseable { zip ->
+            if (zip.entries().any { it.name.startsWith('io/github/selemba1000/') && it.name.endsWith('.class') }) {
+                throw new GradleException('Desktop media implementation must be packaged by common, not core')
+            }
+        }
+    }
+}
+tasks.named('check') { dependsOn tasks.named('verifyNoDesktopMedia') }
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
