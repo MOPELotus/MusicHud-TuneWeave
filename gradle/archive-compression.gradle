@@ -1,0 +1,95 @@
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
+import java.util.zip.ZipFile
+import javax.inject.Inject
+import org.gradle.workers.WorkerExecutor
+
+// Public Gradle services and Commons Compress API; no Gradle archive internals.
+buildscript {
+    repositories { rootProject.buildscript.repositories.each { add(it) } }
+    dependencies { classpath 'org.apache.commons:commons-compress:1.28.0' }
+}
+
+abstract class MaximumArchiveCompression {
+    @Inject abstract WorkerExecutor getWorkers()
+
+    private static Map payloads(File archive) {
+        new ZipFile(archive).withCloseable { zip ->
+            def entries = [:]
+            zip.entries().each { entry ->
+                if (entries.containsKey(entry.name)) throw new GradleException("Duplicate ZIP entry: ${entry.name}")
+                def hash = zip.getInputStream(entry).withCloseable {
+                    MessageDigest.getInstance('SHA-256').digest(it.readAllBytes()).encodeHex().toString()
+                }
+                entries[entry.name] = [entry.size, hash]
+            }
+            entries
+        }
+    }
+
+    void compress(Task task) {
+        // Loom submits remapping to workers. Finish it before reading its output.
+        workers.await()
+        File archive = task.archiveFile.get().asFile
+        File packed = new File(task.temporaryDir, 'maximum-compression.zip')
+        Files.deleteIfExists(packed.toPath())
+        def before = payloads(archive)
+        try {
+            // Preserve physical order (in particular the JAR manifest), permissions and times.
+            org.apache.commons.compress.archivers.zip.ZipFile.builder().setFile(archive).get().withCloseable { input ->
+                new org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream(packed).withCloseable { output ->
+                    output.setEncoding('UTF-8')
+                    output.setUseLanguageEncodingFlag(true)
+                    output.setLevel(9)
+                    new ZipFile(archive).withCloseable { output.setComment(it.comment ?: '') }
+                    input.entriesInPhysicalOrder.each { original ->
+                        def entry = new org.apache.commons.compress.archivers.zip.ZipArchiveEntry(original)
+                        if (!entry.directory) entry.method = java.util.zip.ZipEntry.DEFLATED
+                        output.putArchiveEntry(entry)
+                        input.getInputStream(original).withCloseable { it.transferTo(output) }
+                        output.closeArchiveEntry()
+                    }
+                }
+            }
+            if (payloads(packed) != before) {
+                throw new GradleException("Compression changed ZIP entry content in ${archive.name}")
+            }
+            Files.move(packed.toPath(), archive.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            Files.deleteIfExists(packed.toPath())
+        }
+    }
+}
+
+// Register after loader plugins have added their manifest/remapping actions.
+gradle.projectsEvaluated {
+    allprojects {
+        tasks.withType(Zip).configureEach {
+            inputs.property('maximumDeflateLevel', 9)
+            inputs.property('archiveDeflaterRuntime', System.getProperty('java.runtime.version'))
+            inputs.property('archiveDeflaterVendor', System.getProperty('java.vendor'))
+            doLast { task -> objects.newInstance(MaximumArchiveCompression).compress(task) }
+        }
+        if (name in ['fabric', 'neoforge', 'paper', 'velocity', 'bungeecord']) {
+            def deployment = tasks.findByName('remapJar') ?:
+                    tasks.getByName(name in ['paper', 'velocity', 'bungeecord'] ? 'shadowJar' : 'jar')
+            def verification = tasks.register('verifyMaximumArchiveCompression') {
+                dependsOn deployment
+                inputs.file(deployment.archiveFile)
+                inputs.file(rootProject.file('gradle/VerifyJarCompression.java'))
+                doLast {
+                    // Use the build JVM: different JDK zlib versions can produce different bytes.
+                    def check = providers.exec {
+                        commandLine new File(System.getProperty('java.home'), 'bin/java'),
+                                rootProject.file('gradle/VerifyJarCompression.java'),
+                                deployment.archiveFile.get().asFile
+                    }
+                    check.result.get().assertNormalExitValue()
+                    logger.lifecycle(check.standardOutput.asText.get().trim())
+                }
+            }
+            tasks.named('build').configure { dependsOn verification }
+        }
+    }
+}
