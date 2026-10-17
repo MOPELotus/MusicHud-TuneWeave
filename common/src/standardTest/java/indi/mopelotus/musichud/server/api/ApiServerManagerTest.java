@@ -32,6 +32,26 @@ class ApiServerManagerTest {
     @TempDir Path directory;
 
     @Test
+    void embeddedApiLifecycleIsClientOwned() throws IOException {
+        assertTrue(indi.mopelotus.musichud.interfaces.ClientRegister.class.isAssignableFrom(ApiServerManager.class));
+        assertFalse(indi.mopelotus.musichud.interfaces.ServerRegister.class.isAssignableFrom(ApiServerManager.class));
+        var resources = ApiServerManager.class.getClassLoader().getResources("META-INF/musichud-registries.core.properties");
+        boolean found = false;
+        while (resources.hasMoreElements()) {
+            try (var stream = resources.nextElement().openStream();
+                 var reader = new java.io.BufferedReader(new java.io.InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8))) {
+                for (String line; (line = reader.readLine()) != null;) {
+                    if (line.endsWith("=" + ApiServerManager.class.getName())) {
+                        assertEquals("CLIENT=" + ApiServerManager.class.getName(), line);
+                        found = true;
+                    }
+                }
+            }
+        }
+        assertTrue(found, "Generated registration metadata must retain the client lifecycle");
+    }
+
+    @Test
     void emptyMalformedOrDirectorySelectionNeverTargetsGameLogs() throws IOException {
         Fixture fixture = new Fixture(directory);
         Path expected = Path.of("musichud-tuneweave", "logs").toAbsolutePath().normalize();

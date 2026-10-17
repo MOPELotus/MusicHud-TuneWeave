@@ -2,14 +2,19 @@ package indi.mopelotus.musichud.mixin;
 
 import icyllis.modernui.mc.UIManager;
 import icyllis.modernui.core.Core;
+import icyllis.modernui.core.Choreographer;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.utils.ShutdownWaiter;
+import indi.mopelotus.musichud.client.utils.UiShutdownRequest;
+import indi.mopelotus.musichud.client.utils.UiQueueShutdown;
 import indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = UIManager.class, remap = false)
@@ -18,6 +23,7 @@ public abstract class ModernUiGraphicsLifecycleMixin {
     @Shadow @Final private Thread mUiThread;
     @Shadow private volatile boolean mRunning;
     @Shadow private void finish() { throw new AssertionError(); }
+    @Unique private final UiShutdownRequest musichud_tuneweave$shutdownRequest = new UiShutdownRequest();
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void musichud_tuneweave$registerShutdown(CallbackInfo ci) {
@@ -31,15 +37,34 @@ public abstract class ModernUiGraphicsLifecycleMixin {
         }
     }
 
+    @Inject(method = "removed", at = @At("HEAD"), cancellable = true)
+    private void musichud_tuneweave$skipStoppedDetach(CallbackInfo ci) {
+        // Some hosts finish the fragment manager in CLIENT_STOPPING, before Minecraft removes its screen.
+        // The UI loop has already detached the fragment; a second transaction cannot be enqueued.
+        if (!mRunning) ci.cancel();
+    }
+
+    @ModifyArg(method = "finish", at = @At(value = "INVOKE", target =
+            "Licyllis/modernui/core/Handler;postDelayed(Ljava/lang/Runnable;J)Z"), index = 0)
+    private Runnable musichud_tuneweave$stopAnimationsBeforeQueueQuit(Runnable quit) {
+        // quitSafely still dispatches already-due frame messages. Their animation callbacks
+        // must be removed first, otherwise AnimationHandler tries to schedule another frame
+        // on a queue that has already stopped accepting messages.
+        return UiQueueShutdown.wrap(() -> Choreographer.getInstance().removeCallbacks(
+                Choreographer.CALLBACK_ANIMATION, null, null), quit);
+    }
+
     private void musichud_tuneweave$awaitUiShutdown() {
         if (!mUiThread.isAlive()) return;
         UIManager manager = (UIManager) (Object) this;
         // Older ModernUI versions release their immediate context before joining the UI thread,
         // and a last frame can leave that thread asleep forever. Finish it while the device is live.
-        if (mRunning) {
-            mRunning = false;
-            Core.getUiHandlerAsync().post(this::finish);
-        }
+        musichud_tuneweave$shutdownRequest.request(manager, () -> {
+            if (mRunning) {
+                mRunning = false;
+                Core.getUiHandlerAsync().post(this::finish);
+            }
+        });
         var decor = manager.getDecorView();
         var root = decor == null ? null : decor.getViewRoot();
         Object frameLock = null;

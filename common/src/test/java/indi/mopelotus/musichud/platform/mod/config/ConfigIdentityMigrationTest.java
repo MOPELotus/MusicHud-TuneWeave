@@ -40,8 +40,19 @@ class ConfigIdentityMigrationTest {
         } finally { MusicHud.setConfigDirectory(previous); }
     }
 
+    @Test void voteRateRejectsNonFiniteConfigurationValues() throws Exception {
+        var constructor = ServerConfigDefinition.class.getDeclaredConstructor(); constructor.setAccessible(true);
+        var config = constructor.newInstance();
+        for (double invalid : new double[]{Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            config.setPusherVoteAdditionalRate(invalid);
+            assertEquals(0.5, config.getPusherVoteAdditionalRate());
+        }
+        config.setPusherVoteAdditionalRate(-1); assertEquals(0, config.getPusherVoteAdditionalRate());
+        config.setPusherVoteAdditionalRate(2); assertEquals(1, config.getPusherVoteAdditionalRate());
+    }
+
     @Test void currentServerConfigIsProjectOwned() throws Exception {
-        Path active = directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-server.toml"); Files.writeString(active, "port = 7002\n");
+        Path active = directory.resolve(ProjectIdentity.CONFIG_PREFIX + (indi.mopelotus.musichud.BuildDistribution.EDITION.equals("cf") ? "-cf-server.toml" : "-server.toml")); Files.writeString(active, "port = 7002\n");
         Path previous = MusicHud.getConfigDirectory(); MusicHud.setConfigDirectory(directory);
         try {
             var constructor = ServerConfigDefinition.class.getDeclaredConstructor(); constructor.setAccessible(true);

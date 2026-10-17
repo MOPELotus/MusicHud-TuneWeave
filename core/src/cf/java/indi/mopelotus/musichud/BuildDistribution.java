@@ -1,10 +1,8 @@
 package indi.mopelotus.musichud;
 
-/** CF users choose their own locally installed TuneWeave executable. */
+/** CF only connects to an independently running service. */
 public final class BuildDistribution {
     public static final String EDITION = "cf";
-    public static final boolean DEFAULT_AUTO_START = false;
-    public static final String DEFAULT_EXECUTABLE_PATH = "";
 
     private BuildDistribution() {}
 }
