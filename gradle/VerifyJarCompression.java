@@ -1,6 +1,7 @@
 import java.io.*;
 import java.nio.file.*;
 import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 import java.util.zip.*;
 
 /** Checks the final archive independently of Commons Compress, using the build JVM's raw DEFLATE. */
@@ -9,9 +10,11 @@ class VerifyJarCompression {
         if (args.length != 1) throw new IllegalArgumentException("Expected one JAR");
         Path path = Path.of(args[0]);
         try (ZipFile zip = new ZipFile(path.toFile())) {
+            Manifest manifest = null;
             if (zip.getEntry("META-INF/MANIFEST.MF") != null) {
                 try (JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
-                    if (jar.getManifest() == null) throw new IOException("JAR manifest is not at the start");
+                    manifest = jar.getManifest();
+                    if (manifest == null) throw new IOException("JAR manifest is not at the start");
                 }
             }
             byte[] input = new byte[32768];
@@ -21,6 +24,10 @@ class VerifyJarCompression {
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 if (entry.isDirectory()) continue;
+                if (entry.getName().startsWith("META-INF/versions/") && entry.getName().endsWith(".class")
+                        && (manifest == null || !"true".equalsIgnoreCase(manifest.getMainAttributes().getValue("Multi-Release")))) {
+                    throw new IOException("Missing Multi-Release flag for versioned class: " + entry.getName());
+                }
                 if (entry.getMethod() != ZipEntry.DEFLATED) {
                     throw new IOException("Entry is not DEFLATE-compressed: " + entry.getName());
                 }
