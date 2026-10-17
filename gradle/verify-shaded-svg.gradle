@@ -1,0 +1,38 @@
+import java.util.zip.ZipFile
+import javax.imageio.ImageIO
+
+def svgDistribution = tasks.named(tasks.findByName('remapJar') == null ? 'jar' : 'remapJar')
+tasks.register('verifyShadedSvg') {
+    group = 'verification'
+    description = 'Checks private SVG rendering using only the distributed JAR.'
+    dependsOn svgDistribution
+    inputs.file(svgDistribution.flatMap { it.archiveFile })
+    doLast {
+        File artifact = svgDistribution.get().archiveFile.get().asFile
+        new ZipFile(artifact).withCloseable { zip ->
+            if (zip.entries().any { it.name.endsWith('.class') &&
+                    (it.name.startsWith('com/github/weisj/jsvg/') || it.name.startsWith('org/apache/batik/') ||
+                            it.name.startsWith('org/apache/xmlgraphics/')) }) {
+                throw new GradleException("Unisolated SVG dependency or obsolete Batik classes in ${artifact.name}")
+            }
+            if (zip.getEntry('META-INF/licenses/jsvg/LICENSE.txt') == null) {
+                throw new GradleException("Missing SVG renderer license in ${artifact.name}")
+            }
+        }
+        new URLClassLoader([artifact.toURI().toURL()] as URL[], ClassLoader.getPlatformClassLoader()).withCloseable { loader ->
+            Class renderer = loader.loadClass('indi.mopelotus.musichud.client.utils.image.SvgImages')
+            byte[] svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect x="4" y="4" width="8" height="8" fill="#14a050"/></svg>'.getBytes('UTF-8')
+            byte[] png = (byte[]) renderer.getMethod('png', byte[].class, int, int)
+                    .invoke(null, [svg, 32, 32] as Object[])
+            def image = ImageIO.read(new ByteArrayInputStream(png))
+            try {
+                if (image.width != 32 || image.height != 32 || image.getRGB(16, 16) != (int) 0xff14a050L ||
+                        (image.getRGB(0, 0) >>> 24) != 0) {
+                    throw new GradleException("Packaged SVG rendering failed in ${artifact.name}")
+                }
+            } finally { image.flush() }
+        }
+        logger.lifecycle("Verified private SVG rendering in ${artifact.name}")
+    }
+}
+tasks.named('check') { dependsOn tasks.named('verifyShadedSvg') }

@@ -1,0 +1,13 @@
+def qrDistribution = tasks.named(tasks.findByName('remapJar') == null ? 'jar' : 'remapJar')
+tasks.register('verifyShadedQr', Test) {
+    group = 'verification'
+    description = 'Scans generated QR codes from the isolated, minimized distribution JAR.'
+    dependsOn qrDistribution, project(':common').tasks.named('testClasses')
+    testClassesDirs = project(':common').sourceSets.test.output.classesDirs
+    classpath = project(':common').sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter { includeTestsMatching 'indi.mopelotus.musichud.client.utils.image.QrImageUtilsTest' }
+    inputs.file(qrDistribution.flatMap { it.archiveFile })
+    doFirst { systemProperty 'qr.distributionJar', qrDistribution.get().archiveFile.get().asFile.absolutePath }
+}
+tasks.named('check') { dependsOn tasks.named('verifyShadedQr') }

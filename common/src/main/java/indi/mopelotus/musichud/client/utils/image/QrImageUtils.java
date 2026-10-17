@@ -2,15 +2,11 @@ package indi.mopelotus.musichud.client.utils.image;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
-import com.google.zxing.MultiFormatWriter;
+import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.common.BitMatrix;
-import org.apache.batik.transcoder.TranscoderInput;
-import org.apache.batik.transcoder.TranscoderOutput;
-import org.apache.batik.transcoder.image.PNGTranscoder;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -50,14 +46,8 @@ public final class QrImageUtils {
     private static String rasterizeSvg(String dataUrl) {
         try {
             byte[] svg = decodeDataUrl(dataUrl);
-            PNGTranscoder transcoder = new PNGTranscoder();
-            transcoder.addTranscodingHint(PNGTranscoder.KEY_WIDTH, (float) QR_SIZE);
-            transcoder.addTranscodingHint(PNGTranscoder.KEY_HEIGHT, (float) QR_SIZE);
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            transcoder.transcode(
-                    new TranscoderInput(new ByteArrayInputStream(svg)),
-                    new TranscoderOutput(output));
-            return "data:image/png;base64," + Base64.getEncoder().encodeToString(output.toByteArray());
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(
+                    SvgImages.png(svg, QR_SIZE, QR_SIZE));
         } catch (Exception error) {
             throw new IllegalArgumentException("TuneWeave returned an invalid SVG QR image", error);
         }
@@ -67,7 +57,8 @@ public final class QrImageUtils {
         try {
             Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
             hints.put(EncodeHintType.MARGIN, 2);
-            BitMatrix matrix = new MultiFormatWriter().encode(
+            hints.put(EncodeHintType.CHARACTER_SET, StandardCharsets.UTF_8.name());
+            BitMatrix matrix = new QRCodeWriter().encode(
                     content, BarcodeFormat.QR_CODE, QR_SIZE, QR_SIZE, hints);
             BufferedImage image = new BufferedImage(QR_SIZE, QR_SIZE, BufferedImage.TYPE_INT_RGB);
             for (int y = 0; y < QR_SIZE; y++) {
