@@ -1,3 +1,7 @@
+buildscript {
+    repositories { mavenCentral() }
+}
+
 plugins {
     id 'net.fabricmc.fabric-loom-remap' version '1.17.12' apply false
     id 'net.neoforged.moddev' version '2.0.141' apply false
@@ -6,6 +10,7 @@ plugins {
 }
 
 apply from: 'gradle/distribution.gradle'
+apply from: 'gradle/archive-compression.gradle'
 
 allprojects {
     group = rootProject.maven_group
@@ -38,6 +43,10 @@ subprojects {
                                       'META-INF/licenses/jmtc/LICENSE.txt',
                                       'META-INF/licenses/jmtc/NOTICE.txt']) {
                             if (zip.getEntry(path) == null) throw new GradleException("Missing desktop media implementation/license ${path}")
+                        }
+                        if (zip.entries().any { it.name.startsWith('org/jaudiotagger/test/') ||
+                                it.name in ['org/jaudiotagger/Test.class', 'org/jaudiotagger/Test2.class'] }) {
+                            throw new GradleException('Dependency example tools remain in client artifact')
                         }
                         if (zip.entries().toList().any { it.name.startsWith('assets/music_hud/') || it.name == 'music_hud.mixins.json' }) {
                             throw new GradleException("Legacy identity resources remain in ${artifact.name}")
