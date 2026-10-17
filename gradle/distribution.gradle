@@ -14,6 +14,17 @@ subprojects {
     plugins.withId('com.gradleup.shadow') {
         if (project.name in ['fabric', 'neoforge']) {
             tasks.named('shadowJar').configure {
+                // Legacy NeoForge keeps its private HTTP/Commons package boundary.
+                if (project.name == 'fabric') {
+                    // Every supported Minecraft runtime supplies these shared utility libraries.
+                    dependencies {
+                        exclude(dependency('commons-io:commons-io:.*'))
+                        exclude(dependency('commons-codec:commons-codec:.*'))
+                        // Also supplied by the fixed Minecraft versions supported on this branch.
+                        exclude(dependency('org.apache.httpcomponents:httpcore:.*'))
+                        exclude(dependency('commons-logging:commons-logging:.*'))
+                    }
+                }
                 // Upstream command-line examples; no production metadata reader uses these.
                 exclude 'org/jaudiotagger/test/**'
                 exclude 'org/jaudiotagger/Test.class', 'org/jaudiotagger/Test2.class'
