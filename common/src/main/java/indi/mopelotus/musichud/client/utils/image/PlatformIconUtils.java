@@ -6,9 +6,6 @@ import icyllis.modernui.graphics.Image;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
-import org.apache.batik.transcoder.TranscoderInput;
-import org.apache.batik.transcoder.TranscoderOutput;
-import org.apache.batik.transcoder.image.PNGTranscoder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
