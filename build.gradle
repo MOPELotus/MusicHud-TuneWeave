@@ -1,8 +1,13 @@
+buildscript {
+    repositories { mavenCentral() }
+}
+
 plugins {
     id 'com.gradleup.shadow' version '9.2.2' apply false
 }
 
 apply from: 'gradle/distribution.gradle'
+apply from: 'gradle/archive-compression.gradle'
 
 allprojects {
     group = rootProject.maven_group
