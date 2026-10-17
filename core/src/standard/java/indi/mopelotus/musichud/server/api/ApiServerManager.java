@@ -30,7 +30,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 @RegisterMark
-public class ApiServerManager implements ServerRegister {
+public class ApiServerManager implements ClientRegister {
     private static final DateTimeFormatter LOG_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final int MAX_TRIES = 5;
     private static final long TERMINATION_WAIT_MILLIS = 1_000;

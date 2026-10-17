@@ -11,6 +11,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ClientGraphicsLifecycleMixin {
     @Inject(method = "close", at = @At("HEAD"))
     private void musichud_tuneweave$closeGraphics(CallbackInfo ci) {
-        ClientGraphicsResources.beginShutdown();
+        try {
+            ClientGraphicsResources.beginShutdown();
+        } catch (RuntimeException | Error failure) {
+            // Minecraft may terminate in a finally block before reporting a close failure.
+            indi.mopelotus.musichud.MusicHud.LOGGER.error("Failed to shut down TuneWeave graphics", failure);
+            throw failure;
+        }
     }
 }

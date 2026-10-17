@@ -532,7 +532,7 @@
   "musichud_tuneweave.text.myCollectedBilibiliCollections": "Collected folders / collections",
   "musichud_tuneweave.update.title": "Mod update",
   "musichud_tuneweave.update.cfTitle": "CurseForge edition",
-  "musichud_tuneweave.update.cfNotice": "This is the feature-limited CurseForge (CF) edition. It does not include the TuneWeave service downloader, updater or executable. Install the service yourself or connect to an existing service. Music playback, lyrics, HUD and shared queues remain available. Mod updates must be downloaded and installed manually. Select “Full edition” for standard builds on GitHub Releases. Install only one edition.",
+  "musichud_tuneweave.update.cfNotice": "This is the CurseForge (CF) feature-limited edition. It only connects to an existing TuneWeave service and does not install, update, start, or manage external programs. Install and start TuneWeave outside the mod, then enter its service URL in Settings. Music playback, lyrics, the HUD, and shared queues remain available. This project is fully open source. “Take a look” opens the GitHub project homepage to view its source and other content; it never automatically downloads or installs files.",
   "musichud_tuneweave.update.fullEdition": "Full edition",
   "musichud_tuneweave.update.understood": "OK",
   "musichud_tuneweave.update.check": "Check mod updates (including prereleases)",
@@ -547,5 +547,12 @@
   "musichud_tuneweave.update.checking": "Checking for updates…",
   "musichud_tuneweave.update.downloading": "Downloading and verifying the update… You can close this dialog and continue playing.",
   "musichud_tuneweave.update.goDownload": "Go to download",
-  "musichud_tuneweave.update.manualDownloadNotice": "Select “Go to download” to open this version’s GitHub Release page. Download the CF file matching your game version and loader, then replace the old JAR after exiting the game. The CF edition does not download or install updates automatically."
+  "musichud_tuneweave.update.manualDownloadNotice": "Select “Go to download” to open this version’s GitHub Release page. Download the CF file matching your game version and loader, then replace the old JAR after exiting the game. The CF edition does not download or install updates automatically.",
+  "musichud_tuneweave.update.goLook": "Take a look",
+  "musichud_tuneweave.update.cfAvailableTitle": "New version available",
+  "musichud_tuneweave.update.cfUpdateNotice": "Select “Take a look” to visit the GitHub project homepage for details. CF only reports version status; it never downloads or installs updates automatically.",
+  "musichud_tuneweave.update.cfFailed": "Update check failed. Please try again later.",
+  "musichud_tuneweave.update.cfUnavailable": "Update checks are unavailable in this development environment. Use an installed mod JAR.",
+  "musichud_tuneweave.text.externalApiSetup": "This edition only connects to an existing TuneWeave service. Install and start it outside the mod, then enter its service URL (usually http://127.0.0.1:7832).",
+  "musichud_tuneweave.text.invalidServiceUrl": "Invalid service URL. Enter an HTTP(S) address without user credentials, query parameters, or fragments."
 }

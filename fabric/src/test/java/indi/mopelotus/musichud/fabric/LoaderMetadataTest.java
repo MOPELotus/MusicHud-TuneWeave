@@ -18,7 +18,9 @@ class LoaderMetadataTest {
         assertFalse(content.contains("${"), "Unresolved metadata placeholder");
         JsonObject metadata = JsonParser.parseString(content).getAsJsonObject();
         assertEquals("musichud_tuneweave", metadata.get("id").getAsString());
-        String expression = metadata.getAsJsonObject("depends").get(id).getAsString();
+        String expression = id.equals("modernui")
+                ? metadata.getAsJsonObject("custom").get("musichud_tuneweave_client_modernui").getAsString()
+                : metadata.getAsJsonObject("depends").get(id).getAsString();
         assertFalse(expression.isBlank());
         return VersionPredicate.parse(expression);
     }

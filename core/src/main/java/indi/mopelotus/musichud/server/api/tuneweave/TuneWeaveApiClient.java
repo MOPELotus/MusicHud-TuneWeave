@@ -56,8 +56,12 @@ public final class TuneWeaveApiClient {
     }
 
     public static Optional<String> serverVersion() {
+        return serverVersionAt(baseUrl());
+    }
+
+    public static Optional<String> serverVersionAt(String base) {
         try {
-            JsonElement data = requestAt(baseUrl(), "GET", "/healthz", Map.of(), null, java.util.List.of()).data();
+            JsonElement data = requestAt(base, "GET", "/healthz", Map.of(), null, java.util.List.of()).data();
             if (data != null && data.isJsonObject()) {
                 JsonElement version = data.getAsJsonObject().get("version");
                 if (version != null && version.isJsonPrimitive() && version.getAsJsonPrimitive().isString()
@@ -251,7 +255,7 @@ public final class TuneWeaveApiClient {
         }
         if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
                 || uri.getHost() == null || uri.getUserInfo() != null
-                || uri.getQuery() != null || uri.getFragment() != null) {
+                || uri.getQuery() != null || uri.getFragment() != null || uri.getPort() == 0 || uri.getPort() > 65535) {
             throw new TuneWeaveException("TuneWeave base URL must be an HTTP(S) origin", false);
         }
         return base;
