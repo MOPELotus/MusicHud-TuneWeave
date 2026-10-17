@@ -1,0 +1,44 @@
+import java.lang.reflect.Proxy
+import java.util.zip.ZipFile
+
+tasks.register('verifyPlatformLogging') {
+    group = 'verification'
+    description = 'Checks shared parameterized logging from the deployment JAR without Log4j Core.'
+    dependsOn tasks.named('shadowJar')
+    inputs.file(tasks.named('shadowJar').flatMap { it.archiveFile })
+    doLast {
+        File artifact = tasks.named('shadowJar').get().archiveFile.get().asFile
+        new ZipFile(artifact).withCloseable { zip ->
+            if (zip.entries().any { it.name.startsWith('org/apache/logging/log4j/core/') }) {
+                throw new GradleException("Logging engine remains in ${artifact.name}")
+            }
+        }
+        // Paper supplies the API; the proxy artifacts include it. Never add Core to this loader.
+        def urls = [artifact.toURI().toURL()]
+        if (project.name == 'paper') {
+            urls.add(configurations.compileClasspath.files.find { it.name.startsWith('log4j-api-') && it.name.endsWith('.jar') }.toURI().toURL())
+        }
+        new URLClassLoader(urls as URL[], ClassLoader.getPlatformClassLoader()).withCloseable { loader ->
+            Class factory = loader.loadClass('indi.mopelotus.musichud.utils.PlatformLoggers')
+            Class sink = loader.loadClass('indi.mopelotus.musichud.utils.PlatformLoggers$Sink')
+            Class loggerApi = loader.loadClass('org.apache.logging.log4j.Logger')
+            def events = []
+            def logger = factory.getMethod('getLogger', String.class).invoke(null, 'artifact-check')
+            def output = Proxy.newProxyInstance(loader, [sink] as Class[], { proxy, method, args ->
+                if (method.name == 'log') events.add(args.toList())
+                return null
+            } as java.lang.reflect.InvocationHandler)
+            factory.getMethod('bind', sink).invoke(null, output)
+            def failure = new IOException('synthetic failure')
+            loggerApi.getMethod('error', String.class, Object.class, Object.class)
+                    .invoke(logger, ['Failed {}', 'request', failure] as Object[])
+            if (events.size() != 1 || events[0][0] != 'artifact-check' ||
+                    events[0][1].toString() != 'ERROR' || events[0][2] != 'Failed request' ||
+                    !events[0][3].is(failure)) {
+                throw new GradleException("Packaged platform logging failed in ${artifact.name}")
+            }
+        }
+        logger.lifecycle("Verified platform logging without bundled engine in ${artifact.name}")
+    }
+}
+tasks.named('check') { dependsOn tasks.named('verifyPlatformLogging') }

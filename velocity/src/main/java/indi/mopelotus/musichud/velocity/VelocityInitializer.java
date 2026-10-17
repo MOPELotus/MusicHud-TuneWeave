@@ -45,6 +45,7 @@ public final class VelocityInitializer {
 
     @Subscribe
     public void onInitialize(ProxyInitializeEvent event) {
+        indi.mopelotus.musichud.platform.plugin.velocity.VelocityLogging.install(logger);
         MusicHud.setCurrentEnvironment(Environment.of(Environment.Side.SERVER, Environment.Platform.VELOCITY));
         MusicHud.setConfigDirectory(dataDirectory);
         VelocityServerConfig.getInstance().initialize(dataDirectory);

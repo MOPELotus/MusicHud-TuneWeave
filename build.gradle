@@ -12,6 +12,7 @@ allprojects {
 subprojects {
     if (name in ['paper', 'velocity', 'bungeecord']) {
         plugins.withId('com.gradleup.shadow') {
+            apply from: rootProject.file('gradle/verify-platform-logging.gradle')
             def verifyProtocol = tasks.register('verifyProtocolJar') {
                 dependsOn tasks.named('shadowJar')
                 inputs.file(tasks.named('shadowJar').flatMap { it.archiveFile })

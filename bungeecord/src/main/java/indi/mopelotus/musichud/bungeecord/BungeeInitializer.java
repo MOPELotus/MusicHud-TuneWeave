@@ -22,6 +22,7 @@ public final class BungeeInitializer extends Plugin {
     @Override public void onEnable() {
         proxy = getProxy();
         logger = getLogger();
+        indi.mopelotus.musichud.utils.PlatformLoggers.useJul(logger);
         indi.mopelotus.musichud.platform.plugin.bungeecord.network.BungeeNativeTransport.verifyRuntime(proxy.getClass().getClassLoader());
         MusicHud.setCurrentEnvironment(Environment.of(Environment.Side.SERVER, Environment.Platform.BUNGEECORD));
         MusicHud.setConfigDirectory(getDataFolder().toPath());

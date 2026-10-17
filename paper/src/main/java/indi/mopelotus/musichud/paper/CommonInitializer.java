@@ -20,6 +20,7 @@ public final class CommonInitializer extends JavaPlugin {
         if (!indi.mopelotus.musichud.platform.plugin.paper.deployment.PaperDeploymentGuard.allow(
                 deployment, getLogger()::severe, () -> getServer().getPluginManager().disablePlugin(this))) return;
 
+        indi.mopelotus.musichud.utils.PlatformLoggers.useJul(getLogger());
         MusicHud.setCurrentEnvironment(Environment.of(Environment.Side.SERVER, Environment.Platform.PAPER));
         MusicHud.setConfigDirectory(getDataFolder().toPath());
 

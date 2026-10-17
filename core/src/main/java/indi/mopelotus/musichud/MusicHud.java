@@ -2,12 +2,10 @@ package indi.mopelotus.musichud;
 
 import indi.mopelotus.musichud.platform.Environment;
 import indi.mopelotus.musichud.utils.RegistrationManager;
+import indi.mopelotus.musichud.utils.PlatformLoggers;
 import lombok.Getter;
 import lombok.Setter;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.config.Configurator;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -29,7 +27,7 @@ public final class MusicHud {
     public static final Random RANDOM = new Random();
     public static final String ICON_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB0ElEQVQ4jX2T0YrTQBSGv8mkmaltliJFKCjdyAp6KV4v7IvoUyz4DAu+xr7Hwt4K7gOsBq+KWLGl6SaTZGa8aDPbWPFAYHI455///88c8eb1qQcYqxEAhdly+H8YhdkyVqNQAxADvB0D2pFNJ8AJ33+tSVWM9Z7WOVrrefH0BDghX64gHUJV8qXYA6CHZNMJs1QDMEs1n27z3u2X82cA3H7eYIH5acq4iYh3VB2zVLPYVFzfLQAQQqCUCgAd4EvvMVEU8o8n4PpugZQyNFtrqeuauq7RWqO15ttgwPuLs71ciA4NAXDOoZTCe4+UkiRJSJKEuq6PTO0xuLq574EIIRgZwxNjAAKI1n1/orEaBTqHAMOHB16VJVlVBZDDyJcroJvCX9E0DVYISiFohcDu81LKo9oegLWWON6l1kCeJHigUQrnHFJKmqY59iBfrvh4cQaA955oP6Y1UA4GOOeIoghjDNZaLs8zsumEwmyPJVhrkVIGEGst1u5EtG17JKH3Dj68ex6a2rbFex++rrmrgd2+BAaLTcUs1UHK1c19uBkI+a52N4WIuDBbGEC+BJjQeXI+HwOQTScIAT8Kw9efvx/pViWFAdGtc0fpf/Gvdf4DDx7ZzHsT7GgAAAAASUVORK5CYII=";
     public static final String LOGGER_BASE_NAME = PROJECT_NAME;
-    public static final Logger LOGGER = LogManager.getLogger(LOGGER_BASE_NAME);
+    public static final Logger LOGGER = PlatformLoggers.getLogger(LOGGER_BASE_NAME);
     public static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
     @Getter
     private static ConnectStatus connectStatus = ConnectStatus.NOT_CONNECTED;
@@ -42,24 +40,15 @@ public final class MusicHud {
     @Setter
     private static Path configDirectory = Path.of("config");
     private static long initAtMillis;
-    private static final Level logLevel = configuredLogLevel();
-
-    private static Level configuredLogLevel() {
-        String value = System.getProperty("musichud-tuneweave.log.level", "INFO");
-        return Level.toLevel(value.toUpperCase(java.util.Locale.ROOT), Level.INFO);
-    }
 
     public static Logger getLogger(Class<?> clazz) {
-        Logger logger = LogManager.getLogger(LOGGER_BASE_NAME + "/" + clazz.getSimpleName());
-        Configurator.setLevel(logger, logLevel);
-        return logger;
+        return PlatformLoggers.getLogger(LOGGER_BASE_NAME + "/" + clazz.getSimpleName());
     }
 
     public static void init() {
         if (currentEnvironment == null) {
             throw new IllegalStateException("Current environment is not set");
         }
-        Configurator.setLevel(LOGGER, logLevel);
         LOGGER.debug("Initialized in environment: {}", currentEnvironment);
         RegistrationManager.performCommonAutoRegistration();
         initAtMillis = System.currentTimeMillis();
