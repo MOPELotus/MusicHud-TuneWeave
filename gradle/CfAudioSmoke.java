@@ -11,10 +11,12 @@ import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 
-/** Exercises audio decoding using only the final CF JAR and the host logging API. */
+/** Exercises packaged decoding with only the final JAR and explicitly provided host libraries. */
 class CfAudioSmoke {
     public static void main(String[] args) throws Exception {
-        for (String name : new String[] {
+        boolean cf = args.length == 0 || args[0].equals("cf");
+        verifyHostLibraries();
+        if (cf) for (String name : new String[] {
                 "com.sedmelluq.discord.lavaplayer.source.youtube.YoutubeAccessTokenTracker",
                 "com.sedmelluq.discord.lavaplayer.source.youtube.YoutubeAudioSourceManager",
                 "com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers"}) {
@@ -47,10 +49,29 @@ class CfAudioSmoke {
             server.start();
             decode(file.toString());
             decode("http://127.0.0.1:" + server.getAddress().getPort() + "/audio.wav");
-            System.out.println("CF final JAR: local and HTTP audio decoded; YouTube implementation absent");
+            System.out.println("Final " + (cf ? "CF" : "standard") + " JAR: local and HTTP audio decoded with host Commons IO/Codec");
         } finally {
             server.stop(0);
             Files.deleteIfExists(file);
+        }
+    }
+
+    private static void verifyHostLibraries() throws Exception {
+        for (Class<?> type : new Class<?>[] {org.apache.commons.io.IOUtils.class,
+                org.apache.commons.codec.binary.Base64.class}) {
+            var location = type.getProtectionDomain().getCodeSource().getLocation();
+            if (!location.getPath().contains("/" + (type.getName().contains(".io.") ? "commons-io-" : "commons-codec-"))) {
+                throw new AssertionError("Utility library was not loaded from the host: " + type.getName());
+            }
+        }
+        byte[] text = "TuneWeave 音乐 🎵".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] copied = org.apache.commons.io.IOUtils.toByteArray(new java.io.ByteArrayInputStream(text));
+        byte[] decoded = org.apache.commons.codec.binary.Base64.decodeBase64(
+                org.apache.commons.codec.binary.Base64.encodeBase64(copied));
+        if (!java.util.Arrays.equals(text, decoded)) throw new AssertionError("Host utility round trip failed");
+        String expected = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("MD5").digest(text));
+        if (!expected.equals(org.apache.commons.codec.digest.DigestUtils.md5Hex(text))) {
+            throw new AssertionError("Host digest differs");
         }
     }
 
