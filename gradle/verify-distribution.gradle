@@ -118,7 +118,8 @@ gradle.projectsEvaluated {
                 dependsOn verification
                 inputs.file(deploymentTask.archiveFile)
                 inputs.file(rootProject.file('gradle/CfAudioSmoke.java'))
-                doLast {
+                if (target.name == 'neoforge') inputs.file(rootProject.file('gradle/LayeredAudioSmoke.java'))
+                doLast { smokeTask ->
                     // Resolve the loader's own classpath under its task execution lock.
                     def hostLibraries = []
                     for (prefix in ['slf4j-api-', 'commons-io-', 'commons-codec-', 'httpcore-', 'commons-logging-']) {
@@ -129,11 +130,28 @@ gradle.projectsEvaluated {
                     def launcher = target.javaToolchains.launcherFor(target.java.toolchain).get()
                     // The final deployment JAR is the only source of LavaPlayer
                     // classes; the original dependency must not mask missing code.
-                    providers.exec {
+                    def playbackCheck = providers.exec {
                         commandLine launcher.executablePath.asFile, '-cp',
                                 ([deploymentTask.archiveFile.get().asFile] + hostLibraries).join(File.pathSeparator),
                                 rootProject.file('gradle/CfAudioSmoke.java'), rootProject.distribution
-                    }.result.get().assertNormalExitValue()
+                    }
+                    def playbackResult = playbackCheck.result.get()
+                    logger.lifecycle(playbackCheck.standardOutput.asText.get().trim())
+                    if (playbackResult.exitValue != 0) logger.error(playbackCheck.standardError.asText.get())
+                    playbackResult.assertNormalExitValue()
+                    if (target.name == 'neoforge') {
+                        // Legacy FML uses named game modules; exercise actual vendor and client adapters in a fresh layer.
+                        def moduleCheck = providers.exec {
+                            commandLine ([launcher.executablePath.asFile,
+                                    rootProject.file('gradle/LayeredAudioSmoke.java'),
+                                    rootProject.file('gradle/CfAudioSmoke.java'), smokeTask.temporaryDir,
+                                    rootProject.distribution, deploymentTask.archiveFile.get().asFile] + hostLibraries)
+                        }
+                        def moduleResult = moduleCheck.result.get()
+                        logger.lifecycle(moduleCheck.standardOutput.asText.get().trim())
+                        if (moduleResult.exitValue != 0) logger.error(moduleCheck.standardError.asText.get())
+                        moduleResult.assertNormalExitValue()
+                    }
                 }
             }
             target.tasks.named('build').configure { dependsOn smoke }

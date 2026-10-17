@@ -207,11 +207,8 @@ shadowJar {
     archiveClassifier = 'dev-shadow'
     // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
     relocate 'com.fasterxml.jackson', 'indi.mopelotus.musichud.shaded.jackson'
-    // FML 4 resolves game libraries as named modules. Private audio/SVG copies
-    // must not export the same packages as Minecraft's HttpClient/Commons jars.
+    // Minecraft 1.21.1 supplies older HttpClient; keep the newer HTTP stack private.
     relocate 'org.apache.http', 'indi.mopelotus.musichud.shaded.http'
-    relocate 'org.apache.commons.io', 'indi.mopelotus.musichud.shaded.commons.io'
-    relocate 'org.apache.commons.codec', 'indi.mopelotus.musichud.shaded.commons.codec'
     relocate 'org.apache.commons.logging', 'indi.mopelotus.musichud.shaded.commons.logging'
     mergeServiceFiles { setIncludes(['META-INF/services/com.fasterxml.jackson.*']) }
     exclude 'org/slf4j/**'
