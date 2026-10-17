@@ -67,6 +67,8 @@ gradle.projectsEvaluated {
     allprojects {
         tasks.withType(Zip).configureEach {
             inputs.property('maximumDeflateLevel', 9)
+            inputs.property('archiveDeflaterRuntime', System.getProperty('java.runtime.version'))
+            inputs.property('archiveDeflaterVendor', System.getProperty('java.vendor'))
             doLast { task -> objects.newInstance(MaximumArchiveCompression).compress(task) }
         }
         if (name in ['fabric', 'neoforge', 'paper', 'velocity', 'bungeecord']) {
@@ -78,11 +80,13 @@ gradle.projectsEvaluated {
                 inputs.file(rootProject.file('gradle/VerifyJarCompression.java'))
                 doLast {
                     // Use the build JVM: different JDK zlib versions can produce different bytes.
-                    providers.exec {
+                    def check = providers.exec {
                         commandLine new File(System.getProperty('java.home'), 'bin/java'),
                                 rootProject.file('gradle/VerifyJarCompression.java'),
                                 deployment.archiveFile.get().asFile
-                    }.result.get().assertNormalExitValue()
+                    }
+                    check.result.get().assertNormalExitValue()
+                    logger.lifecycle(check.standardOutput.asText.get().trim())
                 }
             }
             tasks.named('build').configure { dependsOn verification }
