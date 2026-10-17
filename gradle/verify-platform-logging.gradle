@@ -12,10 +12,13 @@ tasks.register('verifyPlatformLogging') {
             if (zip.entries().any { it.name.startsWith('org/apache/logging/log4j/core/') }) {
                 throw new GradleException("Logging engine remains in ${artifact.name}")
             }
+            if (project.name in ['paper', 'velocity'] && zip.getEntry('org/apache/logging/log4j/Logger.class') != null) {
+                throw new GradleException("Host logging API duplicated in ${artifact.name}")
+            }
         }
-        // Paper supplies the API; the proxy artifacts include it. Never add Core to this loader.
+        // Paper and Velocity supply the API; BungeeCord includes it. Never add Core here.
         def urls = [artifact.toURI().toURL()]
-        if (project.name == 'paper') {
+        if (project.name in ['paper', 'velocity']) {
             urls.add(configurations.compileClasspath.files.find { it.name.startsWith('log4j-api-') && it.name.endsWith('.jar') }.toURI().toURL())
         }
         new URLClassLoader(urls as URL[], ClassLoader.getPlatformClassLoader()).withCloseable { loader ->
