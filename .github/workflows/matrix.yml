@@ -37,6 +37,7 @@ jobs:
         run: python .github/scripts/build_release.py plan
       - uses: actions/upload-artifact@v4
         with:
+          compression-level: 9
           name: build-plan
           path: build-plan.json
           if-no-files-found: error
@@ -79,6 +80,7 @@ jobs:
         run: python automation/.github/scripts/build_release.py build --source source --output artifacts
       - uses: actions/upload-artifact@v4
         with:
+          compression-level: 9
           name: build-${{ matrix.id }}
           path: artifacts/
           if-no-files-found: error
@@ -86,6 +88,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
+          compression-level: 9
           name: tests-${{ matrix.id }}
           path: |
             source/**/build/test-results/**/*.xml
@@ -108,6 +111,7 @@ jobs:
         run: python .github/scripts/build_release.py bundle --input downloads --output release
       - uses: actions/upload-artifact@v4
         with:
+          compression-level: 9
           name: release-bundle
           path: release/
           if-no-files-found: error
