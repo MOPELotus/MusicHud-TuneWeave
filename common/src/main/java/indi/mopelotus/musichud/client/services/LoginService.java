@@ -12,7 +12,6 @@ import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveSession;
 import indi.mopelotus.musichud.client.services.music.MusicService;
 import indi.mopelotus.musichud.interfaces.*;
-import indi.mopelotus.musichud.server.api.ApiServerManager;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
 import indi.mopelotus.musichud.server.ServerPlayerRegistry;
 import lombok.AccessLevel;
@@ -205,18 +204,12 @@ public class LoginService implements IClientLoginService {
         @Override
         public void register() {
             IClientEventService eventService = IClientEventService.getInstance();
-            ApiServerManager apiServerManager = ApiServerManager.getInstance();
-            if (apiServerManager != null) {
-                apiServerManager.getApiStatusListeners().add(status -> {
-                    LoginService loginService = LoginService.getInstance();
-                    if (status == ApiServerManager.BinaryApiServerStatus.RUNNING
-                            && Minecraft.getInstance().player != null
-                            && loginService.hasStoredSession()
-                            && !loginService.isLogined()) {
-                        loginService.restoreSession();
-                    }
-                });
-            }
+            ApiLoginLifecycle.register(() -> {
+                LoginService loginService = LoginService.getInstance();
+                if (Minecraft.getInstance().player != null && loginService.hasStoredSession() && !loginService.isLogined()) {
+                    loginService.restoreSession();
+                }
+            });
             eventService.registerClientPlayerJoin((player) -> {
                 ConnectionManager.getInstance().onPlayerJoin(player, () -> {
                     ServerData currentServer = Minecraft.getInstance().getCurrentServer();

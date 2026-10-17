@@ -17,7 +17,7 @@ gradle.projectsEvaluated {
             doLast {
                 def file = deploymentTask.archiveFile.get().asFile
                 boolean cf = rootProject.distribution == 'cf'
-                def forbidden = ['UpdateInstaller', 'UpdateBackupCleanup', 'installer.jar', 'ApiServerFetcher', 'ApiBinaryUpdateService', 'ApiDownloadSession',
+                def forbidden = ['ApiServerManager', 'SodaSignerSupport', 'SodaSignerProcess', 'UpdateInstaller', 'UpdateBackupCleanup', 'installer.jar', 'ApiServerFetcher', 'ApiBinaryUpdateService', 'ApiDownloadSession',
                                  'release-manifest.json', 'NeteaseCloudMusicApiEnhanced/api-enhanced/releases',
                                  'com/sedmelluq/discord/lavaplayer/source/youtube/',
                                  'com.sedmelluq.discord.lavaplayer.source.youtube.',
@@ -64,7 +64,7 @@ gradle.projectsEvaluated {
                                 zip.getEntry('META-INF/licenses/jmtc/NOTICE.txt') == null) {
                             throw new GradleException('Missing JMTC license/attribution')
                         }
-                        if (!names.contains('indi/mopelotus/musichud/server/api/ApiServerManager.class')) {
+                        if (!cf && !names.contains('indi/mopelotus/musichud/server/api/ApiServerManager.class')) {
                             throw new GradleException('Missing local TuneWeave process controls')
                         }
                         if (!cf && !names.contains('indi/mopelotus/musichud/server/api/ApiServerFetcher.class')) {

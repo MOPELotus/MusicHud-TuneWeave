@@ -171,9 +171,15 @@ final class TuneWeaveCatalogService {
             return new Artist();
         }
         TuneWeavePlatform platform = platform(reference);
-        return entities.toArtist(platform, unwrap(gateway.requestForPlatform(
+        Artist metadata = entities.toArtist(platform, unwrap(gateway.requestForPlatform(
                 platform, "GET", "/v1/artists/"
                         + TuneWeaveApiClient.encodePathSegment(reference), Map.of(), null).data()));
+        // An empty initial list cannot produce a scroll event to start pagination.
+        // Keep the metadata object unchanged while materializing the first page.
+        List<MusicDetail> initialTracks = loadArtistTracks(reference, 0);
+        return new Artist(metadata.getId(), metadata.getName(), metadata.getAvatarUrl(),
+                metadata.getAlbumCount(), metadata.getMusicCount(), metadata.getDescription(),
+                new ArrayList<>(initialTracks), metadata.getTotalMusicCount(), metadata.getSourceRef());
     }
 
     List<MusicDetail> loadArtistTracks(long id, int offset) {

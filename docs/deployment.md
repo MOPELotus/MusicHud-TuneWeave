@@ -3,6 +3,7 @@
 | 使用方式 | 安装位置 |
 | --- | --- |
 | 单人游戏 | 客户端安装对应 Minecraft 版本和加载器的模组 |
+| 独立 Fabric / NeoForge 模组服 | 客户端和服务器均安装匹配的模组；Fabric 服务器还需要 Fabric API |
 | 独立 Paper 服务器 | 客户端安装模组，Paper 服务器安装 Paper 插件 |
 | Velocity 群组服 | 客户端安装模组，只在 Velocity 代理安装 Velocity 插件 |
 | BungeeCord 群组服 | 客户端安装模组，只在 BungeeCord 代理安装 BungeeCord 插件 |
@@ -23,6 +24,12 @@ Paper 会检查实际生效的代理转发配置并拒绝错误部署。代理�
 
 ## 服务器和代理
 
+独立 Fabric / NeoForge 模组服使用与服务端 Minecraft 版本及加载器匹配的模组 JAR，放入 `mods` 目录。客户端仍按上面的依赖说明安装。专用服务器不安装 ModernUI、不启动 TuneWeave，也不配置音乐账号；它只协调客户端解析的公共播放会话。此方式与独立 Paper 插件服并列，不在同一服务端混装模组和插件。
+
 从 plugin 分支构建与平台对应的 Paper、Velocity 或 BungeeCord JAR，放入对应平台的 plugins 目录。使用不含 -plain 或 -sources 后缀的部署 JAR。插件字节码目标为 Java 21；实际运行 Java 版本还须满足所用服务器或代理自身要求。
 
 客户端和插件应使用相互匹配的 MusicHud TuneWeave 版本。项目命名空间为 musichud_tuneweave，与上游 MusicHud 不兼容，不能同时安装。配置和 Uni 数据使用本项目独立目录，不自动迁移上游旧数据。
+
+### CurseForge client edition
+
+The CF client only connects to a TuneWeave service installed and started outside the mod. It has no executable configuration, acquisition, automatic startup, child-process management or process-log controls. Enter the running service address in the client settings. CF connection preferences use `musichud_tuneweave-cf-server.toml`; switching editions preserves the standard edition’s local-process configuration. The first-use notice and version notifications link only to the [project homepage](https://github.com/MOPELotus/MusicHud-TuneWeave). The standard edition retains its complete TuneWeave management features.
