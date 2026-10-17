@@ -153,6 +153,10 @@ processResources {
 }
 
 shadowJar {
+    // Only QR encoding is used. Keep every other dependency intact (reflection/service loading).
+    minimize { exclude { it.moduleGroup != "com.google.zxing" } }
+    sourceSetsClassesDirs.from(project(":common").sourceSets.main.output.classesDirs)
+    relocate 'com.google.zxing', 'indi.mopelotus.musichud.shaded.zxing'
     relocate 'com.github.weisj.jsvg', 'indi.mopelotus.musichud.shaded.jsvg'
     relocate 'com.twelvemonkeys', 'indi.mopelotus.musichud.shaded.twelvemonkeys'
     // The private WebP reader is instantiated explicitly, without global ImageIO registration.
@@ -169,7 +173,8 @@ jar {
     // Use the relocated decoder caller from shadowJar, not the original source-set output.
     eachFile { details ->
         if (details.path in ['indi/mopelotus/musichud/client/utils/image/WebpImages.class',
-                            'indi/mopelotus/musichud/client/utils/image/SvgImages.class'] &&
+                            'indi/mopelotus/musichud/client/utils/image/SvgImages.class',
+                            'indi/mopelotus/musichud/client/utils/image/QrImageUtils.class'] &&
                 sourceSets.main.output.classesDirs.files.any { details.file.toPath().startsWith(it.toPath()) }) {
             details.exclude()
         }
@@ -216,3 +221,5 @@ tasks.named('test') {
 
 apply from: rootProject.file('gradle/verify-shaded-webp.gradle')
 apply from: rootProject.file('gradle/verify-shaded-svg.gradle')
+
+apply from: rootProject.file('gradle/verify-shaded-qr.gradle')

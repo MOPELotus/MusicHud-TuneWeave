@@ -2,7 +2,7 @@ package indi.mopelotus.musichud.client.utils.image;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
-import com.google.zxing.MultiFormatWriter;
+import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.common.BitMatrix;
 
 import javax.imageio.ImageIO;
@@ -57,7 +57,8 @@ public final class QrImageUtils {
         try {
             Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
             hints.put(EncodeHintType.MARGIN, 2);
-            BitMatrix matrix = new MultiFormatWriter().encode(
+            hints.put(EncodeHintType.CHARACTER_SET, StandardCharsets.UTF_8.name());
+            BitMatrix matrix = new QRCodeWriter().encode(
                     content, BarcodeFormat.QR_CODE, QR_SIZE, QR_SIZE, hints);
             BufferedImage image = new BufferedImage(QR_SIZE, QR_SIZE, BufferedImage.TYPE_INT_RGB);
             for (int y = 0; y < QR_SIZE; y++) {
