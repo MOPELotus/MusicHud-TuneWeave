@@ -18,9 +18,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import org.apache.batik.transcoder.TranscoderInput;
-import org.apache.batik.transcoder.TranscoderOutput;
-import org.apache.batik.transcoder.image.PNGTranscoder;
 
 /** Draws the current TuneWeave source mark in the HUD title row. */
 public final class PlatformIconRenderer implements HudRenderer {
