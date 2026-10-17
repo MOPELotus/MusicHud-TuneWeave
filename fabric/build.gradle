@@ -113,20 +113,8 @@ dependencies {
     shadowBundle "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
     implementation "com.google.zxing:core:3.5.4"
     shadowBundle "com.google.zxing:core:3.5.4"
-    implementation("org.apache.xmlgraphics:batik-transcoder:1.17") {
-        // Java 25 provides the XML APIs from java.xml. Bundling xml-apis
-        // creates duplicate org.w3c.dom/javax.xml classes in Fabric's Knot loader.
-        exclude group: "xml-apis", module: "xml-apis"
-    }
-    shadowBundle("org.apache.xmlgraphics:batik-transcoder:1.17") {
-        exclude group: "xml-apis", module: "xml-apis"
-    }
-    implementation("org.apache.xmlgraphics:batik-codec:1.17") {
-        exclude group: "xml-apis", module: "xml-apis"
-    }
-    shadowBundle("org.apache.xmlgraphics:batik-codec:1.17") {
-        exclude group: "xml-apis", module: "xml-apis"
-    }
+    implementation "com.github.weisj:jsvg:2.2.0"
+    shadowBundle "com.github.weisj:jsvg:2.2.0"
 
     compileOnly "org.projectlombok:lombok:$rootProject.lombok_version"
     annotationProcessor "org.projectlombok:lombok:$rootProject.lombok_version"
@@ -165,6 +153,7 @@ processResources {
 }
 
 shadowJar {
+    relocate 'com.github.weisj.jsvg', 'indi.mopelotus.musichud.shaded.jsvg'
     relocate 'com.twelvemonkeys', 'indi.mopelotus.musichud.shaded.twelvemonkeys'
     // The private WebP reader is instantiated explicitly, without global ImageIO registration.
     exclude 'META-INF/services/javax.imageio.spi.*'
@@ -179,7 +168,8 @@ shadowJar {
 jar {
     // Use the relocated decoder caller from shadowJar, not the original source-set output.
     eachFile { details ->
-        if (details.path == 'indi/mopelotus/musichud/client/utils/image/WebpImages.class' &&
+        if (details.path in ['indi/mopelotus/musichud/client/utils/image/WebpImages.class',
+                            'indi/mopelotus/musichud/client/utils/image/SvgImages.class'] &&
                 sourceSets.main.output.classesDirs.files.any { details.file.toPath().startsWith(it.toPath()) }) {
             details.exclude()
         }
@@ -225,3 +215,4 @@ tasks.named('test') {
 }
 
 apply from: rootProject.file('gradle/verify-shaded-webp.gradle')
+apply from: rootProject.file('gradle/verify-shaded-svg.gradle')
