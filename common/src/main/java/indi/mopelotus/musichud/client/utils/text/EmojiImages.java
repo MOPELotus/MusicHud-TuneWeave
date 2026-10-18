@@ -55,8 +55,9 @@ final class EmojiImages implements AutoCloseable {
 
     Image get(EmojiFont font, int glyphId) {
         synchronize();
-        // Late layouts from a previous resource generation must not revive its images.
-        if (closed || generation == null || font != generation.font() || glyphId <= 0) return null;
+        // Retained TextViews may still own an older FontPaint. Its glyph IDs resolve filenames only;
+        // the published current epoch alone selects resource images and invalidates old textures.
+        if (closed || generation == null || generation.font() == null || font == null || glyphId <= 0) return null;
         String name = font.getFileName(glyphId);
         if (images.containsKey(name)) return images.get(name);
         if (!canAllocate.getAsBoolean()) return null;

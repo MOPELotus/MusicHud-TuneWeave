@@ -123,6 +123,50 @@ public final class EmojiCanvasTest {
         owner.close();
     }
 
+    @org.junit.jupiter.api.Test void retainedPaintAndShapedLayoutUseCurrentImagesAcrossResourceReload() {
+        var first = font();
+        var second = font();
+        var state = new AtomicReference<>(new EmojiImages.Generation(1, first));
+        var paint = paint(first, false);
+        var retainedLayout = shape("🎵", paint);
+        var loadedEpochs = new ArrayList<Long>();
+        try (var cache = new EmojiImages(state::get, name -> {
+            loadedEpochs.add(state.get().epoch());
+            return image();
+        })) {
+            Image previous = cache.get((EmojiFont) retainedLayout.getFont(0), retainedLayout.getGlyph(0));
+            state.set(new EmojiImages.Generation(2, second));
+            Image current = cache.get((EmojiFont) retainedLayout.getFont(0), retainedLayout.getGlyph(0));
+            check(paint.getFont().getFamilies().getFirst().getClosestMatch(0) == first &&
+                    retainedLayout.getFont(0) == first, "same Paint and ShapedText retain the previous font");
+            check(previous.isClosed() && current != null && current != previous,
+                    "same retained layout replaces its old texture after reload");
+            check(current == cache.get(second, 1) && loadedEpochs.equals(List.of(1L, 2L)),
+                    "retained layout and new font use only the latest epoch's file image");
+        }
+    }
+
+    @org.junit.jupiter.api.Test void retainedGlyphIdsResolveTheirOwnFilenamesAndRespectDisabledGeneration() {
+        var first = font();
+        var second = new EmojiFont("reordered", new IntOpenHashSet(), 72, 56, 4, 64,
+                new Object2IntOpenHashMap<>(), List.of("face.png", "note.png", "singer.png", "heart.png"));
+        var state = new AtomicReference<>(new EmojiImages.Generation(0, null));
+        var loaded = new ArrayList<String>();
+        try (var cache = new EmojiImages(state::get, name -> { loaded.add(name); return image(); })) {
+            check(cache.get(first, 1) == null && loaded.isEmpty(), "no resource publication does not guess an active font");
+            state.set(new EmojiImages.Generation(1, first));
+            Image old = cache.get(first, 1);
+            state.set(new EmojiImages.Generation(2, second));
+            Image current = cache.get(first, 1);
+            check(old.isClosed() && current != null && current == cache.get(second, 2),
+                    "glyph IDs resolve through their layout's font despite current font reordering");
+            check(loaded.equals(List.of("note.png", "note.png")), "filename cache never substitutes the new font's different glyph ID");
+            state.set(new EmojiImages.Generation(3, null));
+            check(cache.get(first, 1) == null && current.isClosed() && loaded.size() == 2,
+                    "disabled/no-resource current generation rejects even retained fonts");
+        }
+    }
+
     private static EmojiFont font() {
         var map = new Object2IntOpenHashMap<CharSequence>();
         var coverage = new IntOpenHashSet();
@@ -258,9 +302,12 @@ public final class EmojiCanvasTest {
         selected.set(newFont);
         cache.synchronize();
         check(old.isClosed(), "resource reload closes previous image");
-        check(cache.get(oldFont, 1) == null && loads.get() == 2, "late old layout cannot reopen old generation");
-        check(cache.get(newFont, 2) == null && loads.get() == 3, "negative cache invalidated by new generation");
+        Image retained = cache.get(oldFont, 1);
+        check(retained != null && retained != old && loads.get() == 3,
+                "retained old layout loads a new image from the current generation");
+        check(cache.get(newFont, 2) == null && loads.get() == 4, "negative cache invalidated by new generation");
         Image current = cache.get(newFont, 1);
+        check(current == retained, "old and current fonts share current-epoch filename cache");
         cache.synchronize(); // An older queued reload task reads the authoritative current font.
         check(current == cache.get(newFont, 1) && !current.isClosed(), "late invalidation retains current generation");
         cache.close();
@@ -303,7 +350,9 @@ public final class EmojiCanvasTest {
             return image;
         })) {
             check(cache.get(first, 1) == null && result.get().isClosed(), "late decoded image rejected and closed");
-            check(cache.get(first, 1) == null, "late font cannot roll generation back after decode");
+            Image current = cache.get(first, 1);
+            check(current != null && !current.isClosed() && current == cache.get(second, 1),
+                    "retained font retries against current epoch without rolling it back");
         }
     }
 
