@@ -115,6 +115,23 @@ class WordByWordLyricParserTest {
         assertEquals(4, line.getPhraseEndingOffsetMap().get(Duration.ofMillis(1000)));
     }
 
+    @Test
+    void mapsInsertedCommaSpaceAtTheOwningPhraseBoundary() {
+        var line = parseSingleLine("[0,1000](0,500)A,(500,500)📀B");
+        assertEquals("A, 📀B", line.lyric());
+        assertEquals(3, line.phraseEndingOffsetMap().get(Duration.ofMillis(500)));
+        assertEquals(6, line.phraseEndingOffsetMap().get(Duration.ofMillis(1000)));
+        assertEquals("A, ", line.lyric().substring(0, 3));
+    }
+
+    @Test
+    void collapsesWhitespaceAcrossPhrasesWithMonotonicBoundaries() {
+        var line = parseSingleLine("[0,1000](0,500) A\u00a0(500,500)\t  B  ");
+        assertEquals("A B", line.lyric());
+        assertEquals(2, line.phraseEndingOffsetMap().get(Duration.ofMillis(500)));
+        assertEquals(3, line.phraseEndingOffsetMap().get(Duration.ofMillis(1000)));
+    }
+
     private static WordByWordLyricParser.LyricLineMetaData parseSingleLine(String lyric) {
         List<WordByWordLyricParser.LyricLineMetaData> lines = parseLines(lyric);
         assertEquals(1, lines.size());
