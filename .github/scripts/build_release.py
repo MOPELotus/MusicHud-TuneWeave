@@ -172,7 +172,10 @@ def filename(row, module):
 
 def verify_cf_contents(jar, depth=0):
     require(depth <= 8, 'Excessive nested archives')
-    forbidden = (b'UpdateInstaller', b'UpdateBackupCleanup', b'installer.jar', b'ApiServerFetcher', b'ApiBinaryUpdateService', b'ApiDownloadSession',
+    forbidden = (b'ServiceUpdateService', b'ServiceUpdateUi', b'ServiceUpdateCompatibility', b'DownloadSourceUi',
+                 b'DownloadSources', b'TuneWeaveCompatibility', b'ModServiceCompatibility', b'ServiceReleaseProfiles',
+                 b'ServiceUpdateHealth', b'ApiServerManager', b'SodaSignerSupport', b'SodaSignerProcess',
+                 b'musichud_tuneweave.update.service.', b'service_profiles=', b'UpdateInstaller', b'UpdateBackupCleanup', b'installer.jar', b'ApiServerFetcher', b'ApiBinaryUpdateService', b'ApiDownloadSession',
                  b'release-manifest.json', b'NeteaseCloudMusicApiEnhanced/api-enhanced/releases')
     youtube = (b'com/sedmelluq/discord/lavaplayer/source/youtube/',
                b'com.sedmelluq.discord.lavaplayer.source.youtube.',
@@ -191,6 +194,40 @@ def verify_cf_contents(jar, depth=0):
                 verify_cf_contents(nested, depth + 1)
 
 
+def verify_client_update_identity(jar, row, module):
+    # 1.3.1 introduced the controlled client/service declaration. Historical
+    # bundles remain usable; this is a format boundary, not a release whitelist.
+    controlled = tuple(map(int, row['version'].split('-', 1)[0].split('.'))) >= (1, 3, 1)
+    entry = 'META-INF/musichud-update.properties'
+    if entry not in jar.namelist():
+        require(not controlled, 'Missing client update identity')
+        return
+    require(jar.namelist().count(entry) == 1, 'Duplicate client update identity entry')
+    require(jar.getinfo(entry).file_size <= 4096, 'Oversized client update identity')
+    text = jar.read(entry).decode('utf-8')
+    fields = properties(text)
+    keys = [line.split('=', 1)[0].strip() for line in text.splitlines()
+            if line.strip() and not line.lstrip().startswith('#') and '=' in line]
+    require(len(keys) == len(set(keys)), 'Duplicate client update identity field')
+    games = row['range'].split('-')
+    if games == ['1.21.6', '1.21.8']:
+        games = ['1.21.6', '1.21.7', '1.21.8']
+    elif games == ['26.1', '26.1.2']:
+        games = ['26.1', '26.1.1', '26.1.2']
+    expected = dict(id='musichud_tuneweave', version=artifact_version(row),
+                    distribution=row.get('distribution', 'standard'), loader=module, minecraft=','.join(games))
+    require(all(fields.get(key) == value for key, value in expected.items()), 'Client update identity mismatch')
+    if row.get('distribution', 'standard') == 'cf':
+        require('service_profiles' not in fields, 'Service profile declaration in CF identity')
+    elif 'service_profiles' in fields:
+        profiles = fields['service_profiles'].split(',')
+        require(0 < len(profiles) <= 16 and len(set(profiles)) == len(profiles)
+                and all(re.fullmatch(r'[a-z0-9][a-z0-9._-]{0,63}', profile) for profile in profiles),
+                'Invalid client service profiles')
+    else:
+        require(not controlled, 'Missing client service profiles')
+
+
 def verify_jar(path, row, module):
     validate_row(row)
     expected_version = artifact_version(row)
@@ -200,6 +237,8 @@ def verify_jar(path, row, module):
         marker = properties(jar.read('META-INF/musichud-distribution.properties').decode())
         require(marker == {'distribution': row.get('distribution', 'standard'), 'version': expected_version},
                 'Distribution marker mismatch')
+        if module in ('fabric', 'neoforge'):
+            verify_client_update_identity(jar, row, module)
         if marker['distribution'] == 'cf':
             verify_cf_contents(jar)
         require(any(n.startswith('indi/mopelotus/musichud/') and n.endswith('.class') for n in names), 'Missing project classes')

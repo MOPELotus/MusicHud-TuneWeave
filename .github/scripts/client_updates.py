@@ -38,8 +38,16 @@ def catalog(folder, tag, distribution):
             key = (loader, game)
             release.require(key not in matches, 'Ambiguous update target')
             matches.add(key)
-        artifacts.append(dict(version=version, distribution=distribution, loader=loader, minecraft=games,
-                              file=path.name, sha256=release.digest(path), size=path.stat().st_size))
+        row = dict(version=version, distribution=distribution, loader=loader, minecraft=games,
+                   file=path.name, sha256=release.digest(path), size=path.stat().st_size)
+        if 'service_profiles' in data:
+            profiles = data['service_profiles'].split(',')
+            release.require(distribution == 'standard' and 0 < len(profiles) <= 16
+                            and len(set(profiles)) == len(profiles)
+                            and all(re.fullmatch(r'[a-z0-9][a-z0-9._-]{0,63}', p) for p in profiles),
+                            'Invalid TuneWeave compatibility profiles')
+            row['service_profiles'] = profiles
+        artifacts.append(row)
     return dict(schema=1, repository=REPOSITORY, tag=tag, distribution=distribution, artifacts=artifacts)
 
 

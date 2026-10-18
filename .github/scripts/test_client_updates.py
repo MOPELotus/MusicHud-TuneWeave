@@ -6,11 +6,12 @@ import zipfile
 import client_updates as updates
 
 class CatalogTests(unittest.TestCase):
-    def jar(self, folder, edition='standard', loader='fabric', game='26.3', version=None):
+    def jar(self, folder, edition='standard', loader='fabric', game='26.3', version=None, profiles=None):
         version = version or ('1.4.0-beta.1' + ('-cf.1' if edition == 'cf' else '') + '+26.3')
         path = folder / f'musichud-tuneweave-{loader}-{version}.jar'
         with zipfile.ZipFile(path, 'w') as archive:
-            archive.writestr(updates.METADATA, f'id=musichud_tuneweave\nversion={version}\ndistribution={edition}\nloader={loader}\nminecraft={game}\n')
+            profile_line = '' if profiles is None else 'service_profiles=' + profiles + '\n'
+            archive.writestr(updates.METADATA, f'id=musichud_tuneweave\nversion={version}\ndistribution={edition}\nloader={loader}\nminecraft={game}\n' + profile_line)
         return path
 
     def test_editions_and_prereleases(self):
@@ -39,6 +40,20 @@ class CatalogTests(unittest.TestCase):
             self.jar(folder, version='1.4.0-beta.1+26.2')
             with self.assertRaises(ValueError):
                 updates.catalog(folder, 'v1.4.0-beta.1', 'standard')
+
+    def test_target_service_profiles_come_from_verified_jar_identity(self):
+        for profiles in ('tuneweave-http-v1', 'tuneweave-http-v1,tuneweave-http-v2'):
+            with tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory)
+                self.jar(folder, profiles=profiles)
+                row = updates.catalog(folder, 'v1.4.0-beta.1', 'standard')['artifacts'][0]
+                self.assertEqual(profiles.split(','), row['service_profiles'])
+        for profiles in ('', 'x,x', '../bad'):
+            with tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory)
+                self.jar(folder, profiles=profiles)
+                with self.assertRaises(ValueError):
+                    updates.catalog(folder, 'v1.4.0-beta.1', 'standard')
 
     def test_historical_jar_has_no_update_offer(self):
         with tempfile.TemporaryDirectory() as directory:

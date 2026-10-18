@@ -558,5 +558,20 @@
   "musichud_tuneweave.text.externalApiSetup": "This edition only connects to an existing TuneWeave service. Install and start it outside the mod, then enter its service URL (usually http://127.0.0.1:7832).",
   "musichud_tuneweave.text.invalidServiceUrl": "Invalid service URL. Enter an HTTP(S) address without user credentials, query parameters, or fragments.",
   "musichud_tuneweave.update.serviceTitle": "Install the companion music service",
-  "musichud_tuneweave.update.serviceNotice": "MusicHud TuneWeave needs the companion TuneWeave service to connect to music platforms. Select “Go to download” to open the download screen and start downloading automatically. Once it finishes, follow the prompts to start the service.\n\nIf you already have a working TuneWeave service, select “OK”, then enter its address in Settings."
+  "musichud_tuneweave.update.serviceNotice": "MusicHud TuneWeave needs the companion TuneWeave service to connect to music platforms. Select “Go to download” to open the download screen and start downloading automatically. Once it finishes, follow the prompts to start the service.\n\nIf you already have a working TuneWeave service, select “OK”, then enter its address in Settings.",
+  "musichud_tuneweave.update.service.title": "TuneWeave service update",
+  "musichud_tuneweave.update.service.check": "Check service updates",
+  "musichud_tuneweave.update.service.available": "TuneWeave %s → %s\n\nThe update will download and verify the service, then restart the local service managed by this mod. Playback will briefly pause. Mod updates are installed separately after you exit the game.",
+  "musichud_tuneweave.update.service.downloading": "Downloading, verifying and updating TuneWeave…",
+  "musichud_tuneweave.update.service.ready": "The TuneWeave service has been updated.",
+  "musichud_tuneweave.update.service.current": "The managed TuneWeave service is up to date.",
+  "musichud_tuneweave.update.service.external": "This service is remote or was started outside this mod. Ask its owner to check and apply updates. Its executable and settings have not been changed.",
+  "musichud_tuneweave.update.service.unknown": "The latest service has not declared compatibility with this client. Keep the current service; check again after updating the mod or after the service publishes its compatibility declaration.",
+  "musichud_tuneweave.update.service.incompatible": "The latest service uses an API this client does not support. Keep the current service and update the mod first.",
+  "musichud_tuneweave.update.service.failed": "The service update could not be completed. The mod update has its own result. Check the service status and try again.",
+  "musichud_tuneweave.update.service.nextStart": "The new TuneWeave service is installed and will be used the next time you start the service.",
+  "musichud_tuneweave.modal.downloadApiServer.compatibilityUnknown": "This TuneWeave release has not declared compatibility with this client. Keep the current service and check again after updating the mod or after a compatible service release becomes available.",
+  "musichud_tuneweave.update.service.modCompatibilityBlocked": "The target mod and the selected service have no confirmed compatible pairing. Your current installation will be kept. Open the release instructions, exit the game, and update the mod and service together as directed. For an external service, ask its owner to confirm the required version first.",
+  "musichud_tuneweave.update.service.manualPairAction": "View upgrade instructions",
+  "musichud_tuneweave.update.service.portUnavailable": "The service port is occupied or its state could not be confirmed. The selected service has not been changed. Wait a moment and retry, and check for another program using the port."
 }

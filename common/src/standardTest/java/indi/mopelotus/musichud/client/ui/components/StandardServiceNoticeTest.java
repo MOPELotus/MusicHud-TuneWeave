@@ -95,6 +95,113 @@ class StandardServiceNoticeTest {
         }
     }
 
+    @Test void manualServiceCheckReplacesProgressWithTheActualOffer() throws Exception {
+        try (var e = new Environment(temp)) {
+            e.attach(); e.drain(); e.click(e.last(), 0); e.drain();
+            e.loadClass(UI).getMethod("manualServiceCheck").invoke(null); e.drain();
+            assertTrue(e.texts(e.last()).contains("update.checking"));
+            e.serviceState("AVAILABLE"); e.drain();
+            assertTrue(e.texts(e.last()).contains("update.service.available"));
+            assertFalse(e.texts(e.last()).contains("update.service.failed"));
+            e.click(e.last(), 0); e.drain();
+            assertTrue(e.texts(e.last()).contains("update.service.downloading"));
+            e.serviceState("READY"); e.drain();
+            assertTrue(e.texts(e.last()).contains("update.service.ready"));
+            int shown = e.modals().size(); e.dismiss(e.last()); e.drain();
+            assertEquals(shown, e.modals().size());
+        }
+    }
+
+    @Test void lateServiceResultCannotOpenAClosedFragment() throws Exception {
+        try (var e = new Environment(temp)) {
+            Object ui = e.attach(); e.drain(); e.click(e.last(), 0); e.drain();
+            int before = e.modals().size();
+            e.serviceState("AVAILABLE"); e.close(ui); e.drain();
+            assertEquals(before, e.modals().size());
+        }
+    }
+
+    @Test void externalAndUnknownServiceChecksNeverPresentAnInstallAction() throws Exception {
+        try (var e = new Environment(temp)) {
+            e.attach(); e.drain(); e.click(e.last(), 0); e.drain();
+            for (String state : List.of("EXTERNAL", "UNKNOWN", "INCOMPATIBLE")) {
+                e.loadClass(UI).getMethod("manualServiceCheck").invoke(null); e.drain();
+                e.serviceState(state); e.drain();
+                assertTrue(e.texts(e.last()).contains("update.service." + state.toLowerCase(java.util.Locale.ROOT)));
+                assertFalse(e.texts(e.last()).contains("update.service.available"));
+                e.dismiss(e.last()); e.drain();
+            }
+        }
+    }
+
+    @Test void hiddenServiceProgressStaysHiddenThroughParentRendersAndShowsOneTerminalResult() throws Exception {
+        try (var e = new Environment(temp)) {
+            e.enableModUpdates(); Object ui = e.attach(); e.drain(); e.click(e.last(), 0); e.drain();
+            e.modState("CURRENT"); e.drain();
+            e.loadClass(UI).getMethod("manualServiceCheck").invoke(null); e.drain();
+            assertTrue(e.texts(e.last()).contains("update.checking"));
+            int shown = e.modals().size(); e.click(e.last(), 0); e.drain();
+            assertEquals(shown, e.modals().size());
+            e.modState("CURRENT"); e.drain(); assertEquals(shown, e.modals().size());
+            e.serviceState("AVAILABLE"); e.drain(); e.click(e.last(), 0); e.drain();
+            assertTrue(e.texts(e.last()).contains("update.service.downloading"));
+            shown = e.modals().size(); e.click(e.last(), 0); e.drain();
+            e.modState("CURRENT"); e.drain(); assertEquals(shown, e.modals().size());
+            e.serviceState("READY"); e.drain(); assertEquals(shown + 1, e.modals().size());
+            assertTrue(e.texts(e.last()).contains("update.service.ready"));
+            e.click(e.last(), 0); e.drain(); e.modState("CURRENT"); e.drain();
+            assertEquals(shown + 1, e.modals().size()); e.close(ui);
+        }
+    }
+
+    @Test void explicitServiceRecheckCanReopenHiddenProgressButDetachRejectsLateResults() throws Exception {
+        try (var e = new Environment(temp)) {
+            e.enableModUpdates(); Object ui = e.attach(); e.drain(); e.click(e.last(), 0); e.drain();
+            e.modState("CURRENT"); e.drain();
+            e.loadClass(UI).getMethod("manualServiceCheck").invoke(null); e.drain();
+            e.click(e.last(), 0); e.drain(); int shown = e.modals().size();
+            e.loadClass(UI).getMethod("manualServiceCheck").invoke(null); e.drain();
+            assertEquals(shown + 1, e.modals().size());
+            assertTrue(e.texts(e.last()).contains("update.checking"));
+            e.close(ui); e.serviceState("AVAILABLE"); e.modState("AVAILABLE"); e.drain();
+            assertEquals(shown + 1, e.modals().size());
+        }
+    }
+
+    @Test void modOfferKeepsPriorityAndSuppressedModRenderCannotReopenHiddenServiceDownload() throws Exception {
+        try (var e = new Environment(temp)) {
+            e.enableModUpdates(); e.attach(); e.drain(); e.click(e.last(), 0); e.drain();
+            e.modState("AVAILABLE"); e.drain(); int shown = e.modals().size();
+            assertTrue(e.texts(e.last()).contains("musichud_tuneweave.update.available"));
+            e.serviceState("AVAILABLE"); e.drain(); assertEquals(shown, e.modals().size());
+            e.click(e.last(), 1); e.drain(); assertEquals(shown + 1, e.modals().size());
+            assertTrue(e.texts(e.last()).contains("update.service.available"));
+            e.click(e.last(), 0); e.drain();
+            assertTrue(e.texts(e.last()).contains("update.service.downloading"));
+            shown = e.modals().size(); e.click(e.last(), 0); e.drain();
+            e.modState("AVAILABLE"); e.drain(); assertEquals(shown, e.modals().size());
+        }
+    }
+
+    @Test void serviceRecheckDuringDismissAnimationCreatesOnlyOneNewProgressDialog() throws Exception {
+        try (var e = new Environment(temp)) {
+            e.enableModUpdates(); e.attach(); e.drain(); e.click(e.last(), 0); e.drain();
+            e.modState("CURRENT"); e.drain();
+            e.loadClass(UI).getMethod("manualServiceCheck").invoke(null); e.drain();
+            int shown = e.modals().size();
+            e.click(e.last(), 0); // The real dismissal callback is queued and has not run yet.
+            e.loadClass(UI).getMethod("manualServiceCheck").invoke(null);
+            e.drain();
+            assertEquals(shown + 1, e.modals().size());
+            int visible = 0;
+            for (Object dialog : e.modals()) if ((boolean) dialog.getClass().getMethod("isShowing").invoke(dialog)) visible++;
+            assertEquals(1, visible);
+            assertTrue(e.texts(e.last()).contains("update.checking"));
+            e.click(e.last(), 0); e.drain();
+            assertEquals(shown + 1, e.modals().size());
+        }
+    }
+
     static final class Environment extends URLClassLoader {
         private final Path directory;
         private final List<View> owners = new ArrayList<>();
@@ -110,6 +217,7 @@ class StandardServiceNoticeTest {
             Class<?> type = findLoadedClass(name);
             if (type == null) {
                 if (name.equals(UI) || name.startsWith(UI + "$") || name.equals(SESSION) || name.startsWith(SESSION + "$")
+                        || name.startsWith(ROOT + "client.update.ServiceUpdateUi") || name.startsWith(ROOT + "client.update.DownloadSourceUi")
                         || name.equals(ROOT + "client.ui.pages.ApiDistributionUi") || name.startsWith(ROOT + "client.ui.pages.ApiDistributionUi$")) {
                     try (var in = getParent().getResourceAsStream(name.replace('.', '/') + ".class")) {
                         if (in == null) throw new ClassNotFoundException(name);
@@ -151,6 +259,17 @@ class StandardServiceNoticeTest {
         Object downloaded() throws Exception { return loadClass(API + "$DownloadedRelease").getConstructor(String.class, String.class, Path.class).newInstance("v1", "1", directory.resolve("install/download.temp")); }
         Object releaseSummary() throws Exception { return loadClass(ROOT + "server.api.ApiServerFetcher$ReleaseSummary").getConstructor(String.class, String.class, String.class, String.class).newInstance("v1", "TuneWeave", "https://example.invalid", null); }
         @SuppressWarnings("unchecked") CompletableFuture<Object> future(String name) throws Exception { return (CompletableFuture<Object>) loadClass(API).getField(name).get(null); }
+        void enableModUpdates() throws Exception { loadClass(ROOT + "client.update.ClientUpdateService").getMethod("enable").invoke(null); }
+        @SuppressWarnings({"rawtypes", "unchecked"}) void modState(String name) throws Exception {
+            Class status = loadClass(ROOT + "client.update.ClientUpdateService$Status");
+            Class<?> type = loadClass(ROOT + "client.update.ClientUpdateService");
+            type.getMethod("publish", status).invoke(type.getField("INSTANCE").get(null), Enum.valueOf(status, name));
+        }
+        @SuppressWarnings({"rawtypes", "unchecked"}) void serviceState(String name) throws Exception {
+            Class state = loadClass(ROOT + "client.update.ServiceUpdateService$Status");
+            Object service = loadClass(ROOT + "client.update.ServiceUpdateService").getMethod("getInstance").invoke(null);
+            service.getClass().getMethod("publish", state).invoke(service, Enum.valueOf(state, name));
+        }
         Path notice() { return directory.resolve("musichud-tuneweave/standard-service-notice-v1.accepted"); }
         String texts(Object modal) throws Exception { return modal.getClass().getMethod("texts").invoke(modal).toString(); }
 
@@ -164,9 +283,10 @@ class StandardServiceNoticeTest {
             s.put(ROOT + "client.utils.ui.InsetBackgroundFactory", "public class InsetBackgroundFactory {public void applyBackgroundTo(icyllis.modernui.view.View v){} public static InsetBackgroundFactoryBuilder builder(){return new InsetBackgroundFactoryBuilder();}public static class InsetBackgroundFactoryBuilder {public InsetBackgroundFactory build(){return new InsetBackgroundFactory();}} }");
             s.put(ROOT + "interfaces.ServerConfig", "public interface ServerConfig {static ServerConfig getInstance(){return new Impl();}String getServerApiBinaryExecutablePath();void setServerApiBinaryExecutablePath(String s);void save();class Impl implements ServerConfig {public static String path;public String getServerApiBinaryExecutablePath(){return path;}public void setServerApiBinaryExecutablePath(String s){path=s;}public void save(){}} }");
             s.put(ROOT + "server.api.ApiServerManager", "public class ApiServerManager {public static ApiServerManager getInstance(){return null;}public void restartApiServer(){throw new AssertionError(\"external process started\");} }");
-            s.put(ROOT + "server.api.ApiServerFetcher", "public class ApiServerFetcher {public static final String TUNEWEAVE_MANIFEST_URL=\"https://example.invalid/manifest\";public enum DownloadProxy{DIRECT,PROXY}public record ReleaseSummary(String tag,String title,String htmlUrl,String publishedAt){} }");
+            s.put(ROOT + "server.api.ApiServerFetcher", "public class ApiServerFetcher {public static final String TUNEWEAVE_MANIFEST_URL=\"https://example.invalid/manifest\";public enum DownloadProxy{AUTO,DIRECT,PROXY}public record ReleaseSummary(String tag,String title,String htmlUrl,String publishedAt){} }");
             s.put(API, """
                 public class ApiBinaryUpdateService {
+                    public record UpdateOffer(String currentVersion,String targetVersion){}
                     public static int downloads,installs; public static final java.util.concurrent.CompletableFuture<ApiServerFetcher.ReleaseSummary> manifest=new java.util.concurrent.CompletableFuture<>();
                     public static final java.util.concurrent.CompletableFuture<DownloadedRelease> download=new java.util.concurrent.CompletableFuture<>();
                     public static ApiBinaryUpdateService getInstance(){return new ApiBinaryUpdateService();}
@@ -176,16 +296,38 @@ class StandardServiceNoticeTest {
                     public String findInstalledVersion(java.nio.file.Path p,String tag){return null;}
                     public java.nio.file.Path resolveFinalPath(DownloadedRelease d){installs++;throw new AssertionError("automatic install");}
                     public boolean recordManagedInstallation(java.nio.file.Path p,String tag,String version,String file){return false;}
+                    public boolean recordManagedInstallation(java.nio.file.Path p,DownloadedRelease release,String file){return false;}
                     public String relativizePath(java.nio.file.Path p){return p.toString();}
                 }
                 """);
+            s.put(ROOT + "client.update.ClientUpdateCatalog", "public class ClientUpdateCatalog {public record Offer(String version){public java.net.URI releasePageUri(){return java.net.URI.create(\"https://example.invalid/release\");}} }");
             s.put(ROOT + "client.update.ClientUpdateService", """
                 public class ClientUpdateService {
-                    public static final ClientUpdateService INSTANCE=null;
+                    public static ClientUpdateService INSTANCE=null;
+                    public static void enable(){INSTANCE=new ClientUpdateService();}
                     public enum Status {IDLE,CHECKING,CURRENT,AVAILABLE,DOWNLOADING,READY,FAILED}
-                    public record Offer(String version){} public record State(Status status,Offer offer,String message){}
-                    public AutoCloseable subscribe(java.util.function.Consumer<State> s){return ()->{};}
-                    public State state(){return new State(Status.CURRENT,null,"");} public void check(){} public void download(){}
+                    public record State(Status status,ClientUpdateCatalog.Offer offer,String message){}
+                    private State state=new State(Status.IDLE,null,"");
+                    private final java.util.List<java.util.function.Consumer<State>> listeners=new java.util.ArrayList<>();
+                    public AutoCloseable subscribe(java.util.function.Consumer<State> listener){listeners.add(listener);return ()->listeners.remove(listener);}
+                    public State state(){return state;}
+                    public void publish(Status status){state=new State(status,new ClientUpdateCatalog.Offer("1.4.0+26.3"),"");for(var listener:java.util.List.copyOf(listeners))listener.accept(state);}
+                    public void check(){publish(Status.CHECKING);} public void download(){download("AUTO");} public void download(String source){publish(Status.DOWNLOADING);}
+                }
+                """);
+            s.put(ROOT + "client.update.ServiceUpdateService", """
+                public class ServiceUpdateService {
+                    private static final ServiceUpdateService INSTANCE=new ServiceUpdateService();
+                    public static ServiceUpdateService getInstance(){return INSTANCE;}
+                    public enum Status {IDLE,CHECKING,CURRENT,AVAILABLE,EXTERNAL,UNKNOWN,INCOMPATIBLE,DOWNLOADING,READY,FAILED}
+                    public record State(Status status,indi.mopelotus.musichud.server.api.ApiBinaryUpdateService.UpdateOffer offer,String message){}
+                    private State state=new State(Status.IDLE,null,"");
+                    private final java.util.List<java.util.function.Consumer<State>> listeners=new java.util.ArrayList<>();
+                    public AutoCloseable subscribe(java.util.function.Consumer<State> listener){listeners.add(listener);return ()->listeners.remove(listener);}
+                    public State state(){return state;}
+                    public void publish(Status status){state=new State(status,new indi.mopelotus.musichud.server.api.ApiBinaryUpdateService.UpdateOffer("1.0.0","1.0.1"),"");for(var listener:java.util.List.copyOf(listeners))listener.accept(state);}
+                    public void check(){publish(Status.CHECKING);}
+                    public void download(String source){publish(Status.DOWNLOADING);}
                 }
                 """);
             s.put(MODAL, """
