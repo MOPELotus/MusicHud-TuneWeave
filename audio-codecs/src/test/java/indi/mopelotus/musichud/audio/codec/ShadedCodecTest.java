@@ -11,7 +11,19 @@ import org.junit.jupiter.params.provider.ValueSource;
 class ShadedCodecTest {
   @ParameterizedTest
   @ValueSource(
-      strings = {"mp3", "mp3-raw", "vorbis", "opus", "integer", "aac", "aac-no-pns", "alac"})
+      strings = {
+        "mp3",
+        "mp3-raw",
+        "vorbis",
+        "opus",
+        "integer",
+        "aac",
+        "aac-no-pns",
+        "alac",
+        "vorbis-packet",
+        "opus-packet",
+        "opus-six"
+      })
   void isolatedArtifactPreservesPcmAndPrivateResources(String mode) throws Exception {
     var artifact = Path.of(System.getProperty("audioCodecJar"));
     try (var loader =
@@ -25,7 +37,9 @@ class ShadedCodecTest {
       String prefix = "indi.mopelotus.musichud.audio.codec.";
       var factory = loader.loadClass(prefix + "JavaCodecs");
       var api = loader.loadClass(prefix + "PcmDecoder");
-      if (mode.startsWith("aac") || mode.equals("alac")) {
+      if (mode.startsWith("aac")
+          || mode.equals("alac")
+          || (mode.endsWith("-packet") || mode.equals("opus-six"))) {
         assertArrayEquals(
             unshaded(mode), packets(loader, mode), "Packet relocation/R8 must preserve PCM");
         return;
@@ -67,6 +81,8 @@ class ShadedCodecTest {
   }
 
   private static byte[] unshaded(String mode) throws Exception {
+    if (mode.equals("opus-six")) return CodecFixtureTest.resource("opus-six.s16");
+    if (mode.endsWith("-packet")) return OggPacketTest.decode(mode.replace("-packet", ""));
     try (var decoder = CodecFixtureTest.open(mode)) {
       var out = new ByteArrayOutputStream();
       byte[] b = new byte[113 * decoder.format().frameBytes()];
@@ -94,7 +110,13 @@ class ShadedCodecTest {
                   source.track().initialFormat().codec(),
                   source.track().initialFormat().codecPrivate());
       Object decoder =
-          factory.getMethod(mode.startsWith("aac") ? "aac" : mode, formatType).invoke(null, format);
+          factory
+              .getMethod(
+                  mode.startsWith("aac")
+                      ? "aac"
+                      : mode.equals("opus-six") ? "opus" : mode.replace("-packet", ""),
+                  formatType)
+              .invoke(null, format);
       var packetConstructor =
           packetType.getConstructor(
               formatType,

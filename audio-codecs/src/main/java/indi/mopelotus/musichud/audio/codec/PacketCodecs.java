@@ -1,6 +1,8 @@
 package indi.mopelotus.musichud.audio.codec;
 
 import com.beatofthedrum.alacdecoder.AlacPacketDecoder;
+import indi.mopelotus.musichud.audio.codec.internal.OpusPacketDecoder;
+import indi.mopelotus.musichud.audio.codec.internal.VorbisPacketDecoder;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -12,6 +14,52 @@ import net.sourceforge.jaad.aac.Decoder;
  */
 public final class PacketCodecs {
   private PacketCodecs() {}
+
+  /** Raw 48kHz Opus packets. Applies header gain, but not preSkip or container delay/padding. */
+  public static PacketDecoder opus(PacketSource.Format initial) throws IOException {
+    requireCodec(initial, "opus");
+    OpusPacketDecoder core = new OpusPacketDecoder(initial.codecPrivate());
+    var format =
+        new PcmFormat(
+            48000,
+            core.channels(),
+            PcmFormat.Encoding.S16LE,
+            core.channels() == 1
+                ? PcmFormat.Layout.MONO
+                : core.channels() == 2 ? PcmFormat.Layout.STEREO : PcmFormat.Layout.VORBIS);
+    return new Base(initial, format) {
+      protected byte[] decodeBytes(PacketSource.Packet packet) throws IOException {
+        return core.decodePacket(packet.encoded());
+      }
+
+      protected void release() {
+        core.close();
+      }
+    };
+  }
+
+  /** Raw Vorbis packets with Xiph-laced headers. Container delay and padding are not applied. */
+  public static PacketDecoder vorbis(PacketSource.Format initial) throws IOException {
+    requireCodec(initial, "vorbis");
+    VorbisPacketDecoder core = new VorbisPacketDecoder(initial.codecPrivate());
+    var format =
+        new PcmFormat(
+            core.sampleRate(),
+            core.channels(),
+            PcmFormat.Encoding.S16LE,
+            core.channels() == 1
+                ? PcmFormat.Layout.MONO
+                : core.channels() == 2 ? PcmFormat.Layout.STEREO : PcmFormat.Layout.VORBIS);
+    return new Base(initial, format) {
+      protected byte[] decodeBytes(PacketSource.Packet packet) throws IOException {
+        return core.decodePacket(packet.encoded());
+      }
+
+      protected void release() {
+        core.close();
+      }
+    };
+  }
 
   public static PacketDecoder alac(PacketSource.Format initial) throws IOException {
     requireCodec(initial, "alac");

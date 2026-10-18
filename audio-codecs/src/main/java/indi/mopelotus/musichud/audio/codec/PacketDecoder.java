@@ -21,7 +21,7 @@ public interface PacketDecoder extends Closeable {
   DecodedPacket decode(PacketSource.Packet packet) throws IOException;
 
   /**
-   * Drains additional PCM at clean EOF. These AAC/ALAC cores produce all output during decode and
+   * Drains additional PCM at clean EOF. The current cores produce all output during decode and
    * return null. This does not remove encoder priming or invent trailing silence.
    */
   DecodedPacket finish() throws IOException;

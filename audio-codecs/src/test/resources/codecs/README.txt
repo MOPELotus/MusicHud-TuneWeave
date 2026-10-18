@@ -27,3 +27,13 @@ decoders synthesize different random waveforms, so it is checked for matched
 frame/timing, per-channel RMS and high-frequency noise energy instead of sample
 SNR. The same signal encoded with only -aac_pns0 forms aac-no-pns: its independent
 FFmpeg reference differs from the Java decoder by at most one S16 unit.
+
+The opus-packet and vorbis-packet bundles contain the exact complete raw packets
+from the existing synthetic Ogg files. Opus retains untrimmed preSkip/EOS PCM;
+Vorbis configuration uses Matroska Xiph-laced three headers. Container timing
+and trimming are tested separately from these raw packet outputs.
+
+opus-six is generated as six independent sine channels (3840 source frames at
+48kHz, distinct 367+113*channel Hz), encoded with libopus family1/5.1. Its raw
+4800-frame S16 reference is the official Xiph libopus1.1.2 FIXED_POINT multistream
+decoder, before preSkip/EOS trims. Channel order is FL,FC,FR,RL,RR,LFE.

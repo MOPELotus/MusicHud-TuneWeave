@@ -148,7 +148,14 @@ class CodecFixtureTest {
     int count = in.readInt();
     var packets = new ArrayList<byte[]>();
     for (int i = 0; i < count; i++) packets.add(in.readNBytes(in.readInt()));
-    var format = new PacketSource.Format(mode.startsWith("aac") ? "mp4a" : "alac", config);
+    var format =
+        new PacketSource.Format(
+            mode.startsWith("aac")
+                ? "mp4a"
+                : mode.equals("opus-six")
+                    ? "opus"
+                    : mode.endsWith("-packet") ? mode.replace("-packet", "") : "alac",
+            config);
     var track =
         new PacketSource.Track(
             format, null, List.of(), PacketSource.Time.ZERO, PacketSource.Time.ZERO);
