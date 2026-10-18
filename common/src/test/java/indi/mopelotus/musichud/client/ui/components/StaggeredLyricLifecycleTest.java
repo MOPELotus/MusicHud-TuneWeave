@@ -142,7 +142,7 @@ class StaggeredLyricLifecycleTest {
         }
     }
 
-    private static final class Environment extends URLClassLoader {
+    static final class Environment extends URLClassLoader {
         private static final String ROOT = "indi.mopelotus.musichud.";
         private static final String COMPONENT = ROOT + "client.ui.components.";
         final Path fixtures;
@@ -150,9 +150,12 @@ class StaggeredLyricLifecycleTest {
         final Object now;
         final Class<?> viewType;
         Environment(Path fixtures, icyllis.modernui.core.Context context) throws Exception {
+            this(fixtures, context, Map.of());
+        }
+        Environment(Path fixtures, icyllis.modernui.core.Context context, Map<String, String> extras) throws Exception {
             super(new java.net.URL[]{fixtures.toUri().toURL()}, StaggeredLyricLifecycleTest.class.getClassLoader());
             this.fixtures = fixtures;
-            compile(fixtures);
+            compile(fixtures, extras);
             viewType = loadClass(COMPONENT + "LifecycleView");
             view = viewType.getConstructor(icyllis.modernui.core.Context.class).newInstance(context);
             now = loadClass(ROOT + "client.audio.NowPlayingInfo").getMethod("getInstance").invoke(null);
@@ -160,7 +163,8 @@ class StaggeredLyricLifecycleTest {
         @Override protected synchronized Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
             Class<?> result = findLoadedClass(name);
             if (result == null) {
-                if (name.equals(COMPONENT + "StaggeredLyricScrollView") || name.startsWith(COMPONENT + "StaggeredLyricScrollView$")) {
+                if (name.equals(COMPONENT + "StaggeredLyricScrollView") || name.startsWith(COMPONENT + "StaggeredLyricScrollView$")
+                        || name.equals(COMPONENT + "MusicInfoCard") || name.startsWith(COMPONENT + "MusicInfoCard$")) {
                     try (var input = getParent().getResourceAsStream(name.replace('.', '/') + ".class")) {
                         if (input == null) throw new ClassNotFoundException(name);
                         byte[] bytes = input.readAllBytes(); result = defineClass(name, bytes, 0, bytes.length);
@@ -215,7 +219,7 @@ class StaggeredLyricLifecycleTest {
             }
             return result;
         }
-        private static void compile(Path directory) throws Exception {
+        private static void compile(Path directory, Map<String, String> extras) throws Exception {
             Map<String, String> sources = new LinkedHashMap<>();
             sources.put(ROOT + "interfaces.ClientConfig", "public interface ClientConfig { static ClientConfig getInstance() { return () -> false; } boolean getEnableLyricBlur(); }");
             sources.put(ROOT + "MusicHud", "public class MusicHud { public static org.apache.logging.log4j.Logger getLogger(Class<?> type) { return org.apache.logging.log4j.LogManager.getLogger(type); } }");
@@ -278,6 +282,7 @@ class StaggeredLyricLifecycleTest {
                         public void highlight(indi.mopelotus.musichud.client.ui.dto.LyricLine line) { highlightLine(line); }
                     }
                     """);
+            sources.putAll(extras);
             String classpath = System.getProperty("java.class.path");
             for (Class<?> type : List.of(icyllis.modernui.core.Context.class, MusicDetail.class, LyricLine.class, org.apache.logging.log4j.Logger.class))
                 classpath += File.pathSeparator + Path.of(type.getProtectionDomain().getCodeSource().getLocation().toURI());
