@@ -105,6 +105,8 @@ final class JavaDecoderFactory {
           container == JavaAudioProbe.Container.OGG && !resource.isIcy()
               ? new OggPlaybackFactory(resource, factory, factory.targetRate)
               : factory;
+      if (container == JavaAudioProbe.Container.MPEG_AUDIO && !resource.isIcy())
+        attempts = new Mp3PlaybackFactory(resource, factory);
       PresentedDecoder presented = new PresentedDecoder(attempts, plan);
       try {
         return managed(

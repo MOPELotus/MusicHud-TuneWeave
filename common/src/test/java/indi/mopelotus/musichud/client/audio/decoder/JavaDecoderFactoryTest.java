@@ -26,6 +26,53 @@ final class JavaDecoderFactoryTest {
           "tone.au");
 
   @Test
+  void exactMp3IndexesReuseLocalOrCompletedResponseBytesWithoutAnotherRequest() throws Exception {
+    byte[] encoded = fixture("tone.mp3");
+    Path file = Files.createTempFile("java-mp3-index-", ".bin");
+    AtomicInteger requests = new AtomicInteger();
+    var server =
+        com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/audio",
+        exchange -> {
+          requests.incrementAndGet();
+          exchange.sendResponseHeaders(200, encoded.length);
+          try (var out = exchange.getResponseBody()) {
+            out.write(encoded);
+          }
+        });
+    server.start();
+    try {
+      Files.write(file, encoded);
+      for (String identifier :
+          List.of(
+              file.toString(), "http://127.0.0.1:" + server.getAddress().getPort() + "/audio")) {
+        try (var decoder = JavaDecoderFactory.open(identifier, Map.of(), false, true, true)) {
+          byte[] complete = all(decoder);
+          int before = requests.get(), stride = decoder.getFrameSize();
+          long total = complete.length / stride;
+          assertTrue(decoder.supportsFastSeek());
+          for (long target : new long[] {0, 1, total / 2, total - 1, total + 1000}) {
+            assertTrue(decoder.seekToFrame(target));
+            assertEquals(target, decoder.getPositionFrames());
+            assertArrayEquals(
+                target >= total
+                    ? new byte[0]
+                    : Arrays.copyOfRange(
+                        complete, Math.toIntExact(target * stride), complete.length),
+                all(decoder));
+            assertEquals(
+                before, requests.get(), "Exact indexes must not redownload completed bytes");
+          }
+        }
+      }
+    } finally {
+      server.stop(0);
+      Files.deleteIfExists(file);
+    }
+  }
+
+  @Test
   void sparseHeAacHeadersExpandTheRecoveryWindowBeforePresentingTheTarget() throws Exception {
     Path file = Files.createTempFile("java-aac-sparse-headers-", ".mp4");
     try {
