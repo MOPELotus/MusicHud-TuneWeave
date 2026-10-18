@@ -1,0 +1,3 @@
+Synthetic sine-wave metadata test fixtures generated with FFmpeg; no commercial music.
+Tags intentionally include Chinese, Greek, emoji and XML punctuation.
+PNG/JPEG artwork is a generated test image. Fixtures are test-only and never packaged.

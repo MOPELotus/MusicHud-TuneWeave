@@ -5,8 +5,7 @@ import indi.mopelotus.musichud.client.services.music.MusicEntityCache;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.ui.dto.CloudEntryState;
 import indi.mopelotus.musichud.interfaces.Unregister;
-import org.jaudiotagger.audio.AudioFileIO;
-import org.jaudiotagger.tag.FieldKey;
+import indi.mopelotus.musichud.metadata.AudioMetadataReader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -260,28 +259,13 @@ public final class CloudUploadService {
         if (task.getFileSize() <= 0 || task.getFileSize() > 500L * 1024 * 1024)
             throw new IllegalArgumentException("Cloud upload file must be between 1 byte and 500 MiB");
         task.setSong(task.getFileName().replaceFirst("\\.[^.]+$", ""));
-        try {
-            var audio = AudioFileIO.read(task.getFile().toFile());
-            var tag = audio.getTag();
-            if (tag != null) {
-                if (!tag.getFirst(FieldKey.TITLE).isBlank()) task.setSong(tag.getFirst(FieldKey.TITLE));
-                task.setArtist(tag.getFirst(FieldKey.ARTIST));
-                task.setAlbum(tag.getFirst(FieldKey.ALBUM));
-                var art = tag.getFirstArtwork();
-                if (art != null && art.getBinaryData() != null && art.getBinaryData().length <= 8 * 1024 * 1024) {
-                    String mime = Objects.requireNonNullElse(art.getMimeType(), "image/jpeg");
-                    if (mime.equals("image/png") || mime.equals("image/jpeg"))
-                        task.setCoverDataUri("data:" + mime + ";base64," + Base64.getEncoder().encodeToString(art.getBinaryData()));
-                }
-            }
-            var header = audio.getAudioHeader();
-            if (header != null) {
-                task.setDurationMillis((int) Math.clamp(Math.round(header.getPreciseTrackLength() * 1000), 0, Integer.MAX_VALUE));
-                if (header.getBitRateAsNumber() > 0) task.setBitrate(header.getBitRateAsNumber() * 1000);
-            }
-        } catch (Exception ignored) {
-            // The upload contract also accepts files without readable tags.
-        }
+        var metadata = AudioMetadataReader.read(task.getFile());
+        if (metadata.title() != null) task.setSong(metadata.title());
+        if (metadata.artist() != null) task.setArtist(metadata.artist());
+        if (metadata.album() != null) task.setAlbum(metadata.album());
+        if (metadata.coverDataUri() != null) task.setCoverDataUri(metadata.coverDataUri());
+        if (metadata.durationMillis() != null) task.setDurationMillis(metadata.durationMillis());
+        if (metadata.bitrate() != null) task.setBitrate(metadata.bitrate());
         task.setPrepared(true);
     }
 }
