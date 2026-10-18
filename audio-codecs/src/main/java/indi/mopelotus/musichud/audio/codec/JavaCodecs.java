@@ -102,6 +102,11 @@ public final class JavaCodecs {
         });
   }
 
+  /** Incremental physical Ogg chains; each returned link keeps its native fixed PCM format. */
+  public static OggLinks oggLinks(InputStream owned) {
+    return new OggLinks(owned, JavaCodecs::ogg);
+  }
+
   public static PcmDecoder wavpack(InputStream owned) throws IOException {
     var d = new WavPackMultiCore(owned);
     try {

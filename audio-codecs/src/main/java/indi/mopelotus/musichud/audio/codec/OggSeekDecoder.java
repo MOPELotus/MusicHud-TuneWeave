@@ -19,6 +19,18 @@ import org.concentus.*;
  * so callers apply that source offset once. Close replaced result decoders to release codec state.
  */
 public final class OggSeekDecoder implements AutoCloseable {
+  /**
+   * This physical source cannot use the single-link seek index. A caller may reopen it through the
+   * incremental chain API. Transport and snapshot-identity failures remain ordinary IOExceptions
+   * and never authorize this fallback. A capability decline does not certify chain validity: the
+   * incremental parser must still validate the physical stream.
+   */
+  public static final class UnsupportedSingleLinkException extends IOException {
+    public UnsupportedSingleLinkException(String message) {
+      super(message);
+    }
+  }
+
   @FunctionalInterface
   public interface Source {
     SeekableByteChannel open() throws IOException;
@@ -53,6 +65,7 @@ public final class OggSeekDecoder implements AutoCloseable {
   private final Source source;
   private final long length;
   private final int serial;
+  private final long bosOffset;
   private final byte[][] headers;
   private final boolean isOpus;
   private final int rate, channels, preSkip, opusPreroll;
@@ -112,7 +125,7 @@ public final class OggSeekDecoder implements AutoCloseable {
       while (b.hasRemaining()) {
         check();
         int n = in.read(b);
-        if (n < 0) break;
+        if (n < 0) throw new EOFException("Ogg source ended before its declared length");
         if (n == 0) {
           if (++zeroReads > 32) throw new IOException("Ogg source made no progress");
           Thread.onSpinWait();
@@ -224,16 +237,31 @@ public final class OggSeekDecoder implements AutoCloseable {
     var list = new ArrayList<Point>();
     for (int p = 0; p < Math.min(width, b.length - 26); p++) {
       if (!magic(b, p)) continue;
+      Page pg;
       try {
-        Page pg = page(b, p, start);
-        if (pg.serial == serial && (pg.granule >= 0 || (pg.flags & 4) != 0))
-          list.add(new Point(pg.offset, pg.bytes, pg.granule, pg.flags, pg.sequence));
-        p += pg.bytes - 1;
+        pg = page(b, p, start);
       } catch (IOException invalidCandidate) {
+        continue; // A scan may start inside a packet that happens to contain OggS bytes.
       }
+      if (pg.serial == serial) {
+        if ((pg.flags & 2) != 0 && pg.offset != bosOffset)
+          throw new UnsupportedSingleLinkException("Selected Ogg serial has another BOS");
+        if (pg.granule >= 0 || (pg.flags & 4) != 0)
+          list.add(new Point(pg.offset, pg.bytes, pg.granule, pg.flags, pg.sequence));
+      }
+      p += pg.bytes - 1;
     }
     op.check();
     synchronized (points) {
+      Long eosOffset = null;
+      for (Point p : points.values()) if ((p.flags & 4) != 0) eosOffset = p.offset;
+      for (Point p : list) {
+        if ((p.flags & 4) != 0) {
+          if (eosOffset != null && eosOffset.longValue() != p.offset)
+            throw new UnsupportedSingleLinkException("Selected Ogg serial has multiple EOS pages");
+          eosOffset = p.offset;
+        }
+      }
       for (Point p : list) points.put(p.offset, p);
       if (points.size() > 4096) {
         var keep = new TreeMap<Long, Point>();
@@ -263,6 +291,7 @@ public final class OggSeekDecoder implements AutoCloseable {
     active.set(op);
     byte[][] found;
     int chosen;
+    long selectedBosOffset = -1;
     boolean opus;
     int sampleRate, ch, skip;
     try {
@@ -289,9 +318,12 @@ public final class OggSeekDecoder implements AutoCloseable {
                           && starts(Arrays.copyOfRange(p.body, 1, p.body.length), "vorbis")));
           if (!supported) continue;
           chosen = p.serial;
+          selectedBosOffset = p.offset;
           selectedAudio = true;
         }
         if (p.serial != chosen) continue;
+        if ((p.flags & 2) != 0 && p.offset != selectedBosOffset)
+          throw new UnsupportedSingleLinkException("Selected Ogg serial has another header BOS");
         if (p.sequence != ++sequence || (((p.flags & 1) != 0) != previousContinued))
           throw new IOException("Ogg header continuity");
         int at = 0;
@@ -342,6 +374,7 @@ public final class OggSeekDecoder implements AutoCloseable {
     }
     headers = found;
     serial = chosen;
+    bosOffset = selectedBosOffset;
     isOpus = opus;
     rate = sampleRate;
     channels = ch;
@@ -360,8 +393,11 @@ public final class OggSeekDecoder implements AutoCloseable {
       for (Point p : tail)
         if ((p.flags & 4) != 0 && (eos == null || p.offset > eos.offset)) eos = p;
       if (eos == null)
-        throw new IOException(
-            "Cannot find selected Ogg link EOS in bounded tail; supply a single physical link");
+        throw new UnsupportedSingleLinkException(
+            "Cannot find selected Ogg link EOS in bounded tail; use the chain API");
+      if (eos.offset + eos.bytes != length)
+        throw new UnsupportedSingleLinkException(
+            "Selected Ogg EOS does not end the physical source; use the chain API");
       Point predecessor = null;
       synchronized (points) {
         for (Point p : points.values())
