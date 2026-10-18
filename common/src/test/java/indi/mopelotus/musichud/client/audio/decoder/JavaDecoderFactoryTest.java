@@ -26,6 +26,36 @@ final class JavaDecoderFactoryTest {
           "tone.au");
 
   @Test
+  void fragmentedOpenEndedFinalEditsPlayAndApplyNonzeroPrimingOnce() throws Exception {
+    for (String variant : List.of("hls-input-fmp4-study", "hls-input-fmp4-primed-study")) {
+      Path file = Files.createTempFile("java-open-ended-mp4-", ".mp4");
+      try {
+        var bytes = new ByteArrayOutputStream();
+        for (String part : List.of("init.mp4", "media0.m4s", "media1.m4s"))
+          try (var in = getClass().getResourceAsStream("/hls-timeline/" + variant + "/" + part)) {
+            in.transferTo(bytes);
+          }
+        Files.write(file, bytes.toByteArray());
+        byte[] complete;
+        int stride, rate;
+        try (var decoder = JavaDecoderFactory.open(file.toString(), Map.of(), false, true, true)) {
+          stride = decoder.getFrameSize();
+          rate = decoder.getSampleRate();
+          complete = all(decoder);
+        }
+        assertEquals(variant.contains("primed") ? 62400 : 63424, complete.length / stride);
+        try (var decoder = JavaDecoderFactory.open(file.toString(), Map.of(), false, true, true)) {
+          assertTrue(decoder.seekToFrame(rate / 10));
+          assertArrayEquals(
+              Arrays.copyOfRange(complete, rate / 10 * stride, complete.length), all(decoder));
+        }
+      } finally {
+        Files.deleteIfExists(file);
+      }
+    }
+  }
+
+  @Test
   void exactMp3IndexesReuseLocalOrCompletedResponseBytesWithoutAnotherRequest() throws Exception {
     byte[] encoded = fixture("tone.mp3");
     Path file = Files.createTempFile("java-mp3-index-", ".bin");

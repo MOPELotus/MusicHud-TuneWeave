@@ -93,6 +93,7 @@ final class JavaDecoderFactory {
       Opened first = decode(lease, prepared);
       factory.first.set(first.decoder());
       factory.track = first.track();
+      factory.openEndedFinalEdit = first.openEndedFinalEdit();
       factory.targetRate = first.decoder().format().sampleRate();
       if (first.decoder() instanceof PacketMediaDecoder packet)
         factory.aacExpectation = packet.aacExpectation();
@@ -100,7 +101,11 @@ final class JavaDecoderFactory {
           first.track() == null || container == JavaAudioProbe.Container.MATROSKA
               ? new PresentationPlan(
                   List.of(new PresentationPlan.Segment(0, Long.MAX_VALUE)), Long.MAX_VALUE)
-              : PresentationPlan.from(first.track(), first.decoder().format().sampleRate(), false);
+              : PresentationPlan.from(
+                  first.track(),
+                  first.decoder().format().sampleRate(),
+                  false,
+                  first.openEndedFinalEdit());
       PresentedDecoder.Factory attempts =
           container == JavaAudioProbe.Container.OGG && !resource.isIcy()
               ? new OggPlaybackFactory(resource, factory, factory.targetRate)
@@ -245,7 +250,8 @@ final class JavaDecoderFactory {
     }
   }
 
-  private record Opened(PcmDecoder decoder, PacketSource.Track track, String codec) {}
+  private record Opened(
+      PcmDecoder decoder, PacketSource.Track track, String codec, boolean openEndedFinalEdit) {}
 
   private static Opened decode(JavaAudioResource.Lease lease, JavaAudioProbe.PreparedInput prepared)
       throws IOException {
@@ -359,13 +365,18 @@ final class JavaDecoderFactory {
         throw error;
       }
     }
-    return new Opened(decoder, packets == null ? null : packets.track(), codec);
+    return new Opened(
+        decoder,
+        packets == null ? null : packets.track(),
+        codec,
+        packets instanceof Mp4PacketSource mp4 && mp4.hasOpenEndedFinalEdit());
   }
 
   private static final class Factory implements PresentedDecoder.Factory {
     private final JavaAudioResource resource;
     private final JavaAudioProbe.Container expected;
     private PacketSource.Track track;
+    private boolean openEndedFinalEdit;
     private int targetRate;
     private AacPacketDecoder.Expectation aacExpectation;
     private final AtomicReference<PcmDecoder> first = new AtomicReference<>();
@@ -419,7 +430,8 @@ final class JavaDecoderFactory {
           }
           if (decoded == null)
             decoded = decodeAttempt(aacExpectation == null ? requested : -1, null, 0);
-          if (!Objects.equals(track, decoded.track())) {
+          if (!Objects.equals(track, decoded.track())
+              || openEndedFinalEdit != decoded.openEndedFinalEdit()) {
             decoded.decoder().close();
             throw new IOException("Reopened container timing changed");
           }

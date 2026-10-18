@@ -22,6 +22,17 @@ public record PresentationPlan(List<Segment> segments, long totalFrames) {
 
   public static PresentationPlan from(
       PacketSource.Track track, int sampleRate, boolean coreAlreadyTrimmed) {
+    return from(track, sampleRate, coreAlreadyTrimmed, false);
+  }
+
+  /** Open-ended final edits require explicit fragmented-container provenance. */
+  public static PresentationPlan from(
+      PacketSource.Track track,
+      int sampleRate,
+      boolean coreAlreadyTrimmed,
+      boolean openEndedFinalEdit) {
+    if (openEndedFinalEdit && track.edits().isEmpty())
+      throw new IllegalArgumentException("Missing open-ended final edit");
     if (sampleRate <= 0) throw new IllegalArgumentException();
     var segments = new ArrayList<Segment>();
     if (coreAlreadyTrimmed) {
@@ -39,10 +50,24 @@ public record PresentationPlan(List<Segment> segments, long totalFrames) {
     }
     BigInteger numerator = BigInteger.ZERO, denominator = BigInteger.ONE;
     long previous = 0;
-    for (var edit : track.edits()) {
+    for (int editIndex = 0; editIndex < track.edits().size(); editIndex++) {
+      var edit = track.edits().get(editIndex);
       if (edit.rate().numerator() != edit.rate().denominator())
         throw new IllegalArgumentException("Unsupported edit playback rate");
       var duration = edit.presentationDuration();
+      if (openEndedFinalEdit && editIndex == track.edits().size() - 1) {
+        if (duration.ticks() != 0 || edit.mediaStart() == null || edit.mediaStart().ticks() < 0)
+          throw new IllegalArgumentException("Invalid open-ended final edit");
+        long first = framesCeil(edit.mediaStart(), sampleRate);
+        if (track.mediaDuration() == null) {
+          segments.add(new Segment(first, Long.MAX_VALUE));
+          return new PresentationPlan(segments, Long.MAX_VALUE);
+        }
+        long last = framesCeil(track.mediaDuration(), sampleRate);
+        if (first > last) throw new IllegalArgumentException("Edit exceeds media extent");
+        segments.add(new Segment(first, last - first));
+        return new PresentationPlan(segments, Math.addExact(previous, last - first));
+      }
       BigInteger d = BigInteger.valueOf(duration.timescale());
       numerator =
           numerator.multiply(d).add(BigInteger.valueOf(duration.ticks()).multiply(denominator));
