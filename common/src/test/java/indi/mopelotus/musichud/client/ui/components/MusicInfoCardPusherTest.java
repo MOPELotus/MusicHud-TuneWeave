@@ -140,6 +140,16 @@ class MusicInfoCardPusherTest {
                     public PlaybackSnapshot snapshot() { return new PlaybackSnapshot(detail,java.time.Duration.ZERO,null); }
                 }
                 """);
-        return new StaggeredLyricLifecycleTest.Environment(fixtures, context, s);
+        // The resource identifier was renamed after 1.21.10. Read the real endpoint's
+        // signature without initializing Minecraft, so these environment fixtures follow
+        // production bytecode on both sides of that API change.
+        ClassLoader loader = getClass().getClassLoader();
+        Class<?> playerInfo = Class.forName("net.minecraft.client.multiplayer.PlayerInfo", false, loader);
+        String skinType = Class.forName(ROOT + "client.utils.PlayerInfoUtil", false, loader)
+                .getDeclaredMethod("getPlayerSkin", playerInfo).getReturnType().getSimpleName();
+        Map<String, String> versioned = new LinkedHashMap<>();
+        s.forEach((name, source) -> versioned.put(name.replace("Identifier", skinType),
+                source.replace("Identifier", skinType)));
+        return new StaggeredLyricLifecycleTest.Environment(fixtures, context, versioned);
     }
 }
