@@ -1,18 +1,15 @@
 package indi.mopelotus.musichud.client.utils.image;
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.EncodeHintType;
-import com.google.zxing.qrcode.QRCodeWriter;
-import com.google.zxing.common.BitMatrix;
+import indi.mopelotus.musichud.client.utils.image.qrcode.QrCode;
+import indi.mopelotus.musichud.client.utils.image.qrcode.QrSegment;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
-import java.util.EnumMap;
-import java.util.Map;
 
 /** Normalizes TuneWeave QR payloads into a raster data URL ModernUI can display. */
 public final class QrImageUtils {
@@ -55,15 +52,24 @@ public final class QrImageUtils {
 
     private static String encode(String content) {
         try {
-            Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
-            hints.put(EncodeHintType.MARGIN, 2);
-            hints.put(EncodeHintType.CHARACTER_SET, StandardCharsets.UTF_8.name());
-            BitMatrix matrix = new QRCodeWriter().encode(
-                    content, BarcodeFormat.QR_CODE, QR_SIZE, QR_SIZE, hints);
+            // ECI makes non-ASCII URLs unambiguous to independent scanners. Keep the
+            // numeric/alphanumeric modes for long tokens that fit more compactly.
+            var segments = new ArrayList<QrSegment>();
+            var payload = QrSegment.makeSegments(content);
+            if (payload.stream().anyMatch(segment -> segment.mode == QrSegment.Mode.BYTE)) {
+                segments.add(QrSegment.makeEci(26));
+            }
+            segments.addAll(payload);
+            QrCode qr = QrCode.encodeSegments(segments, QrCode.Ecc.LOW, 1, 40, -1, false);
+            int scale = QR_SIZE / (qr.size + 4); // Preserve the existing two-module quiet zone.
+            int offset = (QR_SIZE - qr.size * scale) / 2;
             BufferedImage image = new BufferedImage(QR_SIZE, QR_SIZE, BufferedImage.TYPE_INT_RGB);
             for (int y = 0; y < QR_SIZE; y++) {
                 for (int x = 0; x < QR_SIZE; x++) {
-                    image.setRGB(x, y, matrix.get(x, y) ? 0xFF000000 : 0xFFFFFFFF);
+                    int moduleX = (x - offset) / scale;
+                    int moduleY = (y - offset) / scale;
+                    boolean dark = x >= offset && y >= offset && qr.getModule(moduleX, moduleY);
+                    image.setRGB(x, y, dark ? 0xFF000000 : 0xFFFFFFFF);
                 }
             }
             ByteArrayOutputStream output = new ByteArrayOutputStream();
