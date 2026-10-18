@@ -50,6 +50,7 @@ subprojects {
                 def directory = layout.buildDirectory.dir('generated/distribution-resources')
                 inputs.property('distribution', distribution)
                 inputs.property('distributionVersion', provider { project.version.toString() })
+                if (project.name in ['fabric', 'neoforge'] && distribution == 'standard') inputs.file(rootProject.file('core/src/standard/java/indi/mopelotus/musichud/server/api/TuneWeaveCompatibility.java'))
                 outputs.dir(directory)
                 doLast {
                     def marker = directory.get().file('META-INF/musichud-distribution.properties').asFile
@@ -61,7 +62,14 @@ subprojects {
                         // Include intermediate versions supported by the published range artifact.
                         if (supported == ['1.21.6', '1.21.8']) supported = ['1.21.6', '1.21.7', '1.21.8']
                         if (supported == ['26.1', '26.1.2']) supported = ['26.1', '26.1.1', '26.1.2']
-                        identity.setText("id=musichud_tuneweave\nversion=${project.version}\ndistribution=${distribution}\nloader=${project.name}\nminecraft=${supported.join(',')}\n", 'UTF-8')
+                        String serviceIdentity = ''
+                        if (distribution == 'standard') {
+                            def policy = rootProject.file('core/src/standard/java/indi/mopelotus/musichud/server/api/TuneWeaveCompatibility.java')
+                            def profile = (policy.getText('UTF-8') =~ /public static final String PROFILE = "([a-z0-9][a-z0-9._-]{0,63})";/)
+                            if (!profile.find()) throw new GradleException('Missing TuneWeave compatibility profile')
+                            serviceIdentity = "service_profiles=${profile.group(1)}\n"
+                        }
+                        identity.setText("id=musichud_tuneweave\nversion=${project.version}\ndistribution=${distribution}\nloader=${project.name}\nminecraft=${supported.join(',')}\n${serviceIdentity}", 'UTF-8')
                     }
                 }
             }
@@ -76,6 +84,7 @@ subprojects {
                         def translations = new groovy.json.JsonSlurper().parse(file)
                         translations.keySet().removeIf { key ->
                             key.startsWith('musichud_tuneweave.modal.downloadApiServer') ||
+                                    key.startsWith('musichud_tuneweave.update.service.') ||
                                     key.startsWith('musichud_tuneweave.button.downloadApiServer') ||
                                     key.startsWith('musichud_tuneweave.modal.clearApiLogs') ||
                                     key in ['musichud_tuneweave.config.apiServer.startupBinaryApiServerWhenLaunch',

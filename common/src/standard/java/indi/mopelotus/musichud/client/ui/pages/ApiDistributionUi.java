@@ -363,6 +363,8 @@ public final class ApiDistributionUi {
                         if (!showing[0] || downloadSession.generation() != sessionGeneration) return;
                         if (ex instanceof CancellationException || ex.getCause() instanceof CancellationException) {
                             ToastUtil.show(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.cancelled"));
+                        } else if (TuneWeaveCompatibility.causedByUnconfirmedCompatibility(ex)) {
+                            ToastUtil.show(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.compatibilityUnknown"));
                         } else {
                             ToastUtil.show(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.error") + ": " + ex.getMessage());
                         }
@@ -394,8 +396,7 @@ public final class ApiDistributionUi {
                     return;
                 }
                 Path installDir = downloadSession.snapshot().targetDir();
-                if (installDir == null || !updateService.recordManagedInstallation(installDir, downloaded.tag(),
-                        downloaded.version(), finalPath.getFileName().toString())) {
+                if (installDir == null || !updateService.recordManagedInstallation(installDir, downloaded, finalPath.getFileName().toString())) {
                     ToastUtil.show(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.renameFailed"));
                     return;
                 }
