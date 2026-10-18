@@ -10,6 +10,49 @@ import org.junit.jupiter.api.Test;
 
 class PacketMediaDecoderTest {
   @Test
+  void recoveryProbeStopsBeforeLateReadinessAndReleaseDoesNotTruncatePlayback() throws Exception {
+    var format = new PacketSource.Format("mp4a", new byte[0]);
+    var track =
+        new PacketSource.Track(
+            format, null, List.of(), PacketSource.Time.ZERO, PacketSource.Time.ZERO);
+    class Source implements PacketSource {
+      int index, closes;
+
+      public Track track() {
+        return track;
+      }
+
+      public Packet next() {
+        return index == 4 ? null : packet(format, new byte[0], index++ * 48000, 48000, false);
+      }
+
+      public Time seekMedia(Time time) {
+        throw new UnsupportedOperationException();
+      }
+
+      public void close() {
+        closes++;
+      }
+    }
+    var first = new Source();
+    try (var probe = new AacRecoveryWindow(first, new PacketSource.Time(1, 1))) {
+      assertNotNull(probe.next());
+      assertNotNull(probe.next());
+      assertThrows(AacRecoveryWindow.Unavailable.class, probe::next);
+      assertEquals(3, first.index);
+    }
+    assertEquals(1, first.closes);
+    var second = new Source();
+    try (var probe = new AacRecoveryWindow(second, PacketSource.Time.ZERO)) {
+      assertNotNull(probe.next());
+      probe.release();
+      for (int i = 0; i < 3; i++) assertNotNull(probe.next());
+      assertNull(probe.next());
+    }
+    assertEquals(1, second.closes);
+  }
+
+  @Test
   void vorbisResetSurvivesItsFirstPacketProducingNoPcm() throws Exception {
     PacketSource.Format format;
     List<byte[]> compressed = new ArrayList<>();

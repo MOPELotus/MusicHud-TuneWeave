@@ -26,6 +26,41 @@ final class JavaDecoderFactoryTest {
           "tone.au");
 
   @Test
+  void aacSeekPreservesThePresentedSampleGridAfterRecovery() throws Exception {
+    Path file = Files.createTempFile("java-aac-recovery-", ".mp4");
+    try {
+      Files.write(file, fixture("seek-lc.m4a"));
+      byte[] complete;
+      try (var decoder = JavaDecoderFactory.open(file.toString(), Map.of(), false, true, true)) {
+        complete = all(decoder);
+      }
+      try (var decoder = JavaDecoderFactory.open(file.toString(), Map.of(), false, true, true)) {
+        assertTrue(decoder.supportsFastSeek());
+        long target = decoder.getSampleRate() * 24L / 10;
+        assertTrue(decoder.seekToFrame(target));
+        assertEquals(target, decoder.getPositionFrames());
+        byte[] sought = all(decoder);
+        byte[] reference =
+            Arrays.copyOfRange(
+                complete, Math.toIntExact(target * decoder.getFrameSize()), complete.length);
+        assertEquals(reference.length, sought.length);
+        assertTrue(sought.length > 0);
+        var original = java.nio.ByteBuffer.wrap(reference).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        var actual = java.nio.ByteBuffer.wrap(sought).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        double energy = 0, error = 0;
+        while (original.hasRemaining()) {
+          double x = original.getFloat(), y = actual.getFloat();
+          energy += x * x;
+          error += (x - y) * (x - y);
+        }
+        assertTrue(10 * Math.log10(energy / Math.max(1e-30, error)) > 70);
+      }
+    } finally {
+      Files.deleteIfExists(file);
+    }
+  }
+
+  @Test
   void indexedOggPastTailIsNaturalEofAndRestartable() throws Exception {
     Path file = Files.createTempFile("java-audio-eof-", ".bin");
     try {

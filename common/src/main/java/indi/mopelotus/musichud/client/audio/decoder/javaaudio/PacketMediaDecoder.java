@@ -18,6 +18,8 @@ public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversio
   private final PacketSource source;
   private final Mapper mapper;
   private final int targetRate;
+  private final AacPacketDecoder.Expectation aacRecovery;
+  private AacPacketDecoder.Expectation aacExpectation;
   private PcmFormat initialSourceFormat;
   private PacketSource.Time firstDecodedTime;
   private PacketPcmNormalizer normalizer;
@@ -46,7 +48,18 @@ public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversio
   public PacketMediaDecoder(
       PacketSource owned, int targetRate, long initialMediaFrame, Mapper mapper)
       throws IOException {
+    this(owned, targetRate, initialMediaFrame, mapper, null);
+  }
+
+  public PacketMediaDecoder(
+      PacketSource owned,
+      int targetRate,
+      long initialMediaFrame,
+      Mapper mapper,
+      AacPacketDecoder.Expectation aacRecovery)
+      throws IOException {
     source = java.util.Objects.requireNonNull(owned);
+    this.aacRecovery = aacRecovery;
     this.targetRate = targetRate;
     this.mapper = java.util.Objects.requireNonNull(mapper);
     position = initialMediaFrame;
@@ -65,7 +78,8 @@ public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversio
 
   private PacketDecoder create(PacketSource.Format f) throws IOException {
     return switch (f.codec()) {
-      case "mp4a" -> PacketCodecs.aac(f);
+      case "mp4a" ->
+          aacRecovery == null ? PacketCodecs.aac(f) : PacketCodecs.aacWithRecovery(f, aacRecovery);
       case "alac" -> PacketCodecs.alac(f);
       case "opus" -> PacketCodecs.opus(f);
       case "vorbis" -> PacketCodecs.vorbis(f);
@@ -114,6 +128,16 @@ public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversio
       }
       var result = codec.decode(packet);
       if (result == null) continue;
+      if (codec instanceof AacPacketDecoder aac) {
+        var recovery = aac.recovery();
+        if (recovery.valid())
+          aacExpectation =
+              new AacPacketDecoder.Expectation(
+                  result.format().sampleRate(),
+                  result.format().channels(),
+                  recovery.sbrPresent(),
+                  recovery.psPresent());
+      }
       if (pendingDiscontinuity && !result.source().discontinuity()) {
         var original = result.source();
         var marked =
@@ -143,6 +167,10 @@ public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversio
 
   public boolean hasDownmixedChannels() {
     return normalizer != null && normalizer.hasDownmixedChannels();
+  }
+
+  public AacPacketDecoder.Expectation aacExpectation() {
+    return aacExpectation;
   }
 
   public PcmFormat initialSourceFormat() {

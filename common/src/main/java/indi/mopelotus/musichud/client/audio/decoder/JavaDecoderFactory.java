@@ -94,6 +94,8 @@ final class JavaDecoderFactory {
       factory.first.set(first.decoder());
       factory.track = first.track();
       factory.targetRate = first.decoder().format().sampleRate();
+      if (first.decoder() instanceof PacketMediaDecoder packet)
+        factory.aacExpectation = packet.aacExpectation();
       PresentationPlan plan =
           first.track() == null || container == JavaAudioProbe.Container.MATROSKA
               ? new PresentationPlan(
@@ -244,14 +246,16 @@ final class JavaDecoderFactory {
 
   private static Opened decode(JavaAudioResource.Lease lease, JavaAudioProbe.PreparedInput prepared)
       throws IOException {
-    return decode(lease, prepared, -1, 0);
+    return decode(lease, prepared, -1, 0, null, 0);
   }
 
   private static Opened decode(
       JavaAudioResource.Lease lease,
       JavaAudioProbe.PreparedInput prepared,
       long requestedFrame,
-      int targetRate)
+      int targetRate,
+      AacPacketDecoder.Expectation aacExpectation,
+      int prerollSeconds)
       throws IOException {
     PcmDecoder decoder;
     PacketSource packets = null;
@@ -307,17 +311,37 @@ final class JavaDecoderFactory {
         long beginning = 0;
         if (requestedFrame >= 0
             && packets instanceof Mp4PacketSource mp4
-            && packets.track().initialFormat().codec().equals("alac")) {
+            && (packets.track().initialFormat().codec().equals("alac") || aacExpectation != null)) {
           var first =
-              mp4.seekMedia(new PacketSource.Time(Math.max(0, requestedFrame - 4096), targetRate));
+              mp4.seekMedia(
+                  new PacketSource.Time(
+                      Math.max(
+                          0,
+                          requestedFrame
+                              - (aacExpectation == null
+                                  ? 4096L
+                                  : (long) prerollSeconds * targetRate)),
+                      targetRate));
           if (first == null) throw new EOFException("MP4 seek beyond media extent");
           beginning = Math.max(0, PresentationPlan.framesCeil(first, targetRate));
         }
+        AacRecoveryWindow recoveryWindow =
+            aacExpectation == null
+                ? null
+                : new AacRecoveryWindow(
+                    packets,
+                    new PacketSource.Time(requestedFrame - (targetRate + 3L) / 4, targetRate));
         decoder =
             packets instanceof MatroskaPacketSource matroska
                 ? new PacketMediaDecoder(
                     packets, 0, QuantizedPcmClock.matroska(matroska.timestampQuantum())::map)
-                : new PacketMediaDecoder(packets, targetRate, beginning, p -> p);
+                : new PacketMediaDecoder(
+                    recoveryWindow == null ? packets : recoveryWindow,
+                    targetRate,
+                    beginning,
+                    p -> p,
+                    aacExpectation);
+        if (recoveryWindow != null) recoveryWindow.release();
       } catch (Throwable error) {
         try {
           packets.close();
@@ -335,6 +359,7 @@ final class JavaDecoderFactory {
     private final JavaAudioProbe.Container expected;
     private PacketSource.Track track;
     private int targetRate;
+    private AacPacketDecoder.Expectation aacExpectation;
     private final AtomicReference<PcmDecoder> first = new AtomicReference<>();
 
     Factory(JavaAudioResource resource, JavaAudioProbe.Container expected) {
@@ -346,7 +371,7 @@ final class JavaDecoderFactory {
       return expected == JavaAudioProbe.Container.ISO_BMFF
           && resource.rangeStable()
           && track != null
-          && track.initialFormat().codec().equals("alac");
+          && (track.initialFormat().codec().equals("alac") || aacExpectation != null);
     }
 
     public PresentedDecoder.Attempt attempt() {
@@ -366,10 +391,26 @@ final class JavaDecoderFactory {
             if (result != null) return result;
             lease = resource.lease();
           }
-          var prepared = JavaAudioProbe.prepare(lease.stream());
-          if (prepared.container() != expected)
-            throw new IOException("Reopened audio container changed");
-          Opened decoded = decode(lease, prepared, requested, targetRate);
+          Opened decoded = null;
+          if (expected == JavaAudioProbe.Container.ISO_BMFF
+              && requested >= targetRate / 4L
+              && aacExpectation != null
+              && resource.rangeStable()) {
+            for (int preroll : new int[] {2, 4, 8}) {
+              try {
+                decoded = decodeAttempt(requested, aacExpectation, preroll);
+                break;
+              } catch (AacRecoveryWindow.Unavailable unavailable) {
+                lease.close();
+                synchronized (this) {
+                  if (cancelled) throw new IOException("AAC recovery cancelled");
+                  lease = resource.lease();
+                }
+              }
+            }
+          }
+          if (decoded == null)
+            decoded = decodeAttempt(aacExpectation == null ? requested : -1, null, 0);
           if (!Objects.equals(track, decoded.track())) {
             decoded.decoder().close();
             throw new IOException("Reopened container timing changed");
@@ -383,6 +424,15 @@ final class JavaDecoderFactory {
           }
           opened.close();
           throw new IOException("Stale decoder attempt");
+        }
+
+        private Opened decodeAttempt(
+            long requestedFrame, AacPacketDecoder.Expectation expectedAac, int preroll)
+            throws IOException {
+          var prepared = JavaAudioProbe.prepare(lease.stream());
+          if (prepared.container() != expected)
+            throw new IOException("Reopened audio container changed");
+          return decode(lease, prepared, requestedFrame, targetRate, expectedAac, preroll);
         }
 
         public void cancel() {
