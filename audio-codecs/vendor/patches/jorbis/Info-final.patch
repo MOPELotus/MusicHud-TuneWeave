@@ -1,0 +1,26 @@
+--- upstream/Info.java
++++ patched/Info.java
+@@ -24,6 +24,7 @@
+  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+  */
+ 
++/* Modified 2026-10-18 for TuneWeave research: bound aggregate decoder setup table allocations. */
+ package com.jcraft.jorbis;
+ 
+ import com.jcraft.jogg.*;
+@@ -187,9 +188,15 @@
+ 
+     if(book_param==null||book_param.length!=books)
+       book_param=new StaticCodeBook[books];
++    long codebookUnits=0;
+     for(int i=0; i<books; i++){
+       book_param[i]=new StaticCodeBook();
+       if(book_param[i].unpack(opb)!=0){
++        clear();
++        return (-1);
++      }
++      codebookUnits+=(long)book_param[i].dim*book_param[i].entries;
++      if(codebookUnits>(8L<<20)){
+         clear();
+         return (-1);
+       }

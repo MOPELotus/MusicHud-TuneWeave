@@ -1,0 +1,10 @@
+DBus-Java 5.2.0
+Components: com.github.hypfvieh:dbus-java-core:5.2.0
+            com.github.hypfvieh:dbus-java-transport-native-unixsocket:5.2.0
+Source: https://github.com/hypfvieh/dbus-java
+Upstream tag: dbus-java-parent-5.2.0
+Upstream commit: 29dbfbb1abbaa2cdef9d38a04a9a10067a75f9cf
+License: MIT; upstream copyright and permission notices are reproduced in LICENSE.txt.
+
+This attribution file is supplied by MusicHud-TuneWeave. Its project-level LGPL
+license does not replace DBus-Java's MIT copyright and permission notices.

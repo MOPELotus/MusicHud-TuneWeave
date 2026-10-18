@@ -50,6 +50,11 @@ public class AudioFormatDetector {
         if (looksLikeWindowsAbsolutePath(trimmed)) {
             return Paths.get(trimmed).toAbsolutePath().normalize().toString();
         }
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("http:") || lower.startsWith("https:")
+                || lower.startsWith("icy:") || lower.startsWith("file:")) {
+            return normalizeResourceUri(trimmed);
+        }
         try {
             Path directPath = Paths.get(trimmed);
             if (Files.exists(directPath)) {
@@ -68,6 +73,23 @@ public class AudioFormatDetector {
         } catch (Exception ignored) {
         }
         return Paths.get(trimmed).toAbsolutePath().normalize().toString();
+    }
+
+    private static String normalizeResourceUri(String value) {
+        try {
+            URI uri = URI.create(value);
+            if ("file".equalsIgnoreCase(uri.getScheme())) {
+                return Paths.get(uri).toAbsolutePath().normalize().toString();
+            }
+            if (uri.isOpaque() || uri.getHost() == null || uri.getRawUserInfo() != null
+                    || uri.getPort() < -1 || uri.getPort() > 65535) {
+                throw new IllegalArgumentException();
+            }
+            return uri.toString();
+        } catch (IllegalArgumentException | java.nio.file.FileSystemNotFoundException | SecurityException error) {
+            // URI/path parser exceptions embed the input, including signed query parameters.
+            throw new IllegalArgumentException("Invalid audio resource URI");
+        }
     }
 
     public static FormatType detectFormat(InputStream inputStream) throws IOException {

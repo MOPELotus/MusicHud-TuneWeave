@@ -70,6 +70,18 @@ gradle.projectsEvaluated {
                                 zip.getEntry('META-INF/licenses/jmtc/NOTICE.txt') == null) {
                             throw new GradleException('Missing JMTC license/attribution')
                         }
+                        ['LICENSE.txt', 'NOTICE.txt'].each { leaf ->
+                            def path = "META-INF/licenses/dbus-java/${leaf}"
+                            def expected = rootProject.file("common/src/main/resources/${path}")
+                            def entry = zip.getEntry(path)
+                            if (entry == null || !java.util.Arrays.equals(expected.bytes, zip.getInputStream(entry).bytes)) {
+                                throw new GradleException("Missing or changed DBus-Java license/attribution: ${leaf}")
+                            }
+                        }
+                        def dbusNotice = rootProject.file('common/src/main/resources/META-INF/licenses/dbus-java/NOTICE.txt').getText('UTF-8')
+                        if (!dbusNotice.contains("DBus-Java ${rootProject.dbus_version}\n")) {
+                            throw new GradleException('Update DBus-Java attribution when changing its dependency version')
+                        }
                         if (!cf && !names.contains('indi/mopelotus/musichud/server/api/ApiServerManager.class')) {
                             throw new GradleException('Missing local TuneWeave process controls')
                         }
@@ -94,21 +106,31 @@ gradle.projectsEvaluated {
                 dependsOn verification
                 inputs.file(deploymentTask.archiveFile)
                 inputs.file(rootProject.file('gradle/CfAudioSmoke.java'))
+                inputs.dir(rootProject.file('gradle/audio-smoke'))
                 doLast {
                     // Resolve the loader's own classpath under its task execution lock.
                     def hostLibraries = []
-                    for (prefix in ['slf4j-api-', 'commons-io-', 'commons-codec-', 'httpclient-', 'httpcore-', 'commons-logging-']) {
+                    for (prefix in ['slf4j-api-', 'log4j-api-', 'log4j-core-']) {
                         def matches = target.configurations.runtimeClasspath.files.findAll { it.name.startsWith(prefix) }
                         if (matches.size() != 1) throw new GradleException("Expected one host library ${prefix}")
                         hostLibraries.addAll(matches)
                     }
-                    def launcher = target.javaToolchains.launcherFor(target.java.toolchain).get()
-                    // The final deployment JAR is the only source of LavaPlayer
-                    // classes; the original dependency must not mask missing code.
+                    // HTTP playback uses the game's Netty transport. Keep the host whitelist
+                    // narrow: decoder/container libraries must come from the deployment JAR.
+                    def hostNetty = target.configurations.runtimeClasspath.files.findAll { it.name.startsWith('netty-') && it.name.endsWith('.jar') }
+                    if (hostNetty.isEmpty()) throw new GradleException('Missing host Netty for packaged HTTP smoke')
+                    hostLibraries.addAll(hostNetty)
+                    // Deployment smoke must use the oldest supported runtime, not the build compiler.
+                    def launcher = target.javaToolchains.launcherFor {
+                        languageVersion = JavaLanguageVersion.of(21)
+                    }.get()
+                    // Resolve decoder classes only from the final deployment JAR.
+                    // Development dependencies must not mask missing packaged code.
                     providers.exec {
                         commandLine launcher.executablePath.asFile, '-cp',
                                 ([deploymentTask.archiveFile.get().asFile] + hostLibraries).join(File.pathSeparator),
-                                rootProject.file('gradle/CfAudioSmoke.java'), rootProject.distribution
+                                rootProject.file('gradle/CfAudioSmoke.java'), rootProject.distribution,
+                                rootProject.file('gradle/audio-smoke').absolutePath
                     }.result.get().assertNormalExitValue()
                 }
             }

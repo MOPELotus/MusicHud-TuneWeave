@@ -1,0 +1,11 @@
+--- port-source/study/ape/ApePredictor.java
++++ src/main/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApePredictor.java
+@@ -2,7 +2,7 @@
+  * Copyright (c) 2007 Benjamin Zores <ben@geexbox.org>, based on libdemac by Dave Chapman.
+  * Java translation 2026. LGPL-2.1-or-later; see upstream/COPYING.LGPLv2.1.
+  */
+-package study.ape;
++package indi.mopelotus.musichud.audio.codec.internal.ape;
+ import java.io.IOException;
+ import java.util.Arrays;
+ final class ApePredictor {

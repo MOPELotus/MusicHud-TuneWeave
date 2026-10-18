@@ -1,0 +1,213 @@
+package net.sourceforge.jaad.aac.syntax;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Consumer;
+import java.lang.System.Logger.Level;
+import java.lang.System.Logger;
+
+import net.sourceforge.jaad.aac.AACException;
+import net.sourceforge.jaad.aac.DecoderConfig;
+import net.sourceforge.jaad.aac.filterbank.FilterBank;
+import net.sourceforge.jaad.aac.sbr.SBR;
+import net.sourceforge.jaad.aac.sbr.SBR2;
+import net.sourceforge.jaad.aac.tools.IS;
+import net.sourceforge.jaad.aac.tools.MS;
+import net.sourceforge.jaad.aac.tools.MSMask;
+
+
+/**
+ * channel_pair_element: abbreviation CPE.
+ * <p>
+ * Syntactic element of the bitstream payload containing data for a pair of channels.
+ * A channel_pair_element consists of two individual_channel_streams and additional
+ * joint channel coding information. The two channels may share common side information.
+ * <p>
+ * The channel_pair_element has the same restrictions as the single channel element
+ * as far as element_instance_tag, and number of occurrences.
+ */
+public class CPE extends ChannelElement {
+
+    private static final Logger logger = System.getLogger(CPE.class.getName());
+
+    public static final Type TYPE = Type.CPE;
+
+    static class Tag extends ChannelTag {
+
+        protected Tag(int id) {
+            super(id);
+        }
+
+        @Override
+        public boolean isChannelPair() {
+            return true;
+        }
+
+        @Override
+        public Type getType() {
+            return TYPE;
+        }
+
+        @Override
+        public ChannelElement newElement(DecoderConfig config) {
+            return new CPE(config, this);
+        }
+    }
+
+    public static final List<Tag> TAGS = Element.createTagList(16, Tag::new);
+
+    public static final int MAX_MS_MASK = 128;
+
+    private MSMask msMask;
+    private final boolean[] msUsed;
+    private boolean commonWindow;
+    final ICStream icsL;
+    final ICStream icsR;
+
+    public CPE(DecoderConfig config, ChannelTag tag) {
+        super(config, tag);
+        msUsed = new boolean[MAX_MS_MASK];
+        icsL = new ICStream(config);
+        icsR = new ICStream(config);
+    }
+
+    @Override
+    public boolean isChannelPair() {
+        return true;
+    }
+
+    @Override
+    public boolean isStereo() {
+        return true;
+    }
+
+    @Override
+    protected SBR openSBR() {
+        return new SBR2(config);
+    }
+
+    @Override
+    public void decode(BitStream in) {
+        super.decode(in);
+
+        commonWindow = in.readBool();
+        ICSInfo infoL = icsL.getInfo();
+        ICSInfo infoR = icsR.getInfo();
+
+        logger.log(Level.TRACE, () -> "CPE %s".formatted(commonWindow ? "common" : ""));
+
+        if (commonWindow) {
+            infoL.decode(in, commonWindow);
+            infoR.setCommonData(in, infoL);
+
+            msMask = MSMask.forInt(in.readBits(2));
+            if (msMask.equals(MSMask.TYPE_USED)) {
+                int maxSFB = infoL.getMaxSFB();
+                int windowGroupCount = infoL.getWindowGroupCount();
+
+                for (int idx = 0; idx < windowGroupCount * maxSFB; idx++) {
+                    msUsed[idx] = in.readBool();
+                }
+            } else if (msMask.equals(MSMask.TYPE_ALL_1))
+                Arrays.fill(msUsed, true);
+
+            else if (msMask.equals(MSMask.TYPE_ALL_0))
+                Arrays.fill(msUsed, false);
+
+            else
+                throw new AACException("reserved MS mask type used");
+        } else {
+            msMask = MSMask.TYPE_ALL_0;
+            Arrays.fill(msUsed, false);
+        }
+
+        icsL.decode(in, commonWindow, config);
+        icsR.decode(in, commonWindow, config);
+    }
+
+    public ICStream getLeftChannel() {
+        return icsL;
+    }
+
+    public ICStream getRightChannel() {
+        return icsR;
+    }
+
+    public MSMask getMSMask() {
+        return msMask;
+    }
+
+    public boolean isMSUsed(int off) {
+        return msUsed[off];
+    }
+
+    public boolean isMSMaskPresent() {
+        return !msMask.equals(MSMask.TYPE_ALL_0);
+    }
+
+    public boolean isCommonWindow() {
+        return commonWindow;
+    }
+
+    @Override
+    public void process(FilterBank filterBank, List<CCE> cces, Consumer<float[]> target) {
+
+        float[] dataL = getDataL();
+        float[] dataR = getDataR();
+
+        // inverse quantization
+        float[] iqDataL = icsL.getInvQuantData();
+        float[] iqDataR = icsR.getInvQuantData();
+
+        // MS
+        if (isCommonWindow() & isMSMaskPresent())
+            MS.process(this, iqDataL, iqDataR);
+
+        // prediction
+        icsL.processICP();
+        icsR.processICP();
+
+        // IS
+        IS.process(this, iqDataL, iqDataR);
+
+        icsL.processLTP(filterBank);
+        icsR.processLTP(filterBank);
+
+        // dependent coupling
+        processDependentCoupling(cces, CCE.BEFORE_TNS, iqDataL, iqDataR);
+
+        icsL.processTNS();
+        icsR.processTNS();
+
+        // dependent coupling
+        processDependentCoupling(cces, CCE.AFTER_TNS, iqDataL, iqDataR);
+
+        // filterbank
+        icsL.process(dataL, filterBank);
+        icsR.process(dataR, filterBank);
+
+        icsL.updateLTP(dataL);
+        icsR.updateLTP(dataR);
+
+        // independent coupling
+        processIndependentCoupling(cces, dataL, dataR);
+
+        // gain control
+        icsL.processGainControl();
+        icsR.processGainControl();
+
+        // SBR
+        if (isSBRPresent() && config.isSBREnabled()) {
+            if (dataL.length == config.getFrameLength())
+                logger.log(Level.WARNING, "SBR data present, but buffer has normal size!");
+
+            getSBR().process(dataL, dataR);
+        } else if (dataL.length != config.getFrameLength()) {
+            SBR.upsample(dataL);
+            SBR.upsample(dataR);
+        }
+
+        target.accept(dataL);
+        target.accept(dataR);
+    }
+}

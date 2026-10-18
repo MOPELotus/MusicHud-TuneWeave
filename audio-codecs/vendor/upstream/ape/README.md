@@ -1,0 +1,9 @@
+# APE controlled Java translation
+
+The original C reference is FFmpeg n9.0.2, LGPL-2.1-or-later. `reference/` is preserved verbatim; `port-source/` contains the frozen Java v2 translation from the independent APE study. This is not a claim that FFmpeg publishes these Java sources. `manifest-entry.json` records the two source origins separately and records every namespace-only integration patch.
+
+The four compiled core classes retain the original source comments and attribution. The adapter in `internal/ape/ApePcmDecoder.java` is project code, with no HTTP implementation or additional DSP. It opens an owned forward-only input with unknown length; every compressed APE frame is CRC-verified before PCM can be delivered, then sliced into complete interleaved PCM frames. Unlike the core's unsigned eight-bit output, the adapter converts eight-bit PCM to the signed common PCM contract. Sixteen- and twenty-four-bit output is unchanged.
+
+Scope: source sample rate and mono/stereo, 8/16/24 bits, modern 3950..3990 algorithm branches. Only actual full-file versions 3970 and 3990 have independent study evidence; other version branches are not represented as verified files. Versions below 3950, 32-bit, float and more than two channels are rejected. Forward-only decoding does not expose seek. The separately exposed core permits an outer transport to implement bounded positional reads, but this adapter does not introduce a transport or spool policy.
+
+A source must release a blocked read when closed. `ApePcmDecoder.close()` does not wait for its read monitor, and late read completion is rejected. The module tests use independently encoded synthetic vectors, short reads, invalid opening, damaged CRC, early close and blocked-read cancellation. These checks do not replace game/playback acceptance or the broader independent study matrix.
