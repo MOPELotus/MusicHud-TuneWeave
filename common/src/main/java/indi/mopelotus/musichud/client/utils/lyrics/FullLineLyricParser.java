@@ -35,8 +35,7 @@ public class FullLineLyricParser {
         matchLine(lyric, (metaData) -> {
             Duration startTime = metaData.startTime;
             LyricLine lyricLine = map.get(startTime);
-            String lyricString = metaData.lyric == null ? "" : metaData.lyric.replace('\u00A0', ' ').replace('\n', ' ').trim();
-            lyricString = lyricString.replace('\n', ' ').trim();
+            String lyricString = LyricsNormalizer.normalize(metaData.lyric);
             if (lyricLine == null) {
                 lyricLine = LyricLine.builder()
                         .startTime(startTime)
@@ -68,7 +67,7 @@ public class FullLineLyricParser {
             String s = metaData.lyric;
             String lyricLineTranslatedText = lyricLine.getTranslatedText();
             if (s != null && !s.isEmpty()) {
-                s = s.replace('\n', ' ').replace('\u00A0', ' ').trim();
+                s = LyricsNormalizer.normalize(s);
                 if (lyricLineTranslatedText == null || lyricLineTranslatedText.isEmpty()) {
                     lyricLine.setTranslatedText(s);
                 } else if (!lyricLineTranslatedText.equals(s)) {
