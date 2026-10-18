@@ -135,4 +135,49 @@ class CursorMediaResourceTest {
       assertEquals(0, files.count());
     }
   }
+
+  @Test
+  @Timeout(10)
+  void icyLiveInputDoesNotFillTheFiniteFileCacheBudget() throws Exception {
+    byte[] body = new byte[8192];
+    new Random(91).nextBytes(body);
+    var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/",
+        x -> {
+          x.getResponseHeaders().set("icy-metaint", "1024");
+          x.sendResponseHeaders(200, body.length);
+          try (var out = x.getResponseBody()) {
+            out.write(body);
+          } finally {
+            x.close();
+          }
+        });
+    server.start();
+    try (var transport = new MediaTransport();
+        var resource =
+            new CursorMediaResource(
+                CursorMediaResource.transport(
+                    transport,
+                    URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/"),
+                    Map.of(),
+                    false),
+                directory,
+                1024);
+        var cursor = resource.openCursor()) {
+      assertEquals(1024, cursor.icyMetaInt());
+      assertEquals(-1, cursor.knownLength());
+      assertThrows(IOException.class, cursor::completeLength);
+      assertArrayEquals(body, cursor.readNBytes(body.length));
+      assertThrows(IOException.class, () -> cursor.position(0));
+      try (var files = Files.list(directory)) {
+        for (var file : files.toList()) assertEquals(0, Files.size(file));
+      }
+    } finally {
+      server.stop(0);
+    }
+    try (var files = Files.list(directory)) {
+      assertEquals(0, files.count());
+    }
+  }
 }

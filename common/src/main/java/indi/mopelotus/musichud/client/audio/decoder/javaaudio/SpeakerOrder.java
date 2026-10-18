@@ -27,6 +27,11 @@ public record SpeakerOrder(int[] sourceBits) {
   }
 
   public static SpeakerOrder forFormat(PcmFormat f) {
+    if (f.speakers() != null)
+      return new SpeakerOrder(
+          f.speakers().orderedSpeakerBits().stream()
+              .mapToInt(Integer::numberOfTrailingZeros)
+              .toArray());
     if (f.layout() == PcmFormat.Layout.MONO) return new SpeakerOrder(new int[] {2});
     if (f.layout() == PcmFormat.Layout.STEREO) return new SpeakerOrder(new int[] {0, 1});
     if (f.layout() != PcmFormat.Layout.VORBIS)

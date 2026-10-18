@@ -141,6 +141,8 @@ dependencies {
 
     implementation project(path: ':metadata', configuration: 'shadowRuntimeElements')
     shadowBundle(project(path: ':metadata', configuration: 'shadowRuntimeElements')) { transitive = false }
+    implementation 'io.github.overplex:libresample4j:0.1.4'
+    shadowBundle 'io.github.overplex:libresample4j:0.1.4'
     implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
     shadowBundle "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
 
@@ -189,6 +191,7 @@ shadowJar {
         exclude { !it.moduleGroup.startsWith("com.twelvemonkeys.") }
     }
     sourceSetsClassesDirs.from(project(":common").sourceSets.main.output.classesDirs)
+    relocate 'com.laszlosystems.libresample4j', 'indi.mopelotus.musichud.shaded.resample'
     relocate 'com.github.weisj.jsvg', 'indi.mopelotus.musichud.shaded.jsvg'
     relocate 'com.twelvemonkeys', 'indi.mopelotus.musichud.shaded.twelvemonkeys'
     // The private WebP reader is instantiated explicitly, without global ImageIO registration.

@@ -157,6 +157,7 @@ public final class CursorMediaResource implements AutoCloseable {
     private Identity identity;
     private long position, streamPosition, length = -1;
     private int icyMetaInt;
+    private boolean streamingOnly;
     private final byte[] discardBuffer = new byte[8192];
 
     private void checkCursor() throws IOException {
@@ -186,7 +187,7 @@ public final class CursorMediaResource implements AutoCloseable {
             throw new IOException("Unexpected media status; reopen a fresh parser session");
           if (cache == null) {
             var representation = opened.representation();
-            if (representation.totalLength() > budget)
+            if (opened.icyMetaInt() == 0 && representation.totalLength() > budget)
               throw new IOException("Media exceeds cache budget");
             // Only strong ETags share cache or parser metadata between responses/cursors.
             boolean strong =
@@ -212,8 +213,9 @@ public final class CursorMediaResource implements AutoCloseable {
           }
           response = opened;
           icyMetaInt = opened.icyMetaInt();
+          streamingOnly = icyMetaInt > 0;
           streamPosition = first == null ? 0 : first;
-          length = opened.representation().totalLength();
+          length = streamingOnly ? -1 : opened.representation().totalLength();
           if (length > budget) throw new IOException("Media exceeds cache budget");
         } catch (Throwable failure) {
           opened.close();
@@ -242,6 +244,12 @@ public final class CursorMediaResource implements AutoCloseable {
         throw new IOException("Parser metadata belongs to a different response session");
     }
 
+    public URI finalUri() throws IOException {
+      initialize();
+      if (identity.representation() != null) return identity.representation().finalUri();
+      return response.finalUri();
+    }
+
     public int icyMetaInt() throws IOException {
       initialize();
       return icyMetaInt;
@@ -255,6 +263,7 @@ public final class CursorMediaResource implements AutoCloseable {
     /** Explicit random-access size request. Streaming decoders must not call this. */
     public long completeLength() throws IOException {
       initialize();
+      if (streamingOnly) throw new IOException("Live ICY audio has no finite length");
       if (length >= 0) return length;
       long saved = position;
       position = streamPosition;
@@ -334,6 +343,8 @@ public final class CursorMediaResource implements AutoCloseable {
     public void position(long value) throws IOException {
       checkCursor();
       if (value < 0 || value > budget) throw new IllegalArgumentException("Invalid position");
+      if (streamingOnly && value != position)
+        throw new IOException("Live ICY audio is not seekable");
       position = value;
     }
 
@@ -397,6 +408,10 @@ public final class CursorMediaResource implements AutoCloseable {
         length = streamPosition;
         abortRequest();
         return -1;
+      }
+      if (streamingOnly) {
+        streamPosition = Math.addExact(streamPosition, n);
+        return n;
       }
       if (streamPosition > budget - n) throw new IOException("Media exceeds cache budget");
       synchronized (cache) {

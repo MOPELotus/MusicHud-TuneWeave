@@ -87,7 +87,8 @@ public final class JavaStreamDecoder implements AudioDecoder {
   }
 
   public boolean hasDownmixedChannels() {
-    return getFrameSize() / (output.floating ? 4 : 2) < format.channels();
+    return input.hasDownmixedChannels()
+        || getFrameSize() / (output.floating ? 4 : 2) < format.channels();
   }
 
   public int getFormat() {

@@ -3,14 +3,15 @@ package indi.mopelotus.musichud.client.audio.decoder.javaaudio;
 import indi.mopelotus.musichud.audio.codec.*;
 import indi.mopelotus.musichud.audio.codec.PcmDecoder;
 import indi.mopelotus.musichud.audio.codec.PcmFormat;
+import indi.mopelotus.musichud.client.audio.decoder.PacketPcmNormalizer;
 import java.io.*;
 import java.nio.*;
 import java.util.concurrent.atomic.*;
 
 /** Raw media-clock stream with real timestamp-gap silence; MP4 edits remain outside this layer. */
-public final class PacketMediaDecoder implements PcmDecoder {
+public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversion {
   private final PacketSource source;
-  private final PacketPcmTimeline timeline = new PacketPcmTimeline();
+  private PacketPcmNormalizer normalizer;
   private final AtomicBoolean closed = new AtomicBoolean();
   private final Object reader = new Object();
   private PacketDecoder codec;
@@ -21,7 +22,12 @@ public final class PacketMediaDecoder implements PcmDecoder {
   private boolean eof;
 
   public PacketMediaDecoder(PacketSource owned) throws IOException {
+    this(owned, 0);
+  }
+
+  public PacketMediaDecoder(PacketSource owned, long initialMediaFrame) throws IOException {
     source = owned;
+    position = initialMediaFrame;
     try {
       load();
       if (format == null) throw new IOException("Empty packet audio");
@@ -39,6 +45,8 @@ public final class PacketMediaDecoder implements PcmDecoder {
     return switch (f.codec()) {
       case "mp4a" -> PacketCodecs.aac(f);
       case "alac" -> PacketCodecs.alac(f);
+      case "opus" -> PacketCodecs.opus(f);
+      case "vorbis" -> PacketCodecs.vorbis(f);
       default -> throw new IOException("Unsupported packet codec " + f.codec());
     };
   }
@@ -46,11 +54,35 @@ public final class PacketMediaDecoder implements PcmDecoder {
   private void load() throws IOException {
     while (!eof && silence == 0 && !pcm.hasRemaining()) {
       if (closed.get()) throw new IOException("Packet decoder closed");
+      if (normalizer != null) {
+        var chunk = normalizer.pull(4096);
+        if (chunk != null) {
+          pcm = chunk.pcm();
+          long start = chunk.targetFrameStart();
+          if (start < position) {
+            int drop = (int) Math.min(position - start, chunk.frames());
+            pcm.position(drop * format.frameBytes());
+            start += drop;
+          }
+          if (pcm.hasRemaining()) silence = Math.max(0, start - position);
+          continue;
+        }
+        if (normalizer.isFinished()) {
+          eof = true;
+          return;
+        }
+        if (!normalizer.canAccept()) throw new IOException("Packet presentation made no progress");
+      }
       var packet = source.next();
       if (packet == null) {
-        eof = true;
-        if (codec != null) codec.finish();
-        return;
+        if (codec != null && codec.finish() != null)
+          throw new IOException("Unexpected buffered packet decoder output");
+        if (normalizer == null) {
+          eof = true;
+          return;
+        }
+        normalizer.finish();
+        continue;
       }
       if (codec == null || !packet.format().equals(codecFormat) || packet.discontinuity()) {
         if (codec != null) codec.close();
@@ -59,19 +91,16 @@ public final class PacketMediaDecoder implements PcmDecoder {
       }
       var result = codec.decode(packet);
       if (result == null) continue;
-      var f = result.format();
-      PcmFormat next =
-          new PcmFormat(
-              f.sampleRate(),
-              f.channels(),
-              PcmFormat.Encoding.valueOf(f.encoding().name()),
-              PcmFormat.Layout.valueOf(f.layout().name()));
-      if (format != null && !format.equals(next)) throw new IOException("Packet PCM format change");
-      format = next;
-      var span = timeline.accept(result);
-      silence = span.silenceFrames();
-      pcm = span.pcm();
+      if (normalizer == null) {
+        normalizer = new PacketPcmNormalizer(result.format().sampleRate());
+        format = normalizer.format();
+      }
+      if (!normalizer.accept(result)) throw new IOException("Packet presentation backpressure");
     }
+  }
+
+  public boolean hasDownmixedChannels() {
+    return normalizer != null && normalizer.hasDownmixedChannels();
   }
 
   public PacketSource.Track track() {
@@ -117,6 +146,7 @@ public final class PacketMediaDecoder implements PcmDecoder {
       error = e;
     }
     synchronized (reader) {
+      if (normalizer != null) normalizer.close();
       if (codec != null)
         try {
           codec.close();

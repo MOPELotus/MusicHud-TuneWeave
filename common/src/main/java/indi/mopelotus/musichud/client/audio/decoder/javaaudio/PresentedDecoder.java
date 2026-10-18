@@ -6,7 +6,7 @@ import java.util.*;
 import java.util.concurrent.atomic.*;
 
 /** One-reader edited PCM stream; concurrent seek/open/close never publishes stale frames. */
-public final class PresentedDecoder implements PcmDecoder {
+public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion {
   public interface Attempt {
     PcmDecoder open() throws IOException;
 
@@ -16,6 +16,14 @@ public final class PresentedDecoder implements PcmDecoder {
 
   public interface Factory {
     Attempt attempt();
+
+    /**
+     * Returns raw-media PCM at or before this absolute frame. Default is an exact from-start
+     * fallback.
+     */
+    default Attempt attemptAtFrame(long mediaFrame) {
+      return attempt();
+    }
   }
 
   private final Factory factory;
@@ -28,6 +36,7 @@ public final class PresentedDecoder implements PcmDecoder {
   private long epoch, position;
   private volatile boolean closed;
   private boolean ready = true;
+  private volatile boolean downmixed;
 
   public PresentedDecoder(Factory factory, PresentationPlan plan) throws IOException {
     this.factory = Objects.requireNonNull(factory);
@@ -36,11 +45,21 @@ public final class PresentedDecoder implements PcmDecoder {
     try {
       decoder = attempt.open();
       format = decoder.format();
+      observeChannels(decoder);
       owned = attempt;
     } catch (Throwable error) {
       attempt.cancel();
       throw error;
     }
+  }
+
+  private void observeChannels(PcmDecoder input) {
+    if (input instanceof PcmChannelConversion conversion)
+      downmixed |= conversion.hasDownmixedChannels();
+  }
+
+  public boolean hasDownmixedChannels() {
+    return downmixed;
   }
 
   public PcmFormat format() {
@@ -87,9 +106,10 @@ public final class PresentedDecoder implements PcmDecoder {
           checkEpoch(version);
           current = decoder;
         }
-        if (current.framePosition() > media) current = reopen(version);
+        if (current.framePosition() > media) current = reopen(version, media);
         skip(current, media);
         count = current.readFrames(target, offset, count);
+        observeChannels(current);
         if (count < 0) {
           if (plan.totalFrames() == Long.MAX_VALUE) return -1;
           throw new EOFException("Media ended before declared presentation edit");
@@ -104,8 +124,8 @@ public final class PresentedDecoder implements PcmDecoder {
     }
   }
 
-  private PcmDecoder reopen(long version) throws IOException {
-    Attempt attempt = factory.attempt();
+  private PcmDecoder reopen(long version, long requestedMediaFrame) throws IOException {
+    Attempt attempt = factory.attemptAtFrame(requestedMediaFrame);
     try {
       synchronized (state) {
         checkEpoch(version);
@@ -136,9 +156,14 @@ public final class PresentedDecoder implements PcmDecoder {
         attempt.cancel();
         throw new IOException("Reopened PCM format changed");
       }
+      if (next.framePosition() > requestedMediaFrame) {
+        attempt.cancel();
+        throw new IOException("Seek decoder overshot requested media frame");
+      }
       previous = owned;
       owned = attempt;
       decoder = next;
+      observeChannels(next);
     }
     if (previous != null) previous.cancel();
     return next;
@@ -154,7 +179,10 @@ public final class PresentedDecoder implements PcmDecoder {
     }
   }
 
-  /** Safe baseline: rebuild from the start; no arbitrary packet restart accuracy claim. */
+  /**
+   * Maps presentation frames to media time; the factory selects a qualified index or exact
+   * fallback.
+   */
   public boolean seekFrame(long target) throws IOException {
     if (target < 0 || target > plan.totalFrames()) return false;
     long version;
@@ -168,15 +196,24 @@ public final class PresentedDecoder implements PcmDecoder {
       decoder = null;
     }
     if (previous != null) previous.cancel();
-    // Opening is outside reader lock: a slow old read/open cannot prevent newer seek/close.
-    PcmDecoder next = reopen(version);
-    long remaining = target;
+    // Resolve edits before reopening so an indexed source sees the true raw-media target.
+    long remaining = target, wanted = -1;
     for (var segment : plan.segments()) {
-      if (remaining < segment.frames()) {
-        if (!segment.silence()) skip(next, Math.addExact(segment.mediaFrame(), remaining));
-        break;
+      if (remaining >= segment.frames()) {
+        remaining -= segment.frames();
+        continue;
       }
-      remaining -= segment.frames();
+      if (segment.silence()) {
+        remaining = 0;
+        continue;
+      }
+      wanted = Math.addExact(segment.mediaFrame(), remaining);
+      break;
+    }
+    // Opening is outside reader lock: a slow old request cannot prevent newer seek/close.
+    if (wanted >= 0) {
+      PcmDecoder next = reopen(version, wanted);
+      skip(next, wanted);
     }
     synchronized (state) {
       checkEpoch(version);
