@@ -51,6 +51,48 @@ final class JavaAudioResource implements AutoCloseable {
     }
   }
 
+  boolean isLocal() {
+    return local != null;
+  }
+
+  /** No IO: this does not materialize a stream or build an index. */
+  boolean hasCompletedSnapshot() {
+    return open.get() && remote != null && remote.hasCompletedSnapshot();
+  }
+
+  Optional<CompletedSnapshot> completedSnapshot() throws IOException {
+    if (!open.get()) throw new ClosedChannelException();
+    if (remote == null) return Optional.empty();
+    var captured = remote.completedSnapshot();
+    if (!open.get()) {
+      captured.ifPresent(CursorMediaResource.CompletedSnapshot::close);
+      throw new ClosedChannelException();
+    }
+    return captured.map(CompletedSnapshot::new);
+  }
+
+  final class CompletedSnapshot implements AutoCloseable {
+    private final CursorMediaResource.CompletedSnapshot captured;
+
+    private CompletedSnapshot(CursorMediaResource.CompletedSnapshot captured) {
+      this.captured = captured;
+    }
+
+    long length() throws IOException {
+      if (!open.get()) throw new ClosedChannelException();
+      return captured.length();
+    }
+
+    SeekableByteChannel openChannel() throws IOException {
+      if (!open.get()) throw new ClosedChannelException();
+      return captured.openChannel();
+    }
+
+    public void close() {
+      captured.close();
+    }
+  }
+
   boolean rangeStable() {
     return remote == null || rangeStable;
   }

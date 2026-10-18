@@ -39,7 +39,8 @@ public final class CursorMediaResource implements AutoCloseable {
   private final List<Cache> caches = new ArrayList<>();
   private final AtomicLong generations = new AtomicLong();
   private final UUID identityNamespace = UUID.randomUUID();
-  private boolean closed;
+  private volatile boolean closed;
+  private volatile Cache completed;
   private Cache shared;
   private MediaTransport.ExpectedRepresentation pinned;
   private Identity sharedIdentity;
@@ -99,10 +100,135 @@ public final class CursorMediaResource implements AutoCloseable {
     return c;
   }
 
+  /**
+   * Pure state inspection: never takes an IO lock, opens a request, or completes a partial cache.
+   */
+  public boolean hasCompletedSnapshot() {
+    Cache captured = completed;
+    return !closed && captured != null && !captured.invalidated;
+  }
+
+  /** A completed response captured by this resource, not a request to download a snapshot. */
+  public Optional<CompletedSnapshot> completedSnapshot() throws IOException {
+    if (closed) throw new ClosedChannelException();
+    Cache captured = completed;
+    if (captured == null || captured.invalidated) return Optional.empty();
+    CompletedSnapshot snapshot = new CompletedSnapshot(captured);
+    if (closed) {
+      snapshot.close();
+      throw new ClosedChannelException();
+    }
+    return Optional.of(snapshot);
+  }
+
+  private synchronized void completed(Cache cache, long length) {
+    if (closed || cache.invalidated || cache.retired) return;
+    cache.completedLength = length;
+    completed = cache;
+  }
+
+  public final class CompletedSnapshot implements AutoCloseable {
+    private final Cache cache;
+    private final long length;
+    private final AtomicBoolean live = new AtomicBoolean(true);
+
+    private CompletedSnapshot(Cache cache) {
+      this.cache = cache;
+      length = cache.completedLength;
+    }
+
+    private void checkSnapshot() throws IOException {
+      if (closed || !live.get() || cache.invalidated) throw new ClosedChannelException();
+    }
+
+    public long length() throws IOException {
+      checkSnapshot();
+      return length;
+    }
+
+    public Identity identity() throws IOException {
+      checkSnapshot();
+      return cache.identity;
+    }
+
+    public SeekableByteChannel openChannel() throws IOException {
+      checkSnapshot();
+      return new SeekableByteChannel() {
+        private final AtomicBoolean channelOpen = new AtomicBoolean(true);
+        private long position;
+
+        private void checkView() throws IOException {
+          checkSnapshot();
+          if (!channelOpen.get()) throw new ClosedChannelException();
+        }
+
+        public int read(ByteBuffer target) throws IOException {
+          checkView();
+          if (!target.hasRemaining()) return 0;
+          if (position >= length) return -1;
+          int oldLimit = target.limit();
+          target.limit(target.position() + (int) Math.min(target.remaining(), length - position));
+          int count;
+          try {
+            count = cache.file.read(target, position);
+          } finally {
+            target.limit(oldLimit);
+          }
+          checkView();
+          if (count <= 0) throw new EOFException("Missing completed cache bytes");
+          position += count;
+          return count;
+        }
+
+        public long position() throws IOException {
+          checkView();
+          return position;
+        }
+
+        public SeekableByteChannel position(long value) throws IOException {
+          checkView();
+          if (value < 0) throw new IllegalArgumentException("Negative position");
+          position = value;
+          return this;
+        }
+
+        public long size() throws IOException {
+          checkView();
+          return length;
+        }
+
+        public boolean isOpen() {
+          return channelOpen.get() && live.get() && !closed && !cache.invalidated;
+        }
+
+        public void close() {
+          channelOpen.set(false);
+        }
+
+        public int write(ByteBuffer source) {
+          throw new NonWritableChannelException();
+        }
+
+        public SeekableByteChannel truncate(long value) {
+          throw new NonWritableChannelException();
+        }
+      };
+    }
+
+    public void close() {
+      live.set(false);
+    }
+  }
+
   private static final class Cache implements AutoCloseable {
     final Path path;
     final FileChannel file;
     final TreeMap<Long, Long> spans = new TreeMap<>();
+    // Published only after all required intervals have been committed. Getters never inspect disk.
+    volatile long completedLength = -1;
+    volatile boolean invalidated;
+    boolean retired;
+    Identity identity;
 
     Cache(Path directory) throws IOException {
       path = Files.createTempFile(directory, "cursor-owned-", ".cache");
@@ -209,6 +335,7 @@ public final class CursorMediaResource implements AutoCloseable {
                 cache = newCache();
                 identity = new Identity(identityNamespace, generations.incrementAndGet(), null);
               }
+              cache.identity = identity;
             }
           }
           response = opened;
@@ -217,11 +344,14 @@ public final class CursorMediaResource implements AutoCloseable {
           streamPosition = first == null ? 0 : first;
           length = streamingOnly ? -1 : opened.representation().totalLength();
           if (length > budget) throw new IOException("Media exceeds cache budget");
+          if (!streamingOnly && length == 0) completed(cache, 0);
         } catch (Throwable failure) {
           opened.close();
           throw failure;
         }
       } catch (Throwable failure) {
+        if (failure instanceof MediaTransport.ResourceChangedException && cache != null)
+          cache.invalidated = true;
         active.compareAndSet(a, null);
         a.cancel();
         throw failure;
@@ -421,6 +551,11 @@ public final class CursorMediaResource implements AutoCloseable {
         if (length >= 0 && streamPosition < length)
           throw new EOFException("Truncated media response");
         length = streamPosition;
+        if (!streamingOnly) {
+          synchronized (cache) {
+            if (cache.end(0) >= length) completed(cache, length);
+          }
+        }
         abortRequest();
         return -1;
       }
@@ -441,6 +576,7 @@ public final class CursorMediaResource implements AutoCloseable {
         current(generation);
         cache.add(streamPosition, streamPosition + n);
         streamPosition += n;
+        if (length >= 0 && cache.end(0) >= length) completed(cache, length);
       }
       return n;
     }
@@ -462,9 +598,12 @@ public final class CursorMediaResource implements AutoCloseable {
         Cache discard = null;
         synchronized (CursorMediaResource.this) {
           cursors.remove(this);
-          if (cache != null && cache != shared) discard = cache;
+          if (cache != null && cache != shared && cache.completedLength < 0) {
+            cache.retired = true;
+            discard = cache;
+          }
         }
-        // An unvalidated session cannot be reused. Release its disk budget immediately.
+        // Partial unvalidated bytes cannot be reused. Completed responses remain resource-owned.
         if (discard != null) {
           discard.close();
           synchronized (CursorMediaResource.this) {
