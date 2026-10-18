@@ -264,6 +264,24 @@ public class LyricLine implements Comparable<LyricLine> {
             }
         }
 
+        /** Layout-space caret inside the drawn clusters, without raise/scale animation. */
+        public float horizontalAt(TextPaint paint, CharSequence text, int start, int end, float offset) {
+            ensureShaped(paint, text, start, end);
+            float position = Float.isNaN(offset) ? cacheStart : Math.clamp(offset, cacheStart, cacheEnd);
+            float left = 0;
+            for (int i = 0; i < clusters.size(); i++) {
+                LyricGraphemes.Cluster cluster = clusters.get(i);
+                float width = clusterWidths[i];
+                if (position >= cluster.start() && (position < cluster.end()
+                        || position == cacheEnd && position == cluster.end())) {
+                    float fraction = (position - cluster.start()) / (cluster.end() - cluster.start());
+                    return left + (cluster.rtl() ? 1 - fraction : fraction) * width;
+                }
+                left += width;
+            }
+            return 0; // Empty span.
+        }
+
         @Override
         public int getSize(@NonNull TextPaint paint, CharSequence text,
                            int start, int end, @Nullable FontMetricsInt fm) {
