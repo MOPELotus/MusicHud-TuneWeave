@@ -308,6 +308,7 @@
   "musichud_tuneweave.modal.downloadApiServer.proxy.CLOUDFLARE_CN_DUAL": "CloudFlare (优化 IPv4/IPv6)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.CLOUDFLARE_CN_IPV4": "CloudFlare (优化 IPv4)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.CLOUDFLARE_IPV4": "CloudFlare (全球 IPv4)",
+  "musichud_tuneweave.modal.downloadApiServer.proxy.AUTO": "自动选择（测速择优）",
   "musichud_tuneweave.modal.downloadApiServer.proxy.DIRECT": "无代理 (直连)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.FASTLY_IPV4": "Fastly CDN (全球 IPv4)",
   "musichud_tuneweave.modal.downloadApiServer.release.failed": "获取 TuneWeave 发布清单失败",

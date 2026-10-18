@@ -308,6 +308,7 @@
   "musichud_tuneweave.modal.downloadApiServer.proxy.CLOUDFLARE_CN_DUAL": "CloudFlare (CN Optimized IPv4/IPv6)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.CLOUDFLARE_CN_IPV4": "CloudFlare (CN Optimized IPv4)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.CLOUDFLARE_IPV4": "CloudFlare (Global IPv4)",
+  "musichud_tuneweave.modal.downloadApiServer.proxy.AUTO": "Automatic (test download speeds)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.DIRECT": "No Proxy (Direct)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.FASTLY_IPV4": "Fastly CDN (Global IPv4)",
   "musichud_tuneweave.modal.downloadApiServer.release.failed": "Failed to load the TuneWeave release manifest",
