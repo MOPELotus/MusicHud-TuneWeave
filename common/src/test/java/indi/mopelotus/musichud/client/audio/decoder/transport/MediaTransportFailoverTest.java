@@ -24,7 +24,7 @@ class MediaTransportFailoverTest {
   }
 
   private void verifyFailover(InetAddress first) throws Exception {
-    try (Blackhole route = new Blackhole(first)) {
+    try (Blackhole route = createBlackhole(first)) {
       var resolver = (MediaTransport.Resolver) host -> new InetAddress[] {first, route.fallback};
       try (MediaTransport transport = new MediaTransport(resolver, SSLContext.getDefault(), 400);
           var response =
@@ -39,7 +39,7 @@ class MediaTransportFailoverTest {
 
   @Test
   void manyAddressesShareBoundedBudgetWithoutDroppingTheLastAddress() throws Exception {
-    try (Blackhole route = new Blackhole(InetAddress.getByName("127.0.0.2"))) {
+    try (Blackhole route = createBlackhole(InetAddress.getByName("127.0.0.2"))) {
       InetAddress[] addresses = new InetAddress[21];
       Arrays.fill(addresses, route.first);
       addresses[addresses.length - 1] = route.fallback;
@@ -62,7 +62,7 @@ class MediaTransportFailoverTest {
 
   @Test
   void cancellationInterruptsStalledConnectBeforeTheNextAddress() throws Exception {
-    try (Blackhole route = new Blackhole(InetAddress.getByName("::1"))) {
+    try (Blackhole route = createBlackhole(InetAddress.getByName("::1"))) {
       CountDownLatch resolved = new CountDownLatch(1);
       var token = new MediaTransport.Cancellation();
       try (MediaTransport transport =
@@ -97,9 +97,8 @@ class MediaTransportFailoverTest {
   void requestFailureIsNotRetriedAgainstAnotherAddress() throws Exception {
     InetAddress first = InetAddress.getByName("127.0.0.2"),
         second = InetAddress.getByName("127.0.0.1");
-    HttpServer failing = HttpServer.create(new InetSocketAddress(first, 0), 0);
-    HttpServer fallback =
-        HttpServer.create(new InetSocketAddress(second, failing.getAddress().getPort()), 0);
+    HttpServer[] endpoints = createHttpPair(first, second);
+    HttpServer failing = endpoints[0], fallback = endpoints[1];
     AtomicInteger firstHits = new AtomicInteger(), secondHits = new AtomicInteger();
     failing.createContext(
         "/media",
@@ -132,6 +131,38 @@ class MediaTransportFailoverTest {
     }
   }
 
+  // A free ephemeral port on one loopback address can already be occupied on
+  // another. Reserve both before exercising the transport; retry allocation only.
+  private static Blackhole createBlackhole(InetAddress first) throws Exception {
+    BindException last = null;
+    for (int attempt = 0; attempt < 16; attempt++) {
+      try {
+        return new Blackhole(first);
+      } catch (BindException collision) {
+        last = collision;
+      }
+    }
+    throw new IOException("Could not reserve both loopback fixture endpoints", last);
+  }
+
+  private static HttpServer[] createHttpPair(InetAddress first, InetAddress second)
+      throws IOException {
+    BindException last = null;
+    for (int attempt = 0; attempt < 16; attempt++) {
+      HttpServer server = HttpServer.create(new InetSocketAddress(first, 0), 0);
+      try {
+        return new HttpServer[] {
+          server, HttpServer.create(new InetSocketAddress(second, server.getAddress().getPort()), 0)
+        };
+      } catch (IOException | RuntimeException | Error failure) {
+        server.stop(0);
+        if (failure instanceof BindException collision) last = collision;
+        else throw failure;
+      }
+    }
+    throw new IOException("Could not reserve both loopback fixture endpoints", last);
+  }
+
   /** A real filled kernel accept queue drops further SYNs; no mocked connect futures. */
   private static final class Blackhole implements AutoCloseable {
     final InetAddress first, fallback = InetAddress.getByName("127.0.0.1");
@@ -144,6 +175,7 @@ class MediaTransportFailoverTest {
       this.first = first;
       try {
         blocked.bind(new InetSocketAddress(first, 0), 1);
+        server = HttpServer.create(new InetSocketAddress(fallback, blocked.getLocalPort()), 0);
         InetSocketAddress endpoint = new InetSocketAddress(first, blocked.getLocalPort());
         for (int i = 0; i < 2; i++) {
           Socket socket = new Socket();
@@ -156,7 +188,6 @@ class MediaTransportFailoverTest {
               () -> probe.connect(endpoint, 100),
               "The real TCP fixture did not stall");
         }
-        server = HttpServer.create(new InetSocketAddress(fallback, blocked.getLocalPort()), 0);
         server.createContext(
             "/media",
             exchange -> {
