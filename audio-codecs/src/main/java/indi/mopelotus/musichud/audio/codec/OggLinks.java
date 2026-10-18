@@ -43,15 +43,22 @@ public final class OggLinks implements Closeable {
     private volatile boolean linkClosed;
     private boolean pcmEnded;
     private final PcmFormat format;
+    private final String codec;
     private volatile long delivered;
 
-    Link(int number, Page first, View view, PcmDecoder decoder) {
+    Link(int number, Page first, View view, PcmDecoder decoder, String codec) {
       this.number = number;
+      this.codec = codec;
       group = first.group;
       serial = first.serial;
       this.view = view;
       this.decoder = decoder;
       format = Objects.requireNonNull(decoder.format());
+    }
+
+    /** Canonical codec from the selected, validated BOS header: "opus" or "vorbis". */
+    public String codec() {
+      return codec;
     }
 
     public int number() {
@@ -226,27 +233,28 @@ public final class OggLinks implements Closeable {
     return new Page(raw, serial, bos, eos, group, 27 + lace.length, pageOffset);
   }
 
-  private static boolean supported(Page p) {
-    if (!p.bos) return false;
+  private static String codec(Page p) {
+    if (!p.bos) return null;
     byte[] b = p.raw;
     int o = p.bodyOffset;
-    return b.length - o >= 8
-            && b[o] == 'O'
-            && b[o + 1] == 'p'
-            && b[o + 2] == 'u'
-            && b[o + 3] == 's'
-            && b[o + 4] == 'H'
-            && b[o + 5] == 'e'
-            && b[o + 6] == 'a'
-            && b[o + 7] == 'd'
-        || b.length - o >= 7
-            && b[o] == 1
-            && b[o + 1] == 'v'
-            && b[o + 2] == 'o'
-            && b[o + 3] == 'r'
-            && b[o + 4] == 'b'
-            && b[o + 5] == 'i'
-            && b[o + 6] == 's';
+    if (b.length - o >= 8
+        && b[o] == 'O'
+        && b[o + 1] == 'p'
+        && b[o + 2] == 'u'
+        && b[o + 3] == 's'
+        && b[o + 4] == 'H'
+        && b[o + 5] == 'e'
+        && b[o + 6] == 'a'
+        && b[o + 7] == 'd') return "opus";
+    if (b.length - o >= 7
+        && b[o] == 1
+        && b[o + 1] == 'v'
+        && b[o + 2] == 'o'
+        && b[o + 3] == 'r'
+        && b[o + 4] == 'b'
+        && b[o + 5] == 'i'
+        && b[o + 6] == 's') return "vorbis";
+    return null;
   }
 
   /**
@@ -314,7 +322,8 @@ public final class OggLinks implements Closeable {
     while ((p = readPage()) != null) {
       if (++searched > 4096 || physicalPosition - searchStart > 16L * 1024 * 1024)
         throw new IOException("Ogg audio-selection scan budget");
-      if (!supported(p)) continue;
+      String codec = codec(p);
+      if (codec == null) continue;
       View view = new View(p);
       PcmDecoder decoder = factory.open(view);
       try {
@@ -327,7 +336,7 @@ public final class OggLinks implements Closeable {
         }
         throw late;
       }
-      current = new Link(chainNumber++, p, view, decoder);
+      current = new Link(chainNumber++, p, view, decoder, codec);
       return current;
     }
     return null;

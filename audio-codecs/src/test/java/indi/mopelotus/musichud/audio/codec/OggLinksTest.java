@@ -35,6 +35,7 @@ class OggLinksTest {
         assertNotNull(link);
         assertEquals(i, link.number());
         assertEquals(i, link.group());
+        assertEquals(expectedCodec(mode, i), link.codec());
         byte[] encoded = i == 0 ? pair.first : pair.second;
         assertEquals(
             ByteBuffer.wrap(encoded).order(ByteOrder.LITTLE_ENDIAN).getInt(14), link.serial());
@@ -224,6 +225,7 @@ class OggLinksTest {
           Object link = chainType.getMethod("nextLink").invoke(links);
           assertNotNull(link);
           assertEquals(i, linkType.getMethod("number").invoke(link));
+          assertEquals(expectedCodec(mode, i), linkType.getMethod("codec").invoke(link));
           Object format = pcmType.getMethod("format").invoke(link);
           assertEquals(format(i == 0 ? pair.first : pair.second), format.toString());
           int frameBytes = (int) format.getClass().getMethod("frameBytes").invoke(format);
@@ -246,6 +248,30 @@ class OggLinksTest {
       }
       assertEquals(1, input.closes.get());
     }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"vorbis", "opus"})
+  void exposesSelectedSingleLinkCodecWithoutConsumingAnotherSource(String codec) throws Exception {
+    byte[] encoded = CodecFixtureTest.resource(codec + ".ogg");
+    Counted source = new Counted(encoded, 7);
+    try (var links = JavaCodecs.oggLinks(source)) {
+      var link = links.nextLink();
+      assertEquals(codec, link.codec());
+      assertEquals(48000, link.format().sampleRate());
+      assertEquals(2, link.format().channels());
+      int before = source.delivered;
+      assertEquals(codec, link.codec());
+      assertEquals(before, source.delivered, "Metadata observation must not read more bytes");
+      assertArrayEquals(single(encoded), OggSeekTest.read(link));
+      assertEquals(codec, link.codec());
+      assertNull(links.nextLink());
+    }
+    assertEquals(1, source.closes.get());
+  }
+
+  private static String expectedCodec(String mode, int index) {
+    return mode.equals("channels") || index == 1 && mode.equals("mixed") ? "opus" : "vorbis";
   }
 
   static Pair pair(String mode) throws IOException {
