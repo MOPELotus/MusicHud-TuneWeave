@@ -140,7 +140,10 @@ public class MainFragment extends Fragment {
             startCardSwitch(detail);
         }
         startProgressUpdater(snapshot);
-        if (lyricsScrollView != null) lyricsScrollView.switchLyrics(detail, snapshot.lyrics());
+        if (lyricsScrollView != null) {
+            if (LyricsPanelPolicy.hasLyrics(snapshot.lyrics())) lyricsScrollView.switchLyrics(detail, snapshot.lyrics());
+            else lyricsScrollView.clearLyrics();
+        }
         updateLyricsPanelVisibility();
     }
 
@@ -244,8 +247,10 @@ public class MainFragment extends Fragment {
     /** The album cover is full size only when a track is actually playing and not muted. */
     private static boolean isCoverExpanded() {
         MusicDetail detail = NowPlayingInfo.getInstance().getCurrentlyPlayingMusicDetail();
-        float targetGain = clientConfig.getMuted() ? 0 : (float) clientConfig.getSoundVolume() / 100 *
-                (clientConfig.getMixWithVanillaSoundVolume() ? Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC) : 1);
+        float targetGain = indi.mopelotus.musichud.client.audio.PlaybackGain.calculate(
+                (float)clientConfig.getSoundVolume(), clientConfig.getMixWithVanillaSoundVolume(),
+                clientConfig.getMuted(), Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MASTER),
+                Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC), 1);
         if (detail == null || detail.equals(MusicDetail.NONE) || targetGain == 0) {
             return false;
         }
@@ -494,12 +499,15 @@ public class MainFragment extends Fragment {
             lyricsSidebar.setTranslationX(lyricsPanelWidth);
 
             lyricsScrollView = new StaggeredLyricScrollView(context);
+            lyricsScrollView.setMainLyricSize(Theme.SIDEBAR_MAIN_LYRIC_SIZE);
+            lyricsScrollView.setSubLyricSize(Theme.SIDEBAR_SUB_LYRIC_SIZE);
             lyricsSidebar.addView(lyricsScrollView, new LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
 
             MusicDetail currentMusic = playingInfo.getCurrentlyPlayingMusicDetail();
             java.util.Collection<LyricLine> currentLyrics = playingInfo.snapshot().lyrics();
             if (currentMusic != null && currentLyrics != null && !currentMusic.equals(MusicDetail.NONE)) {
-                lyricsScrollView.switchLyrics(currentMusic, currentLyrics);
+                if (LyricsPanelPolicy.hasLyrics(currentLyrics)) lyricsScrollView.switchLyrics(currentMusic, currentLyrics);
+                else lyricsScrollView.clearLyrics();
             }
 
             routerContainer.setOnPageChangeListener(new RouterContainer.OnPageChangeListener() {
@@ -586,8 +594,7 @@ public class MainFragment extends Fragment {
             return false;
         }
         java.util.Collection<LyricLine> lines = nowPlayingInfo.snapshot().lyrics();
-        return lines != null && !lines.isEmpty()
-                && lines.stream().anyMatch(l -> l.getType() == LyricLine.Type.NORMAL);
+        return LyricsPanelPolicy.hasLyrics(lines);
     }
 
     private void updateLyricsPanelVisibility() {
