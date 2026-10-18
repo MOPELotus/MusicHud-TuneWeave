@@ -69,6 +69,7 @@ public final class CursorMediaResource implements AutoCloseable {
         cursor.cache = shared;
         cursor.identity = sharedIdentity;
         cursor.length = pinned.totalLength();
+        shared.cursorReferences++;
       }
     }
     return cursor;
@@ -93,13 +94,6 @@ public final class CursorMediaResource implements AutoCloseable {
     if (closed) throw new ClosedChannelException();
   }
 
-  private synchronized Cache newCache() throws IOException {
-    check();
-    Cache c = new Cache(directory);
-    caches.add(c);
-    return c;
-  }
-
   /**
    * Pure state inspection: never takes an IO lock, opens a request, or completes a partial cache.
    */
@@ -109,22 +103,41 @@ public final class CursorMediaResource implements AutoCloseable {
   }
 
   /** A completed response captured by this resource, not a request to download a snapshot. */
-  public Optional<CompletedSnapshot> completedSnapshot() throws IOException {
-    if (closed) throw new ClosedChannelException();
+  public synchronized Optional<CompletedSnapshot> completedSnapshot() throws IOException {
+    check();
     Cache captured = completed;
-    if (captured == null || captured.invalidated) return Optional.empty();
-    CompletedSnapshot snapshot = new CompletedSnapshot(captured);
-    if (closed) {
-      snapshot.close();
-      throw new ClosedChannelException();
-    }
-    return Optional.of(snapshot);
+    if (captured == null || captured.invalidated || captured.retired) return Optional.empty();
+    captured.snapshotReferences++;
+    return Optional.of(new CompletedSnapshot(captured));
   }
 
-  private synchronized void completed(Cache cache, long length) {
-    if (closed || cache.invalidated || cache.retired) return;
+  /** Metadata only. The caller disposes the returned obsolete cache outside this lock. */
+  private synchronized Cache completed(Cache cache, long length) {
+    if (closed || cache.invalidated || cache.retired) return null;
     cache.completedLength = length;
+    Cache previous = completed;
     completed = cache;
+    return previous == cache ? null : retireIfUnused(previous);
+  }
+
+  /** Called only under the resource monitor; root close also owns pending disposal failures. */
+  private Cache retireIfUnused(Cache cache) {
+    if (cache == null
+        || cache.retired
+        || cache == shared
+        || cache == completed
+        || cache.cursorReferences != 0
+        || cache.snapshotReferences != 0) return null;
+    cache.retired = true;
+    return cache;
+  }
+
+  private void dispose(Cache cache) throws IOException {
+    if (cache == null) return;
+    cache.close();
+    synchronized (this) {
+      caches.remove(cache);
+    }
   }
 
   public final class CompletedSnapshot implements AutoCloseable {
@@ -215,8 +228,14 @@ public final class CursorMediaResource implements AutoCloseable {
       };
     }
 
-    public void close() {
-      live.set(false);
+    public void close() throws IOException {
+      if (!live.compareAndSet(true, false)) return;
+      Cache discard;
+      synchronized (CursorMediaResource.this) {
+        cache.snapshotReferences--;
+        discard = retireIfUnused(cache);
+      }
+      dispose(discard);
     }
   }
 
@@ -228,6 +247,9 @@ public final class CursorMediaResource implements AutoCloseable {
     volatile long completedLength = -1;
     volatile boolean invalidated;
     boolean retired;
+    // Guarded by the resource monitor. Every cursor and snapshot owns exactly one reference.
+    int cursorReferences;
+    int snapshotReferences;
     Identity identity;
 
     Cache(Path directory) throws IOException {
@@ -320,22 +342,33 @@ public final class CursorMediaResource implements AutoCloseable {
                 !forceSingleResponse
                     && representation.canRange()
                     && representation.expected().validator() instanceof MediaTransport.StrongETag;
-            synchronized (CursorMediaResource.this) {
-              current(generation);
-              if (strong && pinned == null) {
-                pinned = representation.expected();
-                shared = newCache();
-                sharedIdentity =
-                    new Identity(identityNamespace, generations.incrementAndGet(), pinned);
+            // File creation is outside the metadata monitor used by snapshot borrowing.
+            Cache created = new Cache(directory);
+            try {
+              synchronized (CursorMediaResource.this) {
+                current(generation);
+                if (strong && pinned == null) {
+                  pinned = representation.expected();
+                  shared = created;
+                  caches.add(created);
+                  created = null;
+                  sharedIdentity =
+                      new Identity(identityNamespace, generations.incrementAndGet(), pinned);
+                }
+                if (strong && pinned.equals(representation.expected())) {
+                  cache = shared;
+                  identity = sharedIdentity;
+                } else {
+                  cache = created;
+                  caches.add(created);
+                  created = null;
+                  identity = new Identity(identityNamespace, generations.incrementAndGet(), null);
+                }
+                cache.identity = identity;
+                cache.cursorReferences++;
               }
-              if (strong && pinned.equals(representation.expected())) {
-                cache = shared;
-                identity = sharedIdentity;
-              } else {
-                cache = newCache();
-                identity = new Identity(identityNamespace, generations.incrementAndGet(), null);
-              }
-              cache.identity = identity;
+            } finally {
+              if (created != null) created.close();
             }
           }
           response = opened;
@@ -344,7 +377,8 @@ public final class CursorMediaResource implements AutoCloseable {
           streamPosition = first == null ? 0 : first;
           length = streamingOnly ? -1 : opened.representation().totalLength();
           if (length > budget) throw new IOException("Media exceeds cache budget");
-          if (!streamingOnly && length == 0) completed(cache, 0);
+          current(generation);
+          if (!streamingOnly && length == 0) dispose(completed(cache, 0));
         } catch (Throwable failure) {
           opened.close();
           throw failure;
@@ -551,11 +585,13 @@ public final class CursorMediaResource implements AutoCloseable {
         if (length >= 0 && streamPosition < length)
           throw new EOFException("Truncated media response");
         length = streamPosition;
+        Cache discard = null;
         if (!streamingOnly) {
           synchronized (cache) {
-            if (cache.end(0) >= length) completed(cache, length);
+            if (cache.end(0) >= length) discard = completed(cache, length);
           }
         }
+        dispose(discard);
         abortRequest();
         return -1;
       }
@@ -564,6 +600,7 @@ public final class CursorMediaResource implements AutoCloseable {
         return n;
       }
       if (streamPosition > budget - n) throw new IOException("Media exceeds cache budget");
+      Cache discard = null;
       synchronized (cache) {
         current(generation);
         ByteBuffer data = ByteBuffer.wrap(bytes, offset, n);
@@ -576,8 +613,9 @@ public final class CursorMediaResource implements AutoCloseable {
         current(generation);
         cache.add(streamPosition, streamPosition + n);
         streamPosition += n;
-        if (length >= 0 && cache.end(0) >= length) completed(cache, length);
+        if (length >= 0 && cache.end(0) >= length) discard = completed(cache, length);
       }
+      dispose(discard);
       return n;
     }
 
@@ -595,21 +633,13 @@ public final class CursorMediaResource implements AutoCloseable {
       if (live.compareAndSet(true, false)) {
         epoch.incrementAndGet();
         abortRequest();
-        Cache discard = null;
+        Cache discard;
         synchronized (CursorMediaResource.this) {
           cursors.remove(this);
-          if (cache != null && cache != shared && cache.completedLength < 0) {
-            cache.retired = true;
-            discard = cache;
-          }
+          if (cache != null) cache.cursorReferences--;
+          discard = retireIfUnused(cache);
         }
-        // Partial unvalidated bytes cannot be reused. Completed responses remain resource-owned.
-        if (discard != null) {
-          discard.close();
-          synchronized (CursorMediaResource.this) {
-            caches.remove(discard);
-          }
-        }
+        dispose(discard);
       }
     }
   }
@@ -620,8 +650,10 @@ public final class CursorMediaResource implements AutoCloseable {
     synchronized (this) {
       if (closed) return;
       closed = true;
+      completed = null;
       active = new ArrayList<>(cursors);
       owned = new ArrayList<>(caches);
+      for (Cache cache : owned) cache.retired = true;
     }
     IOException failure = null;
     for (Cursor cursor : active)

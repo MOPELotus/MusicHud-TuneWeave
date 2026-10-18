@@ -28,6 +28,15 @@ class JavaAudioCompletedSnapshotTest {
   }
 
   @Test
+  void malformedSignedHttpUrlDoesNotRetainRawInputInAnExceptionCause() {
+    String raw = "https://example.test/invalid path?signature=private-value";
+    var error =
+        assertThrows(IOException.class, () -> new JavaAudioResource(raw, Map.of(), false, false));
+    assertEquals("Invalid media URL", error.getMessage());
+    assertNull(error.getCause());
+  }
+
+  @Test
   @Timeout(10)
   void capturedWeakResponseCanBeIndexedAfterItsPlaybackLeaseClosesWithoutAnotherGet()
       throws Exception {

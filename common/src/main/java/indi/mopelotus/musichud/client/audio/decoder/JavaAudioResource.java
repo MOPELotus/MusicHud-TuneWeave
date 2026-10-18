@@ -39,7 +39,7 @@ final class JavaAudioResource implements AutoCloseable {
       try {
         uri = URI.create(identifier);
       } catch (IllegalArgumentException e) {
-        throw new IOException("Invalid media URL", e);
+        throw new IOException("Invalid media URL");
       }
       remote =
           new CursorMediaResource(
@@ -65,7 +65,7 @@ final class JavaAudioResource implements AutoCloseable {
     if (remote == null) return Optional.empty();
     var captured = remote.completedSnapshot();
     if (!open.get()) {
-      captured.ifPresent(CursorMediaResource.CompletedSnapshot::close);
+      if (captured.isPresent()) captured.orElseThrow().close();
       throw new ClosedChannelException();
     }
     return captured.map(CompletedSnapshot::new);
@@ -88,7 +88,7 @@ final class JavaAudioResource implements AutoCloseable {
       return captured.openChannel();
     }
 
-    public void close() {
+    public void close() throws IOException {
       captured.close();
     }
   }
