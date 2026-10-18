@@ -37,6 +37,10 @@ public class RenderStateUtil {
         return (GuiRenderState) guiRenderStateHandle.get(graphics);
     }
 
+    public void submitGlyphRenderState(GuiGraphicsExtractor graphics, GuiElementRenderState state) {
+        getGuiRenderState(graphics).addGlyphToCurrentLayer(state);
+    }
+
     public void submitGuiElementRenderState(
             GuiGraphicsExtractor gr,
             GuiElementRenderState renderState
