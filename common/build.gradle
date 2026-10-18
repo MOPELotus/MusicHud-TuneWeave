@@ -111,6 +111,7 @@ dependencies {
     compileOnly "io.github.mopelotus.modernui:ModernUI-NeoForge:$rootProject.modernui_fork_version@jar"
 
     implementation project(path: ':metadata', configuration: 'shadowRuntimeElements')
+    implementation project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')
     implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
     implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
     implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
