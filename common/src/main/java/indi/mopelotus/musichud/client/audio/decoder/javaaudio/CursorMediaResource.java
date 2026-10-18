@@ -156,6 +156,7 @@ public final class CursorMediaResource implements AutoCloseable {
     private Cache cache;
     private Identity identity;
     private long position, streamPosition, length = -1;
+    private int icyMetaInt;
     private final byte[] discardBuffer = new byte[8192];
 
     private void checkCursor() throws IOException {
@@ -210,6 +211,7 @@ public final class CursorMediaResource implements AutoCloseable {
             }
           }
           response = opened;
+          icyMetaInt = opened.icyMetaInt();
           streamPosition = first == null ? 0 : first;
           length = opened.representation().totalLength();
           if (length > budget) throw new IOException("Media exceeds cache budget");
@@ -238,6 +240,11 @@ public final class CursorMediaResource implements AutoCloseable {
     public void requireIdentity(Identity expected) throws IOException {
       if (!identity().equals(expected))
         throw new IOException("Parser metadata belongs to a different response session");
+    }
+
+    public int icyMetaInt() throws IOException {
+      initialize();
+      return icyMetaInt;
     }
 
     public long knownLength() throws IOException {
