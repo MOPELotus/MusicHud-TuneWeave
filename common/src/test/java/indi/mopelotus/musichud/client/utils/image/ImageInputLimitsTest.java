@@ -21,6 +21,7 @@ class ImageInputLimitsTest {
     }
     @Test void imageTransportCannotOpenLocalFilesOrPrivateHttpEndpoints() {
         assertThrows(IOException.class, () -> indi.mopelotus.musichud.client.audio.decoder.PcmAudioInput.openPublicMedia("file:///private.png", Map.of()));
-        assertThrows(IllegalArgumentException.class, () -> indi.mopelotus.musichud.client.audio.decoder.PcmAudioInput.openPublicMedia("http://127.0.0.1/private.png", Map.of()));
+        // Address-policy checks run in the bounded transport and report I/O failure.
+        assertThrows(IOException.class, () -> indi.mopelotus.musichud.client.audio.decoder.PcmAudioInput.openPublicMedia("http://127.0.0.1/private.png", Map.of()));
     }
 }
