@@ -18,12 +18,15 @@ public final class ClientUpdateUi implements AutoCloseable {
     private boolean closed, manual, started;
     private AutoCloseable apiDownloadUi;
     private Modal modal;
+    private ServiceUpdateUi serviceUi;
     private TextView progressText;
+    private ClientUpdateService.State lastReadyShown;
     private final Path notice = MusicHud.getConfigDirectory().resolve("musichud-tuneweave/standard-service-notice-v1.accepted");
     private static ClientUpdateUi active;
     private ClientUpdateUi(View owner) { this.owner = owner; this.service = ClientUpdateService.INSTANCE; }
     public static ClientUpdateUi attach(View owner) {
         var ui = new ClientUpdateUi(owner); active = ui;
+        ui.serviceUi = new ServiceUpdateUi(owner, () -> ui.started && ui.modal == null && ui.apiDownloadUi == null, () -> { if (ui.service != null) ui.render(ui.service.state()); });
         if (ui.service != null) ui.subscription = ui.service.subscribe(state -> owner.post(() -> ui.render(state)));
         owner.post(ui::start);
         return ui;
@@ -63,18 +66,19 @@ public final class ClientUpdateUi implements AutoCloseable {
         catch (FileAlreadyExistsException accepted) { }
         catch (java.io.IOException error) { MusicHud.LOGGER.warn("Could not save service notice acknowledgement"); }
     }
+    public static void manualServiceCheck() { ServiceUpdateUi.manualCheck(); }
     public static void manualCheck() {
         if (active == null || active.closed) return;
         active.manual = true;
         if (active.service == null) { active.showMessage(tr("unavailable")); return; }
-        if (active.service.state().status() == ClientUpdateService.Status.AVAILABLE || active.service.state().status() == ClientUpdateService.Status.READY) active.render(active.service.state());
+        if (active.service.state().status() == ClientUpdateService.Status.READY) active.render(active.service.state());
         else active.service.check();
     }
     private void render(ClientUpdateService.State state) {
-        if (closed || !started || apiDownloadUi != null || service == null || service.state() != state) return;
+        if (closed || !started || apiDownloadUi != null || service == null || service.state() != state || serviceUi.isShowing()) return;
         if (progressText != null && modal != null && modal.isShowing()) {
             switch (state.status()) {
-                case READY -> { progressText.setText(tr("ready")); progressText = null; manual = false; }
+                case READY -> { progressText.setText(tr("ready")); progressText = null; manual = false; lastReadyShown = state; }
                 case FAILED -> { progressText.setText(tr("failed")); progressText = null; manual = false; }
                 case CURRENT -> { progressText.setText(tr("current")); progressText = null; manual = false; }
                 case AVAILABLE -> modal.dismiss();
@@ -86,36 +90,44 @@ public final class ClientUpdateUi implements AutoCloseable {
         switch (state.status()) {
             case AVAILABLE -> {
                 String version = state.offer().version();
-                if (!manual && version.equals(dismissedVersion)) return;
+                if (!manual && version.equals(dismissedVersion)) { serviceUi.render(); return; }
                 manual = false; dismissedVersion = version;
-                String message = tr("available", version) + "\n\n" + tr("restartNotice");
-                var now = new Modal.ActionButton(tr("now"), (b, m) -> { service.download(); m.dismiss(); });
+                boolean blocked = !state.message().isEmpty();
+                String message = tr("available", version) + "\n\n" + (blocked ? tr("service.modCompatibilityBlocked") : tr("restartNotice"));
+                var source = DownloadSourceUi.create(owner.getContext());
+                View body = blocked ? content(message) : DownloadSourceUi.content(owner, text(message), source);
+                var now = new Modal.ActionButton(tr(blocked ? "service.manualPairAction" : "now"), (b, m) -> {
+                    if (blocked) net.minecraft.util.Util.getPlatform().openUri(state.offer().releasePageUri());
+                    else service.download(DownloadSourceUi.selected(source));
+                    m.dismiss();
+                });
                 var later = new Modal.ActionButton(tr("later"), (b, m) -> m.dismiss());
-                modal = new Modal(owner.getContext(), text(tr("title")), content(message), now, later);
-                modal.setOnDismissListener(() -> { modal = null; if (!closed && service.state().status() != ClientUpdateService.Status.AVAILABLE) render(service.state()); });
+                modal = new Modal(owner.getContext(), text(tr("title")), body, now, later);
+                modal.setOnDismissListener(() -> { modal = null; if (!closed) { if (service.state().status() != ClientUpdateService.Status.AVAILABLE) render(service.state()); else serviceUi.render(); } });
                 modal.show();
             }
             case CHECKING -> { if (manual) showProgress(tr("checking")); }
             case DOWNLOADING -> showProgress(tr("downloading"));
-            case READY -> showMessage(tr("ready"));
+            case READY -> { if (lastReadyShown != state) { lastReadyShown = state; showMessage(tr("ready")); } }
             case FAILED -> { if (manual || state.message().equals("download")) { manual = false; showMessage(tr("failed")); } }
             case CURRENT -> { if (manual) { manual = false; showMessage(tr("current")); } }
             default -> { }
         }
+        serviceUi.render();
     }
     private void showProgress(String message) {
         progressText = text(message);
         modal = new Modal(owner.getContext(), progressText, new Modal.ActionButton(tr("understood"), (b, m) -> m.dismiss()));
         modal.setOnDismissListener(() -> {
             modal = null; progressText = null;
-            if (!closed && service.state().status() == ClientUpdateService.Status.AVAILABLE) render(service.state());
+            if (!closed) { if (service.state().status() == ClientUpdateService.Status.AVAILABLE) render(service.state()); else serviceUi.render(); }
         });
         modal.show();
     }
     private void showMessage(String message) {
         if (closed) return;
         modal = new Modal(owner.getContext(), text(message), new Modal.ActionButton(tr("understood"), (b, m) -> m.dismiss()));
-        modal.setOnDismissListener(() -> modal = null); modal.show();
+        modal.setOnDismissListener(() -> { modal = null; if (!closed) serviceUi.render(); }); modal.show();
     }
     private View content(String value) {
         var scroll = new icyllis.modernui.widget.ScrollView(owner.getContext()) {
@@ -135,6 +147,7 @@ public final class ClientUpdateUi implements AutoCloseable {
         closed = true;
         if (active == this) active = null;
         if (apiDownloadUi != null) { try { apiDownloadUi.close(); } catch (Exception ignored) { } apiDownloadUi = null; }
+        if (serviceUi != null) serviceUi.close();
         if (subscription != null) try { subscription.close(); } catch (Exception ignored) { }
         if (modal != null) { modal.setOnDismissListener(() -> {}); modal.dismiss(); modal = null; }
     }

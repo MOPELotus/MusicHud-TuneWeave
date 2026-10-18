@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.update;
 
+import indi.mopelotus.musichud.utils.ReleaseVersion;
+
 import com.google.gson.*;
 import indi.mopelotus.musichud.BuildDistribution;
 import indi.mopelotus.musichud.MusicHud;
@@ -18,6 +20,8 @@ public final class ClientUpdateService {
     interface Backend {
         Optional<ClientUpdateCatalog.Offer> check() throws Exception;
         void stage(ClientUpdateCatalog.Offer offer) throws Exception;
+        default void stage(ClientUpdateCatalog.Offer offer, String source) throws Exception { stage(offer); }
+        default String compatibility(ClientUpdateCatalog.Offer offer) { return ""; }
         default void cleanSuccessfulUpdate() throws Exception {}
     }
     public static volatile ClientUpdateService INSTANCE;
@@ -25,6 +29,7 @@ public final class ClientUpdateService {
     private final Backend backend;
     private final Set<Consumer<State>> listeners = new HashSet<>();
     private boolean startupConfirmed;
+    private long generation;
     private State state = new State(Status.IDLE, null, "");
     ClientUpdateService(Executor executor, Backend backend) { this.executor = executor; this.backend = backend; }
     public synchronized State state() { return state; }
@@ -38,19 +43,27 @@ public final class ClientUpdateService {
     }
     public synchronized void check() {
         if (Set.of(Status.CHECKING, Status.DOWNLOADING, Status.READY).contains(state.status())) return;
+        long operation = ++generation;
         set(new State(Status.CHECKING, null, ""));
         executor.execute(() -> {
-            try { var found = backend.check(); set(new State(found.isPresent() ? Status.AVAILABLE : Status.CURRENT, found.orElse(null), "")); }
-            catch (Exception e) { set(new State(Status.FAILED, null, "check")); MusicHud.LOGGER.debug("Mod update check failed ({})", e.getClass().getSimpleName()); }
+            try { var found = backend.check();
+                String compatibility = found.isPresent() ? backend.compatibility(found.get()) : "";
+                complete(operation, new State(found.isPresent() ? Status.AVAILABLE : Status.CURRENT, found.orElse(null), compatibility)); }
+            catch (Exception e) { complete(operation, new State(Status.FAILED, null, "check")); MusicHud.LOGGER.debug("Mod update check failed ({})", e.getClass().getSimpleName()); }
         });
     }
-    public synchronized void download() {
-        if (!UpdateInstallation.enabled() || state.status() != Status.AVAILABLE) return;
-        var offer = state.offer(); set(new State(Status.DOWNLOADING, offer, ""));
+    public void download() { download("AUTO"); }
+    public synchronized void download(String source) {
+        if (!UpdateInstallation.enabled() || state.status() != Status.AVAILABLE || !state.message().isEmpty()) return;
+        var offer = state.offer(); long operation = ++generation;
+        set(new State(Status.DOWNLOADING, offer, ""));
         executor.execute(() -> {
-            try { backend.stage(offer); set(new State(Status.READY, offer, "")); }
-            catch (Exception e) { set(new State(Status.FAILED, null, "download")); MusicHud.LOGGER.warn("Mod update staging failed ({})", e.getClass().getSimpleName()); }
+            try { backend.stage(offer, source); complete(operation, new State(Status.READY, offer, "")); }
+            catch (Exception e) { complete(operation, new State(Status.FAILED, offer, "download")); MusicHud.LOGGER.warn("Mod update staging failed ({})", e.getClass().getSimpleName()); }
         });
+    }
+    private synchronized void complete(long operation, State next) {
+        if (operation == generation) set(next);
     }
     public synchronized void clientStartedSuccessfully() {
         if (!UpdateInstallation.enabled() || startupConfirmed) return;
@@ -87,6 +100,7 @@ public final class ClientUpdateService {
             UpdateInstallation.clean(jar, installed);
         }
         public Optional<ClientUpdateCatalog.Offer> check() throws Exception {
+            UpdateInstallation.checkServiceUpdate();
             JsonArray releases = JsonParser.parseString(text(URI.create("https://api.github.com/repos/" + ClientUpdateCatalog.REPOSITORY + "/releases?per_page=20"))).getAsJsonArray();
             ClientUpdateCatalog.Offer best = null;
             for (JsonElement element : releases) {
@@ -107,8 +121,12 @@ public final class ClientUpdateService {
             }
             return Optional.ofNullable(best);
         }
+        public String compatibility(ClientUpdateCatalog.Offer offer) { return UpdateInstallation.compatibility(offer); }
         public synchronized void stage(ClientUpdateCatalog.Offer offer) throws Exception {
             UpdateInstallation.stage(jar, installed, offer);
+        }
+        public synchronized void stage(ClientUpdateCatalog.Offer offer, String source) throws Exception {
+            UpdateInstallation.stage(jar, installed, offer, source);
         }
     }
     static String text(URI uri) throws IOException {
