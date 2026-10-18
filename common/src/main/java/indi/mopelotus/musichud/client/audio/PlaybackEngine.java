@@ -538,6 +538,13 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
         while (!download.isDone() && download == downloadFuture && generation == playbackGeneration.get()) {
             long remaining = targetFrames - playedBytes / frameSize;
             if (remaining <= 0) return;
+            if (PlaybackSeekPolicy.advance(decoder, playedBytes / frameSize, targetFrames)) {
+                synchronized (this) {
+                    if (generation != playbackGeneration.get() || download != downloadFuture) return;
+                    playedBytes = Math.multiplyExact(targetFrames, frameSize);
+                }
+                return;
+            }
             // Do not decode an unbounded allocation after a long pause, and never request a partial frame.
             long request = Math.min(remaining, BUFFER_SIZE / frameSize) * frameSize;
             progress.beforeRead(pcm.empty(token));

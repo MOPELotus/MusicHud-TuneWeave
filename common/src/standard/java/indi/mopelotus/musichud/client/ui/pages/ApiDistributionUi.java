@@ -17,7 +17,6 @@ import indi.mopelotus.musichud.client.ui.components.Modal;
 import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.interfaces.ServerConfig;
 import indi.mopelotus.musichud.server.api.*;
-import net.minecraft.Util;
 import net.minecraft.client.resources.language.I18n;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
@@ -48,6 +47,22 @@ public final class ApiDistributionUi {
     }
 
     public static @NotNull View create(Context context, InsetBackgroundFactory backgroundFactory, EditText[] serverApiBinaryPathInput) {
+        return controls(context, backgroundFactory, serverApiBinaryPathInput, () -> {}).button();
+    }
+
+    /** Opens the existing download interface and starts only its idle download action. */
+    public static AutoCloseable openAndStart(View owner, Runnable onDismiss) {
+        DownloadControl controls = controls(owner.getContext(), InsetBackgroundFactory.builder().build(), new EditText[1], onDismiss);
+        controls.open().accept(true);
+        return controls.close()::run;
+    }
+
+    private record DownloadControl(View button, java.util.function.Consumer<Boolean> open, Runnable close) {}
+
+    private static DownloadControl controls(Context context, InsetBackgroundFactory backgroundFactory,
+                                            EditText[] serverApiBinaryPathInput, Runnable onDismiss) {
+        final boolean[] showing = {false};
+        final long[] presentation = {0};
         Button downloadApiServerButton = new Button(context);
         downloadApiServerButton.setText(I18n.get(MusicHud.MOD_ID + ".button.downloadApiServer"));
         downloadApiServerButton.setTextColor(Theme.PRIMARY_COLOR);
@@ -82,7 +97,7 @@ public final class ApiDistributionUi {
         spannableString.setSpan(new URLSpan(manifestUrl), indexOfUrl, indexOfUrl + manifestUrl.length(), SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
         descriptionUrl.setText(spannableString);
         descriptionUrl.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        descriptionUrl.setOnClickListener(v -> Util.getPlatform().openUri(manifestUrl));
+        descriptionUrl.setOnClickListener(v -> net.minecraft.Util.getPlatform().openUri(java.net.URI.create(manifestUrl)));
 
         Path path = Paths.get(serverConfig.getServerApiBinaryExecutablePath());
         while (!Files.isDirectory(path)) {
@@ -193,7 +208,7 @@ public final class ApiDistributionUi {
         refreshReleaseButton.setTextSize(Theme.TEXT_SIZE_NORMAL);
         backgroundFactory.applyBackgroundTo(refreshReleaseButton);
         refreshReleaseButton.setOnClickListener(v -> {
-            refreshReleaseInfo(releaseNameLabel, latestRelease, targetDir, existingVersionWarning, proxySpinnerRef[0]);
+            refreshReleaseInfo(releaseNameLabel, latestRelease, targetDir, existingVersionWarning, presentation, showing);
         });
 
         releaseInfoLayout.addView(releaseNameLabel, new LayoutParams(0, WRAP_CONTENT, 1));
@@ -326,8 +341,9 @@ public final class ApiDistributionUi {
                 downloadSession.setFuture(future);
                 future.thenAccept(downloaded -> {
                     if (!downloadSession.complete(sessionGeneration, downloaded)) return;
+                    downloaded.tempFile().toFile().deleteOnExit();
                     MuiModApi.postToUiThread(() -> {
-                        downloaded.tempFile().toFile().deleteOnExit();
+                        if (!showing[0] || downloadSession.generation() != sessionGeneration) return;
                         ToastUtil.show(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.done"));
                         doneDesc.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.done.description")
                                 .replace("{path}", downloaded.tempFile().toString()));
@@ -343,6 +359,7 @@ public final class ApiDistributionUi {
                 }).exceptionally(ex -> {
                     if (!downloadSession.fail(sessionGeneration)) return null;
                     MuiModApi.postToUiThread(() -> {
+                        if (!showing[0] || downloadSession.generation() != sessionGeneration) return;
                         if (ex instanceof CancellationException || ex.getCause() instanceof CancellationException) {
                             ToastUtil.show(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.cancelled"));
                         } else {
@@ -400,6 +417,7 @@ public final class ApiDistributionUi {
         });
 
         Runnable sessionListener = () -> MuiModApi.postToUiThread(() -> {
+            if (!showing[0]) return;
             ApiDownloadSession.Snapshot snapshot = downloadSession.snapshot();
             setPage.accept(snapshot.page());
             if (snapshot.targetDir() != null) {
@@ -430,11 +448,16 @@ public final class ApiDistributionUi {
         Modal dialog = new Modal(context, title, content, confirmButton, cancelBtn);
 
         dialog.setOnDismissListener(() -> {
+            showing[0] = false;
+            presentation[0]++;
             downloadSession.removeListener(sessionListener);
+            onDismiss.run();
         });
 
-        downloadApiServerButton.setOnClickListener((v) -> {
-            refreshReleaseInfo(releaseNameLabel, latestRelease, targetDir, existingVersionWarning, proxySpinnerRef[0]);
+        java.util.function.Consumer<Boolean> open = autoStart -> {
+            if (showing[0]) return;
+            showing[0] = true;
+            presentation[0]++;
             ApiDownloadSession.Snapshot snapshot = downloadSession.snapshot();
             if (snapshot.targetDir() != null) {
                 targetDir[0] = snapshot.targetDir();
@@ -444,15 +467,28 @@ public final class ApiDistributionUi {
             downloadSession.addListener(sessionListener);
             dialog.show();
             sessionListener.run();
+            refreshReleaseInfo(releaseNameLabel, latestRelease, targetDir, existingVersionWarning, presentation, showing);
+            // DONE has an installation/start action. Never invoke that from onboarding.
+            if (autoStart && downloadSession.snapshot().page() == ApiDownloadSession.Page.IDLE)
+                confirmButton.getOnClickListener().accept(confirmButton, dialog);
+        };
+        downloadApiServerButton.setOnClickListener(v -> open.accept(false));
+        return new DownloadControl(downloadApiServerButton, open, () -> {
+            showing[0] = false;
+            presentation[0]++;
+            downloadSession.removeListener(sessionListener);
+            dialog.dismiss();
         });
-        return downloadApiServerButton;
     }
 
-    private static void refreshReleaseInfo(TextView releaseLabel, ApiServerFetcher.ReleaseSummary[] latest, Path[] targetDir, TextView warning, Spinner proxySpinner) {
+    private static void refreshReleaseInfo(TextView releaseLabel, ApiServerFetcher.ReleaseSummary[] latest, Path[] targetDir, TextView warning, long[] presentation, boolean[] showing) {
+        long expectedPresentation = ++presentation[0];
+        java.util.function.BooleanSupplier current = () -> showing[0] && presentation[0] == expectedPresentation;
         releaseLabel.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.release.fetching"));
         ApiBinaryUpdateService.getInstance().fetchLatestRelease().thenAccept(r -> {
             if (r != null) {
                 MuiModApi.postToUiThread(() -> {
+                    if (!current.getAsBoolean()) return;
                     latest[0] = r;
                     releaseLabel.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.release.label")
                             .replace("{tag}", r.tag()));
@@ -466,10 +502,10 @@ public final class ApiDistributionUi {
                     }
                 });
             } else {
-                MuiModApi.postToUiThread(() -> releaseLabel.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.release.failed")));
+                MuiModApi.postToUiThread(() -> { if (current.getAsBoolean()) releaseLabel.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.release.failed")); });
             }
         }).exceptionally(ex -> {
-            MuiModApi.postToUiThread(() -> releaseLabel.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.release.failed")));
+            MuiModApi.postToUiThread(() -> { if (current.getAsBoolean()) releaseLabel.setText(I18n.get(MusicHud.MOD_ID + ".modal.downloadApiServer.release.failed")); });
             return null;
         });
     }

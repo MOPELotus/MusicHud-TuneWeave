@@ -1,0 +1,11 @@
+--- port-source/study/ape/ApeEntropy.java
++++ src/main/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeEntropy.java
+@@ -3,7 +3,7 @@
+  * Java translation 2026. LGPL-2.1-or-later; see upstream/COPYING.LGPLv2.1.
+  * Function names and branch boundaries deliberately follow pinned C source.
+  */
+-package study.ape;
++package indi.mopelotus.musichud.audio.codec.internal.ape;
+ import java.io.IOException;
+ final class ApeEntropy {
+     static final int[] COUNTS_3980={0,19578,36160,48417,56323,60899,63265,64435,64971,65232,65351,65416,65447,65466,65476,65482,65485,65488,65490,65491,65492,65493};

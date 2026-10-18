@@ -1,0 +1,1627 @@
+{
+  "schema_version": 1,
+  "vendors": [
+    {
+      "name": "jlayer",
+      "upstream": "https://github.com/umjammer/jlayer",
+      "revision": "eff3e6055b70af4532583127fe39ae931af3f492",
+      "source_root": "vendor/upstream/jlayer/src",
+      "license": "vendor/upstream/jlayer/LICENSE",
+      "license_sha256": "a190dc9c8043755d90f8b0a75fa66b9e42d4af4c980bf5ddc633f0124db3cee7",
+      "patches": [],
+      "version": "1.0.3",
+      "resource_root": "vendor/upstream/jlayer/resources",
+      "sources": [
+        {
+          "path": "javazoom/jl/decoder/BitReserve.java",
+          "sha256": "2540ae389fb95bd493d38edf4cde3b53fb24a80cce006da78580949bf6acc2e3"
+        },
+        {
+          "path": "javazoom/jl/decoder/Bitstream.java",
+          "sha256": "bffe275a2b1594bde2d0f3b5d36023d649100eb31550891c2f8c0158deee99dc"
+        },
+        {
+          "path": "javazoom/jl/decoder/BitstreamErrors.java",
+          "sha256": "7cb6944e5a4a5413c20a02f6f7ee163f14765e1d09215b3da18dee6e7cb25fdd"
+        },
+        {
+          "path": "javazoom/jl/decoder/BitstreamException.java",
+          "sha256": "f1d4db43ca2feb7a88ec438a56c79e9fe93a85220b10f990adbcd5d1bd55d156"
+        },
+        {
+          "path": "javazoom/jl/decoder/Control.java",
+          "sha256": "c6202dbad957f4d373176854b0a7bf3c431a787272bf7a3ee77def0db18aaf16"
+        },
+        {
+          "path": "javazoom/jl/decoder/Crc16.java",
+          "sha256": "50389ac646b5ab0e3ba3d59cdb45592d694b964bd540cd431754dac951412f7b"
+        },
+        {
+          "path": "javazoom/jl/decoder/Decoder.java",
+          "sha256": "1b8781e56a90502a605be294997f046cf73566887823fc2cc3b8c6dd53184dee"
+        },
+        {
+          "path": "javazoom/jl/decoder/DecoderErrors.java",
+          "sha256": "89e01d3777c09771379c790e59640162ad8e4d1a750ada46bc971b44f6219264"
+        },
+        {
+          "path": "javazoom/jl/decoder/DecoderException.java",
+          "sha256": "d0b5d7525497856c92010f2484dd36add8e42057f128ef654c8489ecc4ea7c09"
+        },
+        {
+          "path": "javazoom/jl/decoder/Equalizer.java",
+          "sha256": "779fdc7c6140685df2bd533274a54b9c9d9a956ce43317ba1d7b863c3987342f"
+        },
+        {
+          "path": "javazoom/jl/decoder/FrameDecoder.java",
+          "sha256": "26a9d28aaa1e4bc18f74016a82a68f0278631e361a85cf0c5a25b30ebb058be0"
+        },
+        {
+          "path": "javazoom/jl/decoder/Header.java",
+          "sha256": "bfb58c455a883765150cff62938510b77a2233e30408875ff22501c826aaaa31"
+        },
+        {
+          "path": "javazoom/jl/decoder/HuffCodeTab.java",
+          "sha256": "f89b9dabce24553884d2c4638212c6e6c94db76d31e08d0652ff474990b7ed23"
+        },
+        {
+          "path": "javazoom/jl/decoder/InputStreamSource.java",
+          "sha256": "bba8704ec850f78a9a785b3b95af7e4dbc605a1568ab4ad97cf36bde90e55751"
+        },
+        {
+          "path": "javazoom/jl/decoder/JavaLayerError.java",
+          "sha256": "8a7b8f4836df57f91b94a5f401a2d66975133b9e20bf660f40916f3e22a31c3c"
+        },
+        {
+          "path": "javazoom/jl/decoder/JavaLayerErrors.java",
+          "sha256": "7b3c3821475475924d252637347259d5f8fe00d33a7b16665b1e5a901dc58b10"
+        },
+        {
+          "path": "javazoom/jl/decoder/JavaLayerException.java",
+          "sha256": "e7425cd25210dee9cde918b24bc216f93e33a1faf072e8191c96ed310db59672"
+        },
+        {
+          "path": "javazoom/jl/decoder/JavaLayerHook.java",
+          "sha256": "5290ed8d8c885d38a4ad24a31b7a877e51ace5f123a587b0cb197aa6648df125"
+        },
+        {
+          "path": "javazoom/jl/decoder/JavaLayerUtils.java",
+          "sha256": "27e07a75386eeda056bd36d3b5194cdacaa27c57fe054182f47f4a2be6d6f381"
+        },
+        {
+          "path": "javazoom/jl/decoder/LayerIDecoder.java",
+          "sha256": "162efae0f83c088f15276b46acd8bba5030c2a3018793bfcaa92867caf534adf"
+        },
+        {
+          "path": "javazoom/jl/decoder/LayerIIDecoder.java",
+          "sha256": "c640800e74f770b475d41ab42c11e1a3c9d0f20f069e7c894d9b06c34c56761f"
+        },
+        {
+          "path": "javazoom/jl/decoder/LayerIIIDecoder.java",
+          "sha256": "de0a4e15d7d8256e81b20e7a04f90c920f8349cbf3ba938156d3b8b5ef07791f"
+        },
+        {
+          "path": "javazoom/jl/decoder/Manager.java",
+          "sha256": "98e99a103badb0d014e7dff12ac10d290241aaa40b0234db38dadebe7c1f8894"
+        },
+        {
+          "path": "javazoom/jl/decoder/Obuffer.java",
+          "sha256": "d23aff945ea0943df101b1e7a3b28a2de9b4e686bf6824eb5433df35743b8eaa"
+        },
+        {
+          "path": "javazoom/jl/decoder/OutputChannels.java",
+          "sha256": "6b6b3047e09d6a854922dd0d705e48008cb76e525389a26621f44742ea831c65"
+        },
+        {
+          "path": "javazoom/jl/decoder/SampleBuffer.java",
+          "sha256": "32baa24630ff719ccc3c04b3fe15d82a723c2a002aa311220e9f06dc4aae0b17"
+        },
+        {
+          "path": "javazoom/jl/decoder/Source.java",
+          "sha256": "31982ec041ee73f8762dd1448aa9acd295e0361bc7710387ddb74284446dc66d"
+        },
+        {
+          "path": "javazoom/jl/decoder/SynthesisFilter.java",
+          "sha256": "e52acdbbfbb2b7a77b4ef51a90b0ce1ba9d0fc40d082d32d65ee1b64a126c461"
+        }
+      ],
+      "resources": [
+        {
+          "path": "javazoom/jl/decoder/au2lin.ser",
+          "sha256": "84809da369c5cc67383be00ca780864a66f5d9bc240e7e386e33f7346370e4f4"
+        },
+        {
+          "path": "javazoom/jl/decoder/l3reorder.ser",
+          "sha256": "2ace3e977d50e708f5f1abfb0ffe8a1367a223ed06b2756a0bd751b63591e9dc"
+        },
+        {
+          "path": "javazoom/jl/decoder/lin2au.ser",
+          "sha256": "4760c2ce1317f10718b44781896d2547d6c16f29d740565de1708f29e3d16023"
+        },
+        {
+          "path": "javazoom/jl/decoder/sfd.ser",
+          "sha256": "56d31aee06af29f61de68cd9f2a971d22732fbca92bf870e04a5566029d02fd8"
+        }
+      ]
+    },
+    {
+      "name": "jorbis",
+      "upstream": "https://github.com/ymnk/jorbis",
+      "revision": "28592f3dde5134871165470e7390d66ed5f1dce5",
+      "source_root": "vendor/upstream/jorbis/src",
+      "license": "vendor/upstream/jorbis/LICENSE",
+      "license_sha256": "5bbcbb737e60fe9deba08ecbd00920cfcc3403ba2e534c64fdeea49d6bb87509",
+      "patches": [
+        {
+          "source": "com/jcraft/jorbis/Mapping0.java",
+          "upstream_sha256": "800e2aee2d0d986151e304335de4605863b614fc25d61c2e257524e12a54c46a",
+          "compiled_sha256": "fbf372ed08668d2c77c2e9d5aa335b87c8529c65a0175db993eb9f91f408b0e2",
+          "patch": "vendor/patches/jorbis/Mapping0-final.patch",
+          "patch_sha256": "7980e6d47a72be4b11c54719cedd7c5b7c4b604e1f70380d6c0ea241161298cb",
+          "reason": "correct multichannel coupling index bit width"
+        },
+        {
+          "source": "com/jcraft/jorbis/StaticCodeBook.java",
+          "upstream_sha256": "0895a6195af80170fd399676a724fe919009b07a51586f25032dcfa9d8a560d3",
+          "compiled_sha256": "e74a6f0328522bcd4d95076d1eec508bdc1b2590fac87a46529aa57f9af804ef",
+          "patch": "vendor/patches/jorbis/StaticCodeBook-final.patch",
+          "patch_sha256": "ce13d788906230b8ac124254acc3ff94e2fe7645b180fc5cfc5b8951b7b949a4",
+          "reason": "bound hostile codebook allocation sizes and ordered lengths"
+        },
+        {
+          "source": "com/jcraft/jorbis/Info.java",
+          "upstream_sha256": "d2601ed4935cabb5938fef4f16d7027eb5e0b4c1ec2d8f52bfa0f580014b39bb",
+          "compiled_sha256": "fdb4ad402c50ec04902dc7f0738b24204f0f78db5050eba767307676b1e48e62",
+          "patch": "vendor/patches/jorbis/Info-final.patch",
+          "patch_sha256": "e7bd17c789ea54f0d81f79ec41995899df1955e1de7999125d9e22274554116a",
+          "reason": "bound aggregate decoder setup table allocations"
+        }
+      ],
+      "version": "0.0.17",
+      "sources": [
+        {
+          "path": "com/jcraft/jogg/Buffer.java",
+          "sha256": "b75a24e6bdaa4429afeacc93798067962e5b3dbcf58420be35c48f27fda96e7c"
+        },
+        {
+          "path": "com/jcraft/jogg/Packet.java",
+          "sha256": "154877e9d6b22dfb06fdf415cfbe3627a3a11b233e74b842ab6e7cafb4311884"
+        },
+        {
+          "path": "com/jcraft/jogg/Page.java",
+          "sha256": "c959d0f84fc5577a65b17f6c180517da870b6a310437482513b9e73d7a7740db"
+        },
+        {
+          "path": "com/jcraft/jogg/StreamState.java",
+          "sha256": "5583e1752e10c981dd0f8f4de9f6e6b90e4a8e744a0c26a5f9e64b108543944b"
+        },
+        {
+          "path": "com/jcraft/jogg/SyncState.java",
+          "sha256": "87721999e1c4af2ff47bb36274164b8cec7783bc9e6e6c4dfa0f6cad0834e62d"
+        },
+        {
+          "path": "com/jcraft/jorbis/Block.java",
+          "sha256": "a5e5cf5133d7e83ea33c5837fb5178b68160c4b2a374fedabf1b2df40c6b9188"
+        },
+        {
+          "path": "com/jcraft/jorbis/CodeBook.java",
+          "sha256": "30c7d2f9307a809b2061c09a1808eb56d2a4608d2252af1059dd12e270736e5e"
+        },
+        {
+          "path": "com/jcraft/jorbis/Comment.java",
+          "sha256": "a6ab56133c272cd7244a4ab44230e96f6206069caee4a83c2cca59288589facd"
+        },
+        {
+          "path": "com/jcraft/jorbis/Drft.java",
+          "sha256": "494d764948f0844437dc8c8f771a80f6273dd1c18401bb15d391bff91573abce"
+        },
+        {
+          "path": "com/jcraft/jorbis/DspState.java",
+          "sha256": "b17ed5c43b22b3f25e9201d067ae50c695f92309eaceca669a6d9b3d35b2b40b"
+        },
+        {
+          "path": "com/jcraft/jorbis/Floor0.java",
+          "sha256": "fb50e50b3536ec89598314909123bdabf1e6ab153a0d25a3270f19f510a09cad"
+        },
+        {
+          "path": "com/jcraft/jorbis/Floor1.java",
+          "sha256": "097cd55b5d92d4adf16e4bebcad7514528ce22db724a77e89cd4f972b34afbe6"
+        },
+        {
+          "path": "com/jcraft/jorbis/FuncFloor.java",
+          "sha256": "a8de1ad644b2c120751a28d7bfe30633bba50e3fe8343625e2b198815752d405"
+        },
+        {
+          "path": "com/jcraft/jorbis/FuncMapping.java",
+          "sha256": "8cc69f60e169acf327dde770932ab5b5533b4739003002993ff0871ad6ff137f"
+        },
+        {
+          "path": "com/jcraft/jorbis/FuncResidue.java",
+          "sha256": "a5a298a1c7fc6f6b6430e757d2be37031b9a33a406dfdd302354472727230a89"
+        },
+        {
+          "path": "com/jcraft/jorbis/FuncTime.java",
+          "sha256": "3926bb3f3e07914ecf788c02b7d03361023274d99fea199054c19dcf2e9f8ca9"
+        },
+        {
+          "path": "com/jcraft/jorbis/Info.java",
+          "sha256": "d2601ed4935cabb5938fef4f16d7027eb5e0b4c1ec2d8f52bfa0f580014b39bb"
+        },
+        {
+          "path": "com/jcraft/jorbis/InfoMode.java",
+          "sha256": "c40ba78a89c520a4331ed461b6e994e410ea6aea0b83108c39afb4a64f508e85"
+        },
+        {
+          "path": "com/jcraft/jorbis/JOrbisException.java",
+          "sha256": "c55c54612cb871869886f21490a9f11cc0c1a19cbd224defccd0a12f7f44ea89"
+        },
+        {
+          "path": "com/jcraft/jorbis/Lookup.java",
+          "sha256": "5ab1f8ae635eb619270fd02178a2cc1fb85f4be3e4b65708098bee7eb2ad53e5"
+        },
+        {
+          "path": "com/jcraft/jorbis/Lpc.java",
+          "sha256": "1f1bde5e50af85234d40969374c87df7b72492899356bd1287c1e2fad17806b4"
+        },
+        {
+          "path": "com/jcraft/jorbis/Lsp.java",
+          "sha256": "79508a4e363c7026aafbe60ffc4c911af169868e61004bff2dfd5318910db484"
+        },
+        {
+          "path": "com/jcraft/jorbis/Mapping0.java",
+          "sha256": "800e2aee2d0d986151e304335de4605863b614fc25d61c2e257524e12a54c46a"
+        },
+        {
+          "path": "com/jcraft/jorbis/Mdct.java",
+          "sha256": "3d111d7549d58a86c169cb918fbb8cfabbb9af5e3b0547765dae6b1af9d53f7b"
+        },
+        {
+          "path": "com/jcraft/jorbis/PsyInfo.java",
+          "sha256": "a85a900d7a3a62d296288bbd39dc57196458167b105f99921cb0c8ed845590ef"
+        },
+        {
+          "path": "com/jcraft/jorbis/PsyLook.java",
+          "sha256": "33c9f6ca3357e95acf93c93bef1be7104a9f279bf075c236adbcfed2f5ad7b64"
+        },
+        {
+          "path": "com/jcraft/jorbis/Residue0.java",
+          "sha256": "d0fb684060606d639d4c4ded7dc74e8b3a03a77a3153eeb7819bfb63aec951c3"
+        },
+        {
+          "path": "com/jcraft/jorbis/Residue1.java",
+          "sha256": "11c1488ecd880916dbc1772db774317d624145a720cd5c0676f7cdbbccbc8330"
+        },
+        {
+          "path": "com/jcraft/jorbis/Residue2.java",
+          "sha256": "6898db6a4aa1ccf65a0414509cf976fea862990be54220a6f6b45e2670a1ec8d"
+        },
+        {
+          "path": "com/jcraft/jorbis/StaticCodeBook.java",
+          "sha256": "0895a6195af80170fd399676a724fe919009b07a51586f25032dcfa9d8a560d3"
+        },
+        {
+          "path": "com/jcraft/jorbis/Time0.java",
+          "sha256": "3b049335eff050925e6f84a5c9bbcf0f9ccd464c2a01ef64c2d6f6438d9cd440"
+        },
+        {
+          "path": "com/jcraft/jorbis/Util.java",
+          "sha256": "24fb03c0f24045e84f59ee7a1bc45941ab148bc1a7a90800c07f09080e707257"
+        },
+        {
+          "path": "com/jcraft/jorbis/VorbisFile.java",
+          "sha256": "511230517f89b4a830f4e277533b549e026bd60b7828d925a45f7bb0aae47d09"
+        }
+      ]
+    },
+    {
+      "name": "concentus",
+      "upstream": "https://github.com/lostromb/concentus",
+      "revision": "3885c4e46513ef0fc81fca100189e54f1714c6ca",
+      "source_root": "vendor/upstream/concentus/src",
+      "license": "vendor/upstream/concentus/LICENSE",
+      "license_sha256": "4e007268b8ff31011aab16e2bc77303b13e619d3e49b5a1e344ad197525e11b9",
+      "patches": [],
+      "sources": [
+        {
+          "path": "org/concentus/Analysis.java",
+          "sha256": "c084ab97336208d71f50b7110ca51f395f6240b39a5c263c4d8e96149946334a"
+        },
+        {
+          "path": "org/concentus/AnalysisInfo.java",
+          "sha256": "6727cd2dc7b962a149cf6b8c0c1e9657afd3d8ca5783dbc92d4ed0f38d1f735b"
+        },
+        {
+          "path": "org/concentus/ApplySineWindow.java",
+          "sha256": "036340fd6caf93534d91c919fa0edac9670d8e9608a83c16d7daf5693d6ef300"
+        },
+        {
+          "path": "org/concentus/Arrays.java",
+          "sha256": "a1d01e461cbec2f6686618b92bf375cc5db038aa1a87f6773604dffb8f6128da"
+        },
+        {
+          "path": "org/concentus/Autocorrelation.java",
+          "sha256": "6ec21376863f012279ce290b35dafa0a1b4b7f5e2941ad504b8b3ebdbba395a8"
+        },
+        {
+          "path": "org/concentus/BWExpander.java",
+          "sha256": "fa7b0ee7fc587b66fd72e7cdfecbdeaecb60980ce84f2f18372b69069eef9f1d"
+        },
+        {
+          "path": "org/concentus/Bands.java",
+          "sha256": "c7228f645e7257c8091bfa73a680b2c09347196529c13225c0fae970365d7218"
+        },
+        {
+          "path": "org/concentus/BoxedValue.java",
+          "sha256": "41856dc842a2718a71dd7917fead9ac6cb91b57baef2bd14200aea345ce49b52"
+        },
+        {
+          "path": "org/concentus/BurgModified.java",
+          "sha256": "fbed10b45db9adedf2194b72d08f5ab314ad06eeacd8c6c731fa96a748971e16"
+        },
+        {
+          "path": "org/concentus/CNG.java",
+          "sha256": "93ddca2750577d1289b5652c8d7034d8262e4c62448ffc9810127ee2c136c5f3"
+        },
+        {
+          "path": "org/concentus/CNGState.java",
+          "sha256": "f53d5a29f68d7fc9a198ff36c68bb9df2d73d64057defa76cbfaf42d296fc834"
+        },
+        {
+          "path": "org/concentus/CWRS.java",
+          "sha256": "c5fceffc3aa89bb561ed7e35d028a8f41dc80ff02417e0aec539f9342e1a57ee"
+        },
+        {
+          "path": "org/concentus/CeltCommon.java",
+          "sha256": "9a3fa42bfc69ec6ae1965472fb77267b0b80f6c40a04e2de8da4287adc16c954"
+        },
+        {
+          "path": "org/concentus/CeltConstants.java",
+          "sha256": "8736b0470dad9757f86d44645cae105ad1b3a4b77ab07a4716c1912703676dcc"
+        },
+        {
+          "path": "org/concentus/CeltDecoder.java",
+          "sha256": "0bd516fbc0f9d828821d2974a435dde9e322af384cf540e26f3ff692160bd43a"
+        },
+        {
+          "path": "org/concentus/CeltEncoder.java",
+          "sha256": "12acb2ccda1c403442fe57a69d88a9da4677549a4f0f7e8237b9cb88832a14fc"
+        },
+        {
+          "path": "org/concentus/CeltLPC.java",
+          "sha256": "0b938526bfa0e531715b4809d23af03389c887140f8a586cc662c32ec4a21d1e"
+        },
+        {
+          "path": "org/concentus/CeltMode.java",
+          "sha256": "e760d1532caa70d3ba9a9ba0c14de8fef5d05dd66506328141ec76ef5a1fa88f"
+        },
+        {
+          "path": "org/concentus/CeltPitchXCorr.java",
+          "sha256": "6ba1ed98d289fe98e0449597c5903170523e929150dffe4694d6b6af08bbaf60"
+        },
+        {
+          "path": "org/concentus/CeltTables.java",
+          "sha256": "ead3a15826378c2394521328e60e508dfed0906321415523dee29b00383e17e5"
+        },
+        {
+          "path": "org/concentus/ChannelLayout.java",
+          "sha256": "b693eb52f00a917553d426ee5663609b91cb257d4b429a19982379cc6aa035e2"
+        },
+        {
+          "path": "org/concentus/CodeSigns.java",
+          "sha256": "7515004ffa635f4d321062a89e25dd01daa681f464113f74e04c82dbff6f1a81"
+        },
+        {
+          "path": "org/concentus/CodecHelpers.java",
+          "sha256": "a22fee0d7d7214da81287a608c74f1e8ec5f0d8b8d4351024c64f4b28dc818ea"
+        },
+        {
+          "path": "org/concentus/CorrelateMatrix.java",
+          "sha256": "f363a19f8d170d375af4fae27e024d3c3f85cda6bf3741c1b6748e10f00cbdb3"
+        },
+        {
+          "path": "org/concentus/DecControlState.java",
+          "sha256": "eb4ddf8ae303cc83c9034a0a3b035c860bf4c8a3b755fe9c095295075adc28da"
+        },
+        {
+          "path": "org/concentus/DecodeAPI.java",
+          "sha256": "59840f4a8b7c938131dc3a49fb5d085982c4df9556d96d03c4d776a07bc33b2b"
+        },
+        {
+          "path": "org/concentus/DecodeCore.java",
+          "sha256": "afa59480f4650fb3e8109d1213ed9409744b61b7be3cee10ba406ccc8eb173d9"
+        },
+        {
+          "path": "org/concentus/DecodeIndices.java",
+          "sha256": "c4fb3731d6340f957214933d2a6e7ac52ab59ebd971f7c682cce18d9b759d974"
+        },
+        {
+          "path": "org/concentus/DecodeParameters.java",
+          "sha256": "87d0429027ba31f33679f5c9736cfa1a16e3617045e81ee92a4ac75a84d52252"
+        },
+        {
+          "path": "org/concentus/DecodePitch.java",
+          "sha256": "4c5e96f3794e467f0bc5e2f51c12765485cd86d897eabb65b40adf6997f6af98"
+        },
+        {
+          "path": "org/concentus/DecodePulses.java",
+          "sha256": "28f09e8b111d345ecc9c1eb6346cc8278194e360219ea29b931e2540215a39cc"
+        },
+        {
+          "path": "org/concentus/DecoderAPIFlag.java",
+          "sha256": "327fa5848d32670a1fe798e0e3f2d7d9e45ac2bdbe39ad56574ffebf09bdf159"
+        },
+        {
+          "path": "org/concentus/Downmix.java",
+          "sha256": "a0b7ea4abe516707de7ae054a6ad8b2f3bfa128e766be1bde69f5f96fbb851f4"
+        },
+        {
+          "path": "org/concentus/EncControlState.java",
+          "sha256": "ee0d3aa233a4711a138ccc8bc5b8321aecb312ed532478711b2f53f430b44d25"
+        },
+        {
+          "path": "org/concentus/EncodeAPI.java",
+          "sha256": "e82f41a33ded78a40483e844958b547fc1694705a420d021b28e5cdb8d7a3b91"
+        },
+        {
+          "path": "org/concentus/EncodeIndices.java",
+          "sha256": "a806d9820259752969cbaa3d564af6783f83f8696c5f08081fb5fa5251db39cb"
+        },
+        {
+          "path": "org/concentus/EncodePulses.java",
+          "sha256": "f46f02a2852ca09db74f645c3a9a9136b48a654d7dbd12f59d23554cbe564ed2"
+        },
+        {
+          "path": "org/concentus/EntropyCoder.java",
+          "sha256": "a9563c527d6eef24e39a3ba9236f970edd2b106ad56f5632db34dc0aaf31e774"
+        },
+        {
+          "path": "org/concentus/FFTState.java",
+          "sha256": "48da7d3cc53f7affa86de1482d550340627334098d418c045e1eeb4b5e954670"
+        },
+        {
+          "path": "org/concentus/Filters.java",
+          "sha256": "6977c3a88144ea02ef21aad82cbf1f20ffc58f3c65a68f24561a3a4bb911045b"
+        },
+        {
+          "path": "org/concentus/FindLPC.java",
+          "sha256": "d01496a208fd3ae4634ca88b21d53199f993cfb6a6b47a7d6d6930c0ed4e6f9d"
+        },
+        {
+          "path": "org/concentus/FindLTP.java",
+          "sha256": "e26a30fd122730b3b0d33af4ddce67151b9644265c77227772e69b6b14030f3c"
+        },
+        {
+          "path": "org/concentus/FindPitchLags.java",
+          "sha256": "6dbce48830cfc4633a90377ec2f3c135182bafffe11085a80aff3de846fe2598"
+        },
+        {
+          "path": "org/concentus/FindPredCoefs.java",
+          "sha256": "1dfbb28e1bb4a88c8a39f85c84f1e5670ac28132576b76a6101f8ff23eea6400"
+        },
+        {
+          "path": "org/concentus/GainQuantization.java",
+          "sha256": "98386dbe5735a5fc3f65164dcaf9c844afc808ccf0421dbd2c4b56a4d384c80f"
+        },
+        {
+          "path": "org/concentus/HPVariableCutoff.java",
+          "sha256": "cec8777c77596660bc5d2c3e060c327f4b248e0a21875a5ac06c688aa4e43607"
+        },
+        {
+          "path": "org/concentus/Inlines.java",
+          "sha256": "565f27fb41fda001a63eb359f1084b6628777ca756361e8fa96268baf5e4ccc2"
+        },
+        {
+          "path": "org/concentus/K2A.java",
+          "sha256": "56b92ce6ab96a0149755e7723272e3fa033e8ba5cc9834e4e6d65f84f27d5076"
+        },
+        {
+          "path": "org/concentus/Kernels.java",
+          "sha256": "607421026dd6dcc9f05187808147bf4e55fdb7d42c09dd96e834dfe628626d97"
+        },
+        {
+          "path": "org/concentus/KissFFT.java",
+          "sha256": "27a226aa7ec7f9138cac7e675e84de21d22d9f60f961abc6848c4c65603f26bf"
+        },
+        {
+          "path": "org/concentus/LPCInversePredGain.java",
+          "sha256": "c7b7a08a4304534eb119f212653c11e78ac13aa34db2eae7b7846006f875206a"
+        },
+        {
+          "path": "org/concentus/LTPAnalysisFilter.java",
+          "sha256": "e8415854b17cf0843d75009aa83bf5b854ebebfae5d1eb4a08526add44be3ad6"
+        },
+        {
+          "path": "org/concentus/LTPScaleControl.java",
+          "sha256": "b85aaa392422936f0f6d1d9ab676241ad73a125bcebe27fd6e6d31d4c8a015ec"
+        },
+        {
+          "path": "org/concentus/Laplace.java",
+          "sha256": "a62bc9882a303065a5f4364101b91749a87b7c6e9c431e063c6cc488b00494c5"
+        },
+        {
+          "path": "org/concentus/LinearAlgebra.java",
+          "sha256": "1b094cb55ce3b06faf4468eef369a7efbf107699e6605eff688024811933a568"
+        },
+        {
+          "path": "org/concentus/MDCT.java",
+          "sha256": "5e6f57dab2b016dec732fe9d7e664ab6322c493768ce515679ab631305307b01"
+        },
+        {
+          "path": "org/concentus/MDCTLookup.java",
+          "sha256": "aee0900e7af837d55c4c216a203023462d02d406acf02ddcc6da6003db9933b8"
+        },
+        {
+          "path": "org/concentus/MLP.java",
+          "sha256": "5801238186bdf82588a55e8763ce334d031dfbe8cb5b26006872e5ace037d5a4"
+        },
+        {
+          "path": "org/concentus/MultiLayerPerceptron.java",
+          "sha256": "7414490940b774f7bd7aa8d085249e2c4777e03d06515b839dd90c3caf92cbf4"
+        },
+        {
+          "path": "org/concentus/NLSF.java",
+          "sha256": "421cdf20f068bfab3c3bf2578bb5325d7e98a70c152e25d1fe654bb49a85008a"
+        },
+        {
+          "path": "org/concentus/NLSFCodebook.java",
+          "sha256": "c77ea14070536284cd4cfc3ef773a7ef9438f265d0f38098533d8b32b8ac9eb2"
+        },
+        {
+          "path": "org/concentus/NoiseShapeAnalysis.java",
+          "sha256": "77178cba4de9a2985acc6cc0eb9cd7219edd6bebc67b9abed3e91d1395b03c2f"
+        },
+        {
+          "path": "org/concentus/OpusApplication.java",
+          "sha256": "b1a96962ae784d82b8c1d1357b0fcb4427dbda661ecfc23096444a00a12d3f5a"
+        },
+        {
+          "path": "org/concentus/OpusBandwidth.java",
+          "sha256": "7b7854539143968202e4489356e8c8ac5708ea98a91b6e6c85b474e193203be0"
+        },
+        {
+          "path": "org/concentus/OpusConstants.java",
+          "sha256": "f51cecc69492438e27f2f48f8945476c8dbe05026c29eaa50ff32907a145785d"
+        },
+        {
+          "path": "org/concentus/OpusDecoder.java",
+          "sha256": "9fe38506beed9b55179075024582ed475e7ce7614afd51bd8878a50ee773e01e"
+        },
+        {
+          "path": "org/concentus/OpusEncoder.java",
+          "sha256": "73c2640440225c025084012d0fabb0bdf9d67f2934a1df4aecfa84f6e227f47f"
+        },
+        {
+          "path": "org/concentus/OpusError.java",
+          "sha256": "2d67ac4309a40a3066d261c2310a6d1eb322fb675f831cb024d2f3a2cd15b538"
+        },
+        {
+          "path": "org/concentus/OpusException.java",
+          "sha256": "dbff0112e7a46eddc2db38b6b209b93d95198a94ebb1bbed918491093daa1925"
+        },
+        {
+          "path": "org/concentus/OpusFramesize.java",
+          "sha256": "5c3057634356e0d7b1d5afeab67b55949ded3eea8bc206089d68acce2164e6c1"
+        },
+        {
+          "path": "org/concentus/OpusMSDecoder.java",
+          "sha256": "47de960581599b557722bdfcb39f47864d8b89845d5796c8c3778106011fa9e8"
+        },
+        {
+          "path": "org/concentus/OpusMSEncoder.java",
+          "sha256": "43105c78fb7fe3fa4b6206fdf6a16f49562eade1911592b04504e3b65ff17635"
+        },
+        {
+          "path": "org/concentus/OpusMode.java",
+          "sha256": "8a913ab5b5aedcac1a0c77c067b27ef5a638ff61b3b475f23aa46bd460e4df0b"
+        },
+        {
+          "path": "org/concentus/OpusMultistream.java",
+          "sha256": "9d93b9a6e365e11e1c64dde5e99611c56688d5519631fcd404b2fc85bec46da8"
+        },
+        {
+          "path": "org/concentus/OpusPacketInfo.java",
+          "sha256": "e1bff2050b03c17665aa1e6c16db5e181018cd005e99a3065a719dc86e5bfdb0"
+        },
+        {
+          "path": "org/concentus/OpusRepacketizer.java",
+          "sha256": "e47cf8acf7e7dc6be0e8f475ac59ac420eb05b5d3ff15eed4d91d5d7c08228c1"
+        },
+        {
+          "path": "org/concentus/OpusSignal.java",
+          "sha256": "df0e6dd6130e575e04920156ff1864a0a32057eeb6d4b7e1be6b6f03fce62d13"
+        },
+        {
+          "path": "org/concentus/OpusTables.java",
+          "sha256": "987007525138c5c71ce392222de407cd721e47e4c5bb4096536542f7503a0e25"
+        },
+        {
+          "path": "org/concentus/PLC.java",
+          "sha256": "27aca76b927d623191e34527b8a45374f19ba7307e7398151e5c050bb98bf29b"
+        },
+        {
+          "path": "org/concentus/PLCStruct.java",
+          "sha256": "8e904cb1ce7ad5fa3d036843588430b845d31a3a317e910f46184028e034a088"
+        },
+        {
+          "path": "org/concentus/Pitch.java",
+          "sha256": "b5bb464f1f06ae6d151807cf099ba2ba48f78cbaf4165cc95d5fa1550f7cc428"
+        },
+        {
+          "path": "org/concentus/PitchAnalysisCore.java",
+          "sha256": "cfdf43bc393048f12112d43d91e879e5745c17ceff9abed5d1c278bc4a9a0f8f"
+        },
+        {
+          "path": "org/concentus/ProcessGains.java",
+          "sha256": "6e9f9c037b3fa959a2f21dbc9a5154f9ed38d5a67474331336c2d0d6f456b2f7"
+        },
+        {
+          "path": "org/concentus/PulseCache.java",
+          "sha256": "65a8fea096b38a87cb71fb0ace2ace358f9d9a69dcf842a3303406782ebbae1c"
+        },
+        {
+          "path": "org/concentus/QuantizeBands.java",
+          "sha256": "90f9499db56178ed7b08b4b248e1a9970d674dd0d58cd7bc07344183ebbfe3e7"
+        },
+        {
+          "path": "org/concentus/QuantizeLTPGains.java",
+          "sha256": "7b2cda1a61b0dd64f4a6f3580f82b354ee501654dec052185f2ce99c41091a4b"
+        },
+        {
+          "path": "org/concentus/Rate.java",
+          "sha256": "8f1c7e56b7b48994be30dba4b5ca0e2388e31f4b9a543edd06242ea607717c36"
+        },
+        {
+          "path": "org/concentus/RegularizeCorrelations.java",
+          "sha256": "282a337719bb3c5eb6aec7cca7b4d1bf22e8d5b78c3ae9eb5fbfb430a77966b6"
+        },
+        {
+          "path": "org/concentus/Resampler.java",
+          "sha256": "7ba37b9ef9bf2d70c2da7286c4e1239e302c021bcec0ee6fffbd26002cb5d7f7"
+        },
+        {
+          "path": "org/concentus/ResidualEnergy.java",
+          "sha256": "8e66cde8587b22ae14f072347bf37ddbfd425ab00536dbef45ee235b842fa7df"
+        },
+        {
+          "path": "org/concentus/Schur.java",
+          "sha256": "39a056d72fec79be7bd1f792c1ece06e70c96add2d93214ceb17c55ccb1a858f"
+        },
+        {
+          "path": "org/concentus/ShellCoder.java",
+          "sha256": "81631afeaa9ef95a2f5485405a640fd23a592caeb5f3e09c689100ba1e4cecee"
+        },
+        {
+          "path": "org/concentus/SideInfoIndices.java",
+          "sha256": "d04f086fc34d3fb0bfd1bc54228b17778f071d2d5f3e2bba3d6c480ce7e65988"
+        },
+        {
+          "path": "org/concentus/Sigmoid.java",
+          "sha256": "8327351c9bc86ee7ffd8586440667a78f65771b3190113e854eff08e669467a2"
+        },
+        {
+          "path": "org/concentus/SilkChannelDecoder.java",
+          "sha256": "d67221196db3970aa1acfc600083fdb3c6d4d2f564f894c4b1303cf01a462438"
+        },
+        {
+          "path": "org/concentus/SilkChannelEncoder.java",
+          "sha256": "b4ad1bf91cdca279931209ea65c142eaae2330b0798ec33e137e4a38d31d22a4"
+        },
+        {
+          "path": "org/concentus/SilkConstants.java",
+          "sha256": "12ebeb6b066aa739f4a2462d7081b091a93454809bfd35ad13346e7fdb90e369"
+        },
+        {
+          "path": "org/concentus/SilkDecoder.java",
+          "sha256": "baa65bff229fc4a9c6b4c50a20375474157f7cfb345e7899df16da85a9cb8b38"
+        },
+        {
+          "path": "org/concentus/SilkDecoderControl.java",
+          "sha256": "585b119534117eeb4e403fe296b5ae209fe4e47521610f40263031f5b38da493"
+        },
+        {
+          "path": "org/concentus/SilkEncoder.java",
+          "sha256": "f1ad525be2ef5ca337b38970e34b70390e9865714bb4ddddaad697686bf85693"
+        },
+        {
+          "path": "org/concentus/SilkEncoderControl.java",
+          "sha256": "c2bdc28884ceb85702ad1562667ff0e32e676f7d705c50426705021387375123"
+        },
+        {
+          "path": "org/concentus/SilkError.java",
+          "sha256": "a05028f248d4a8523164fcea5e11070b1387d143b7ea140e66b360161e71d100"
+        },
+        {
+          "path": "org/concentus/SilkLPState.java",
+          "sha256": "fb0300ebd9e8b2ad5aa55705e236f57625c916d6799ead196b468f0f250a3c53"
+        },
+        {
+          "path": "org/concentus/SilkNSQState.java",
+          "sha256": "167dcd49ae1fac1129df1df753e03f0cd1681a12eddef5fa8887c23e9178d72d"
+        },
+        {
+          "path": "org/concentus/SilkPrefilterState.java",
+          "sha256": "a4a90c29f1a60eb64eabb9521eb46cab93d987b2e419051bfb7001d7e8fd00a3"
+        },
+        {
+          "path": "org/concentus/SilkResamplerState.java",
+          "sha256": "7b4a7f825c98c0400e44788adff178aca704646e345be5e7f14f3db7ba8bdd6f"
+        },
+        {
+          "path": "org/concentus/SilkShapeState.java",
+          "sha256": "9898937be7ed75ec8024ce4bb86f238d77beff7dda05644d09d75c9fe96ad49b"
+        },
+        {
+          "path": "org/concentus/SilkTables.java",
+          "sha256": "09635c795723d462ba76f1c99903940d94453096523c689e3f2149a3ac086013"
+        },
+        {
+          "path": "org/concentus/SilkVADState.java",
+          "sha256": "6d8de4441a8177d2d05799da89f87c38fc7e0ac2544c4a478a706e61ae6e47e1"
+        },
+        {
+          "path": "org/concentus/Sort.java",
+          "sha256": "9021564609706efd2ddd2eff88fd506c74e2612aa4da004a269126d2ea80c1d9"
+        },
+        {
+          "path": "org/concentus/SpeexResampler.java",
+          "sha256": "e2e1216395165c5cfc9d67aeade5bf0a139062615780ab70fbe9f22fbf982094"
+        },
+        {
+          "path": "org/concentus/Spread.java",
+          "sha256": "1639fbdf720a5f384431add0a17b9036e8de8538e3039ce56cbd149e406f605d"
+        },
+        {
+          "path": "org/concentus/Stereo.java",
+          "sha256": "21d2f6c3d683fdeed61ceb01cd78b03de8ae8823d5472e294f24675e8e99f6e9"
+        },
+        {
+          "path": "org/concentus/StereoDecodeState.java",
+          "sha256": "4b900ab451305e0be239f9c911aa2398fe0df1e27624d78bfa71c7285ce29a68"
+        },
+        {
+          "path": "org/concentus/StereoEncodeState.java",
+          "sha256": "4e53f41f939488c2278204f0ff7a6659ff4440368efc73e921d928dd924bd4c5"
+        },
+        {
+          "path": "org/concentus/StereoWidthState.java",
+          "sha256": "0fa579d2e323479b7f4f24a5ce5c379f0a9e705473eeec440eabdd910f0763c7"
+        },
+        {
+          "path": "org/concentus/SumSqrShift.java",
+          "sha256": "eb174007202755637f1d840f331c33896af6ac3cc7b570b9e2594031ec93372a"
+        },
+        {
+          "path": "org/concentus/TOCStruct.java",
+          "sha256": "717af265fcbc2c156965fad05b428f1710abb72744e1c952103afe0f2db65c77"
+        },
+        {
+          "path": "org/concentus/TonalityAnalysisState.java",
+          "sha256": "d97a1dd28f3844bede2376b2f6d3764345e0b852f642a68b549cd0217bf7d2f5"
+        },
+        {
+          "path": "org/concentus/TuningParameters.java",
+          "sha256": "c62321ee77a585c6cb16ca3f8ba5da830ce33608ad3d3a6c07cfc8823cb108c8"
+        },
+        {
+          "path": "org/concentus/VQ.java",
+          "sha256": "7103d3f1c686071481c43791044896ecabdc318b5efe5131e393875c7994a2de"
+        },
+        {
+          "path": "org/concentus/VQ_WMat_EC.java",
+          "sha256": "f5b8e105a83059a1566b527bccc19c0dc37e342e2f88489a8eaa8912c381a9d2"
+        },
+        {
+          "path": "org/concentus/VoiceActivityDetection.java",
+          "sha256": "8746f98d1604de669dec05ff5d3eec9bbb57e876cbfa187f39bf49bd4dc9596f"
+        },
+        {
+          "path": "org/concentus/VorbisLayout.java",
+          "sha256": "2f66b2e0eec6e1896ae05a9fa10973ecde3f6f2c35aca4ff82aa4860e356a542"
+        }
+      ]
+    },
+    {
+      "name": "alac",
+      "upstream": "https://github.com/soiaf/Java-Apple-Lossless-decoder",
+      "revision": "afd5bf30ba51a80835f1eb4797c0bfe434e112de",
+      "source_root": "vendor/upstream/alac/src",
+      "license": "vendor/upstream/alac/LICENSE",
+      "license_sha256": "2000b58ee3d5d56a723dba1ef8e90f880f75935044681c2987a065223a69e89a",
+      "patches": [
+        {
+          "source": "com/beatofthedrum/alacdecoder/AlacDecodeUtils.java",
+          "upstream_sha256": "7ac3be921b940273584fe6ec2457d95ce2e2ffbacae3afb8c04aa5c9773f2dcf",
+          "compiled_sha256": "e988e84a109ed28b9dd4e495b95f35e3cce06822c11d6603ce2596e632c4a2c5",
+          "patch": "vendor/patches/alac/AlacDecodeUtils-format-extension.patch",
+          "patch_sha256": "ab6dfad512acb9203c87d0dcaf2b5303686830dc83b8e02cce438d22055876b1",
+          "reason": "Finite native20 bit packing/sign-extension support; Rice/FIR unchanged"
+        }
+      ],
+      "source_artifact": {
+        "coordinate": "com.tianscar.javasound:javasound-alac:0.2.3:sources",
+        "sha256": "ef277cd759e1c403e59d5a582c806dceed296898d398d0466020d390563b747a",
+        "note": "Unmodified BSD core extracted from this published source artifact; repository revision pins the attribution/license source, not a claim of source-tree byte identity."
+      },
+      "sources": [
+        {
+          "path": "com/beatofthedrum/alacdecoder/AlacDebug.java",
+          "sha256": "cab83a934bfbdd03a88c698d0a2205d2e375106ca565e490b83d7b1a70827b19"
+        },
+        {
+          "path": "com/beatofthedrum/alacdecoder/AlacDecodeUtils.java",
+          "sha256": "7ac3be921b940273584fe6ec2457d95ce2e2ffbacae3afb8c04aa5c9773f2dcf"
+        },
+        {
+          "path": "com/beatofthedrum/alacdecoder/AlacFile.java",
+          "sha256": "bc90fc270724d06c0c673b54cbc4c41b605e8492cebe7a2798aa01495d36af88"
+        },
+        {
+          "path": "com/beatofthedrum/alacdecoder/Defines.java",
+          "sha256": "350308581c8fedf362fe7ced3e336dc6f9ae726b8cc2fed03acae68e286c6309"
+        },
+        {
+          "path": "com/beatofthedrum/alacdecoder/LeadingZeros.java",
+          "sha256": "3deea19f48736e5893e1f0a659dbcfb71300e552e727d83ccb3866dd7dd38cdb"
+        }
+      ]
+    },
+    {
+      "name": "wavpack",
+      "upstream": "https://github.com/soiaf/Java-WavPack-decoder",
+      "revision": "b0bf60145728fa924327d2419311677bf1f4fb69",
+      "source_root": "vendor/upstream/wavpack/src",
+      "license": "vendor/upstream/wavpack/LICENSE",
+      "license_sha256": "cd82ab325383eccec6ce202c8c2d5e74142fe50437344eb861dc2b869c0add0d",
+      "patches": [
+        {
+          "source": "com/beatofthedrum/wv/FloatUtils.java",
+          "upstream_sha256": "4a077fe7aeb8bf0d3fdd20871215a5eed04a2b34f75504b4e4739d6fde95303e",
+          "compiled_sha256": "5216dc5e502e4f060c118b242a2dbdfb547bbcc99ed65ffa78226e64f7e04c97",
+          "patch": "vendor/patches/wavpack/FloatUtils-format-extension.patch",
+          "patch_sha256": "d5595b37aa89d0d389d855d1e2fc831b38fae571a1e311777ec493d1c4781213",
+          "reason": "Preserve intermediate integers for exact bounded WVX IEEE reconstruction; no entropy/predictor change"
+        }
+      ],
+      "source_artifact": {
+        "coordinate": "io.github.jseproject:jse-spi-wavpack:1.1.0:sources",
+        "sha256": "6ae702f6ea4ee58548b3359967f909f41e288e09869a50a21f3b81115c45bdf7",
+        "note": "Only the original-author BSD com.beatofthedrum.wv core is included; no JSE SPI or other JSE code. Repository revision pins the attribution/license source, not a claim of source-tree byte identity."
+      },
+      "sources": [
+        {
+          "path": "com/beatofthedrum/wv/BitsUtils.java",
+          "sha256": "dcec0e07f9a22f837714cf9a2ddd9d1324f67bdb7d98e1a2d27cfdb47ed0d417"
+        },
+        {
+          "path": "com/beatofthedrum/wv/Bitstream.java",
+          "sha256": "3dbe44f4ff788bd9d8fe66890f1d8d9a15ad65cb2ae19796105fcdd5d1fb6c73"
+        },
+        {
+          "path": "com/beatofthedrum/wv/ChunkHeader.java",
+          "sha256": "463a41e3fa5dcdca6ecdb550def6967c749a776e32c1464c486ab57c57de00c1"
+        },
+        {
+          "path": "com/beatofthedrum/wv/DecorrPass.java",
+          "sha256": "ad146fa7ae4270d20638c90d33494fc0011e42337950f3629b9f5bd6f1a66de9"
+        },
+        {
+          "path": "com/beatofthedrum/wv/Defines.java",
+          "sha256": "5e96b326541de06551993287fc821e4f1e5aabdcbd2e022ea7e1a494b63eb1e0"
+        },
+        {
+          "path": "com/beatofthedrum/wv/DeltaData.java",
+          "sha256": "5ce2bf1ab3240e976d501d6e93a8ae8a5e6ae7966dc8d5669bdc0a083c4986cc"
+        },
+        {
+          "path": "com/beatofthedrum/wv/EntropyData.java",
+          "sha256": "665b2337c9865aca086c0f056f68e33e1d49bda1b7b5ec61d96b6c006d9f4e98"
+        },
+        {
+          "path": "com/beatofthedrum/wv/FloatUtils.java",
+          "sha256": "4a077fe7aeb8bf0d3fdd20871215a5eed04a2b34f75504b4e4739d6fde95303e"
+        },
+        {
+          "path": "com/beatofthedrum/wv/MetadataUtils.java",
+          "sha256": "4ce1dadaa47419a6d52accbbacb956a94cad4b1f74cb3027f410601e75cf522c"
+        },
+        {
+          "path": "com/beatofthedrum/wv/PackUtils.java",
+          "sha256": "f9b7520e8235e103b8054e32ea171ee81ed0af4b61b04b1b3f45c221d134df24"
+        },
+        {
+          "path": "com/beatofthedrum/wv/RiffChunkHeader.java",
+          "sha256": "a4ea00566f6cd4848d97e0cb170189fcea3e7d6acf04907a5446fc6ff3ba0b83"
+        },
+        {
+          "path": "com/beatofthedrum/wv/UnpackUtils.java",
+          "sha256": "6b8883d4b34de1e40f497328b3e0cfeadf353183bfadd8313ecda1aff16bd4fd"
+        },
+        {
+          "path": "com/beatofthedrum/wv/WavPackConfig.java",
+          "sha256": "23863b72df43c940d7c5d7097a32259f8226ec7c5b08b7d0a6ba6fecb453b127"
+        },
+        {
+          "path": "com/beatofthedrum/wv/WavPackContext.java",
+          "sha256": "9e46b5fbec8f109f89c5ac705fc55166bfc706ea2f66d1f1db3696c0bb13e1c9"
+        },
+        {
+          "path": "com/beatofthedrum/wv/WavPackHeader.java",
+          "sha256": "70b538519d68f30dacdeeb0d556de1ac106edba914646fa77f9776c39964c40c"
+        },
+        {
+          "path": "com/beatofthedrum/wv/WavPackMetadata.java",
+          "sha256": "aa9c24a8c9f201137917ae4ad004ecda2c6f70e6e26b3db796eb0f7b193bc5d7"
+        },
+        {
+          "path": "com/beatofthedrum/wv/WavPackStream.java",
+          "sha256": "892bcccbec6522a65b1f708038d63c81bc45077af4552d8b4a35a22ad9e92591"
+        },
+        {
+          "path": "com/beatofthedrum/wv/WavPackUtils.java",
+          "sha256": "7c1cdca847b609916e152d426cfa1cd270657c8df178564811e4f0560ca02af6"
+        },
+        {
+          "path": "com/beatofthedrum/wv/WordsData.java",
+          "sha256": "0daa21a13403a1367458fb555ff2cac77af2680274e94009d7407691cad96143"
+        },
+        {
+          "path": "com/beatofthedrum/wv/WordsUtils.java",
+          "sha256": "ee6642de27aaa4aea52cacef6d1fd21e98038c60e9a30d700aae87ab3c00feb0"
+        }
+      ]
+    },
+    {
+      "name": "aac",
+      "upstream": "https://github.com/umjammer/vavi-sound-aac",
+      "revision": "e4dcdaf272a8ec8ce4c598d2df105f85e437b9cb",
+      "source_root": "vendor/upstream/aac/src",
+      "license": "vendor/upstream/aac/LICENSE",
+      "license_sha256": "51207f04c0e2f3a0b598585e9ccaa55c5a6ba7d0546c59dc014a0ac10a4ce7c5",
+      "patches": [
+        {
+          "source": "net/sourceforge/jaad/aac/Decoder.java",
+          "upstream_sha256": "7435d48738783b5f640219deb6b52daa65bf41c75828d16732588094778ee04f",
+          "compiled_sha256": "9708728736aa45e66ee49d8cdfeb253a067a98ed36170d601ffe7f7ecc7d192b",
+          "patch": "vendor/patches/aac/Decoder-recovery.patch",
+          "patch_sha256": "aa9cf64ff3119b36f5c721ec02f51dd2cb43930b16c87790490aa12389d90832"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/DecoderConfig.java",
+          "upstream_sha256": "e8981491a33ee5d1ca8412e4e35daca171096301959a810db4ea4322b5a93bb8",
+          "compiled_sha256": "164a78150b3e87245e66953b4d4e6f84eb21ff24071db35b4ae88b2c4c59318a",
+          "patch": "vendor/patches/aac/DecoderConfig-recovery.patch",
+          "patch_sha256": "abc604684e46120c50470298a8b207abe72aa1e6f77498da8c3c5b538285da91"
+        },
+        {
+          "source": "net/sourceforge/jaad/adts/ADTSDemultiplexer.java",
+          "upstream_sha256": "aee52fbf0bff828741662bbc57dbf2843ed41263bd342ba769280c47f6265f60",
+          "compiled_sha256": "ad1fd7b968ee7b66acdc760c36fa17d83643d60373360bf8e0ddc1a5463cb1a9",
+          "patch": "vendor/patches/aac/aac-candidate-v2.patch",
+          "patch_sha256": "fdc84085f9564e0f3902d0d2367d5eb66b43e94ee6d8986e12b0c11de6e66b38"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/ps/Filter.java",
+          "upstream_sha256": "173506b3e598de83d79db6e6d130d3c0b787aee6eedb4f3715429176da1fc9a0",
+          "compiled_sha256": "42f11701fe0ccbf56365b758dcbbcd6e643eb99a0fa37d84a398ce8f6ae5bad6",
+          "patch": "vendor/patches/aac/aac-candidate-v2.patch",
+          "patch_sha256": "fdc84085f9564e0f3902d0d2367d5eb66b43e94ee6d8986e12b0c11de6e66b38"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/ps/Filterbank.java",
+          "upstream_sha256": "25917278d77b3d2d46f13b2cf007b30d2f052e72d29e99b41fa9fa7628dd00c9",
+          "compiled_sha256": "6531d037fd462f516f6ea413f8fdd0e8fcacba336aead4f8c167ebbad9c17297",
+          "patch": "vendor/patches/aac/aac-candidate-v2.patch",
+          "patch_sha256": "fdc84085f9564e0f3902d0d2367d5eb66b43e94ee6d8986e12b0c11de6e66b38"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/sbr/SBR2.java",
+          "upstream_sha256": "a27736c3ef04cef00dbfeb8a979fd048aae6f1b6fcfedc0fee1351dc9291a557",
+          "compiled_sha256": "e3bcab08d67a33a2bf134b252e2a1cbc021052d612116d74492653a2ac3de4b8",
+          "patch": "vendor/patches/aac/aac-candidate-v2.patch",
+          "patch_sha256": "fdc84085f9564e0f3902d0d2367d5eb66b43e94ee6d8986e12b0c11de6e66b38"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/sbr/HFGeneration.java",
+          "upstream_sha256": "aeb9cee2445af26baaf3523e0eb1db4b8856b4b503ab51c95706f3ca687ba504",
+          "compiled_sha256": "d72f5220ab69dbadf5815ae85aa4ea8934952a0ad24140e9a6cab12674888453",
+          "patch": "vendor/patches/aac/aac-candidate-v2.patch",
+          "patch_sha256": "fdc84085f9564e0f3902d0d2367d5eb66b43e94ee6d8986e12b0c11de6e66b38"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/syntax/ICStream.java",
+          "upstream_sha256": "ce67220c5e5f974ad28c143145fc1ccc606d3c6ce5ef4a1a6c0dde1d615caaa9",
+          "compiled_sha256": "107a7d1f78ac7f4be09477cd4f6ee15abdfb7411e2a936e3dcfa46570ab82013",
+          "patch": "vendor/patches/aac/aac-candidate-v2.patch",
+          "patch_sha256": "fdc84085f9564e0f3902d0d2367d5eb66b43e94ee6d8986e12b0c11de6e66b38"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/syntax/SyntacticElements.java",
+          "patch": "vendor/patches/aac/SyntacticElements.java.patch",
+          "upstream_sha256": "20bb2dfa4d261faa8ac8ad3de4514f4cd5c53520b110a401712cdad16dbaaac4",
+          "compiled_sha256": "b85571405432b356f3bd91549686bad0808ccef759357e0834b2802871a83ad4",
+          "patch_sha256": "5e4fac231d2abd03bdd6b7f4d5e2709537e0b4e27f71a0d2f72585212e0380ec"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/sbr/SBR.java",
+          "patch": "vendor/patches/aac/SBR.java.patch",
+          "upstream_sha256": "1777911df082d89d13c515ab12486c2cfad7d0efa6986094c7d2d32c9b148a3f",
+          "compiled_sha256": "18c8f4bada3474b7fdca791a3d64bfcdd99facc3cf8d426a31a3c9396e9fe4fc",
+          "patch_sha256": "dca66fe84550ee5f16eb0d702748ec0f44aad140fa5afc9f6c7ba3d7dfc5a619"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/ps/PSOrig.java",
+          "patch": "vendor/patches/aac/PSOrig.java.patch",
+          "upstream_sha256": "2e291d2b95341516d254cee47847fefb4336c5a3074062802c20764f8e715179",
+          "compiled_sha256": "94af2c8485e13aef21539050e1eaa844ae3e526da6ed3aee03a874f067aaf214",
+          "patch_sha256": "b3c4dbc321646bc90ec5c8f6a6c646b63febdbf8bb2f4c0cf030fe2e11dfb06c"
+        }
+      ],
+      "sources": [
+        {
+          "path": "net/sourceforge/jaad/SampleBuffer.java",
+          "sha256": "c31179cd28eff0e2692248f2f39e55c8ebfe29c1f6b078bb51c78f6839b0f915"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/AACException.java",
+          "sha256": "94229c77e8ad040b645b55f3e08f622651783b65ffd8ecad8753d9d2ea96dbad"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/AudioDecoderInfo.java",
+          "sha256": "e9922d7a66ea258202262298edd172d77170507c5a2fdabbe634b827321980c5"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ChannelConfiguration.java",
+          "sha256": "5e7fd94f6e1c096acfbd3fd842f895673c11c882d54f263ae96039cd3445c4bf"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/Decoder.java",
+          "sha256": "7435d48738783b5f640219deb6b52daa65bf41c75828d16732588094778ee04f"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/DecoderConfig.java",
+          "sha256": "e8981491a33ee5d1ca8412e4e35daca171096301959a810db4ea4322b5a93bb8"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/EOSException.java",
+          "sha256": "6fcfa8a98c22ddd329bb4f8a2206d938d608d4fc12f33dcd43b9b7e591fb7693"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/Profile.java",
+          "sha256": "33805d94944a9e100577a1ebd30eca5690154ff46f7642ef26959995f8ad1d4d"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/Receiver.java",
+          "sha256": "22e9611361bdcfb1686b62b814e4349551363cbf81babf0e3dca409623c7fdea"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/SampleFrequency.java",
+          "sha256": "250a6427208ced0162bc14015347be48140ee4ce3e91e2528a806b03263a1e06"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/SampleRate.java",
+          "sha256": "18d8091379541a3f42ef21a9e4156d132c11012141e779619517ded730a57fe4"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/Speaker.java",
+          "sha256": "406b59e8b53cf6c34668d24da7018421614bebc1d9da7f1a8d56db62a2eeeb63"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/error/BitsBuffer.java",
+          "sha256": "2aa183865346e7a7368bb249f4d5d24886087c23d50e9d6fe070765bd8025c5b"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/error/HCR.java",
+          "sha256": "4e28a07c2a316ef914cb9a466154aac04a104adca30d4ee136d5cbd8a1d851b9"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/error/RVLC.java",
+          "sha256": "838521be2348140af5db681d85f3f3b8c709d0688ce7d6c0c216a1aa5a76b9a7"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/error/RVLCTables.java",
+          "sha256": "bd49ccd5cd980b9977dec9b40d22c63e0f692c1d503594949f39f4f0153967d5"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/error/package-info.java",
+          "sha256": "4e0a6bf9bff9a46c2c5fca60bf4241123fb55b64c0a25b2841f671160f6c535e"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/filterbank/FFT.java",
+          "sha256": "81a80781d97846adc8b8a5404f18bb533211f9d3d78dbd9c5e028f0f9a835544"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/filterbank/FFTTables.java",
+          "sha256": "5a9fe0b713592236be03403766bb08ab19a0f11910f99f101be0289ae1ece987"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/filterbank/FilterBank.java",
+          "sha256": "ce06f888fb8f5b6acdff75062465f7f8bf6cd8fa16c04dfb3edf63ace4a82bff"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/filterbank/KBDWindows.java",
+          "sha256": "3d13ec6e02fa2da84f89592e8593b00b6db2ba618136b5ab2abe947dce33335a"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/filterbank/MDCT.java",
+          "sha256": "5a7f20db53c18ff7fc915cbd083c6113d42ddc6cc88f556e7b0c180408759b5f"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/filterbank/MDCTTables.java",
+          "sha256": "504e632fe59c11b4d08641be4cd817dc0a121b3de2b248216f87d6784949cdfe"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/filterbank/SineWindows.java",
+          "sha256": "e21d344f0fe1b8ccdfc5287bda77c5998a6268862faab24068ae96c6dadf097c"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/gain/FFT.java",
+          "sha256": "a32fa423f043faa0562e48de1eb20b1b9e247265dd12c6c8f86bb1e09fcbb83a"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/gain/GCConstants.java",
+          "sha256": "b51108675f66d96b76c657cfd9f2585d56b22ae36b94eec1ecf74e81476dd2df"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/gain/GainControl.java",
+          "sha256": "c81fb18d7acca3242d72ecf4894789c3e4ae29be6d83ac94860bb1c7da3c7f9f"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/gain/IMDCT.java",
+          "sha256": "37095c88cca0d864f04be368c410e6a2911666bd7007a5af7839b149da186204"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/gain/IMDCTTables.java",
+          "sha256": "ab5dc205284ac52936e289387d2fee5a360620e9ab7d1075882542c92aceeae8"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/gain/IPQF.java",
+          "sha256": "49763abff11f77697ce897086158d2888b5bf42f21950a9308a7b0768c90da05"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/gain/PQFTables.java",
+          "sha256": "67ff81a963c0c2fed5f8c3ad0001fc906d12565ba81543aac9e8aa70e7d97175"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/gain/Windows.java",
+          "sha256": "509e8fb32e4622dad54d99868df1d9655df84c1273aba1268a61fea0ec6ed12d"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/huffman/Codebooks.java",
+          "sha256": "219a0f8832019d0dffe489c460cb2a6a2face33fd4bda5f63d4d6c27dc02a134"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/huffman/HCB.java",
+          "sha256": "1dbf8bd3ecd1bf0517a3a0190a86e40f5477257ab18b75b3b1e544614341c174"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/huffman/Huffman.java",
+          "sha256": "b6841d1c1097c8c1c89c77f58cce174f47aa483af013dd9fc78723c57cace9cb"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/EnvData.java",
+          "sha256": "4d9832ac1dae239387eb1be35840a973e86e83779b2080fd02f527a2436f0ba7"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/EnvMode.java",
+          "sha256": "0e05a0bae0801180a1f32b5de39fc4805bd6c24b4055edbc38e366f40732115b"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/EnvTables.java",
+          "sha256": "dcdb7ec59d738c01d970f623267f68b92d3ba79ced2dee265839d5cb07cbbf54"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/Envelope.java",
+          "sha256": "d563dd2ab9620586d3e5ba55fae22e5c761f6d5fe12cb7dfd09c524734a9ff9b"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/ExtData.java",
+          "sha256": "d4590cf5b2caa7398f38c81fb6b125e01f36d4c4ef97c9aeb0cf9a1ce34ec3fd"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/Extension.java",
+          "sha256": "30f69fef372d3134d6a186345dcc513373175179a3f549757439d79cdb7a5c94"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/FBType.java",
+          "sha256": "715831e2f5d1c16a983f27ce1e240c733102312356cd73081a34bf0f33c50a81"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/Filter.java",
+          "sha256": "173506b3e598de83d79db6e6d130d3c0b787aee6eedb4f3715429176da1fc9a0"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/Filter12.java",
+          "sha256": "4f524b5f4836b0df64f3aa90891d054830a9116def9478e3eeddc620ac6af6e8"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/Filter2.java",
+          "sha256": "a4e4d8f641c7999098f64736023a9b2babdeb47fe80fc583c283044913c761c3"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/Filter4.java",
+          "sha256": "062c556a31ef05c7fa55cc0755fc3bc3377e8b74d2c8ddfaf72b648967349b48"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/Filter8.java",
+          "sha256": "1b9715868d0d0d89916fae7dff8526b5e6090c090b98b6224f8897618939d35e"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/Filterbank.java",
+          "sha256": "25917278d77b3d2d46f13b2cf007b30d2f052e72d29e99b41fa9fa7628dd00c9"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/Huffman.java",
+          "sha256": "538498702370797e80cf1218d3908b5da9dd87c72b538f4cf38ade00893f58d6"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/ICCData.java",
+          "sha256": "89acda18923bbadfd0c97b4e750a9f97f8bc3a8e712b70486cb820e9f378595d"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/ICCMode.java",
+          "sha256": "fb96b1e429caba51f12006470b10985fcfc9b90eb33ba60630b047524e206a7f"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/ICData.java",
+          "sha256": "f08f1793de20ac6387ccec2ceb6ae578ffb47ed100114b3cd83bdb88d6bbad75"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/ICMode.java",
+          "sha256": "c6732c029b4bbbbec1ee554bd87cea5f1e99710456b3d028f9c3358bd38e6645"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/IIDData.java",
+          "sha256": "44b67ac45ed77e73ceb6240688622cc3a5c96de690503ca32ff397e9e33997d5"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/IIDMode.java",
+          "sha256": "60963b5ca7ea8264f576151c3b531ecfc7e0991f6656d18a308b2c87f6096e0c"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/IIDTables.java",
+          "sha256": "d56187566de3302c6c119b029f0cbd208b9bc77d0206e619ee86040e984a41b0"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/PDData.java",
+          "sha256": "828727aa2b552d122ddb44adacf8be6460d44486dcc2b1ba3d9061a9dc290718"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/PDMode.java",
+          "sha256": "73263637b07e8dc9fd49649bea30ed7d4864d52a7a3b32577f94e5860e9729e6"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/PSConstants.java",
+          "sha256": "b3c3745acd219705d4f25df3b3aa0f1fe9db17b7a1135d4b9e6c4605e9607d85"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/PSImpl.java",
+          "sha256": "d7053ec6aca193ad9fb514e3931bc8760cbc7586cdb91d359731ed13f7e801ba"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/PSOrig.java",
+          "sha256": "2e291d2b95341516d254cee47847fefb4336c5a3074062802c20764f8e715179"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/ps/PSTables.java",
+          "sha256": "e41b026abbfaaefc95b57be11bfa5699ea83be0c99e88a958cb9e7346af82bcf"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/AnalysisFilterbank.java",
+          "sha256": "5880666c5740aaaf2e3220a0f4820699e59e8488adb4e8064a37fc4abb4832e9"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/Channel.java",
+          "sha256": "07d50da09521e36af5090a4644870c22ebbb576ba537a60db879a16fcd1dec09"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/DCT.java",
+          "sha256": "87ae16a49e0d14951c1fd82e25fa11b4029dff30041d569b12c32f480ded8a27"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/FBT.java",
+          "sha256": "7b7af3e8bc135a3f0e71e6a3375ddbc5215ed47e7cdf717cb2a76e0980b46ef1"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/Filterbank.java",
+          "sha256": "5719893f1b80780c5209634f5a618517fbb5b9b7c7c3363b2561a19819ed6d12"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/FrameClass.java",
+          "sha256": "ecbe43b2cc3aca26ffbac32224ebccf074663a8c6254aee0ee4b55beaf304eb6"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/HFAdjustment.java",
+          "sha256": "c349be54640bacd3519ffdf7d8bc9e7c7b9b1ae1de5ce0ae12a8185bf8388bc0"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/HFGeneration.java",
+          "sha256": "aeb9cee2445af26baaf3523e0eb1db4b8856b4b503ab51c95706f3ca687ba504"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/Header.java",
+          "sha256": "3c9b296a0034b1c51df3f00e5898ebf2a1bcb22713d7c5dd3c90341bce8e8daa"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/HuffmanTables.java",
+          "sha256": "6a64fec4c1107f62cc9f144ce8752ba34bf1a1a3b5217b37a14da9af8b378f01"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/NoiseEnvelope.java",
+          "sha256": "b6e0086e743da3742e9cb30923fb18ec5f6ceade9196ddc78f3bbee8070cb4c4"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/NoiseTable.java",
+          "sha256": "0746fcd5576d2ed2f6d22e2f3353589a00051aae0d73b2f1f2226831a2e2bff1"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/PS.java",
+          "sha256": "6f432bc73abe4acb51455f64a7f28f713dab2f37a256bba24e47ebbb99bac2e2"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/SBR.java",
+          "sha256": "1777911df082d89d13c515ab12486c2cfad7d0efa6986094c7d2d32c9b148a3f"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/SBR1.java",
+          "sha256": "17bb369a67705a82b7a50b6fd238053e389005966f76395b8c0f4c67f355c52e"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/SBR2.java",
+          "sha256": "a27736c3ef04cef00dbfeb8a979fd048aae6f1b6fcfedc0fee1351dc9291a557"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/SynthesisFilterbank.java",
+          "sha256": "30b3ceee5a06cae3a9ec414e52741af4c4ce0fb03f7bf46bc564891ec22e06fb"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/SynthesisFilterbank32.java",
+          "sha256": "700f777df1ae8c0a4a3270c7d0a48190193bc9143dbec23e2ec8ea61938dab3b"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/sbr/SynthesisFilterbank64.java",
+          "sha256": "acc11a7d01730a40a3b1c241228aabf9a92c6681f20bb0f6d653129f8ef847bb"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/BitStream.java",
+          "sha256": "b3214d17f354e5e31108212aa028665313dc61a797014d852b84d16eef1c0f7f"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/ByteArrayBitStream.java",
+          "sha256": "7a386615cc610410b71999b6ddb1e0fcdf91fcde4b764127a6fa8d7ae4ecfd6b"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/CCE.java",
+          "sha256": "9b0525856be728ad14cfa0cf2e0f65063d0138cc07a658877906ed904fb16cfd"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/CPE.java",
+          "sha256": "b405658da7ac3d119ffc46385ecedc4cce00d66ebad8a915975618dc6cf56ae4"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/ChannelElement.java",
+          "sha256": "5e6957c0374681a885cdd8e1691c5987ab8895c68f8d0dfe0e565b984a7a956d"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/DRC.java",
+          "sha256": "62866d023eecb14d5c4d55a6141eb3780f4679470d4f6e2632b536c0e1c4f538"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/DSE.java",
+          "sha256": "d667dc319b310063f4552ff7ed3bbe9ee284458343efd546431e5dfa453e33a5"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/Element.java",
+          "sha256": "6b4b61b122d687161986a9883bd18e97c8a54b1d8a13bdf2d4e9626297a349a8"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/ICSInfo.java",
+          "sha256": "54de7154fe6187c06cf8837432812a9f4e02fc152e10c6560c41b4cf90589170"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/ICStream.java",
+          "sha256": "ce67220c5e5f974ad28c143145fc1ccc606d3c6ce5ef4a1a6c0dde1d615caaa9"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/IQTable.java",
+          "sha256": "a127487ef9f52753e2615b3b9d8368222894a5a770400e0a3c97a3b92e91ec80"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/LFE.java",
+          "sha256": "9ad4e75e512a082cc664a4a2a4c45780b548a8fdce00204e3235cfbd3af8dd89"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/PCE.java",
+          "sha256": "63903bfb674fa266f77b8bb3d6bc5e90b6ddbf7975aaef1563f993001cf40a64"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/SCE.java",
+          "sha256": "3be8b04df056cb8c8449ce1f6a957593e51dd78ff346297e9529e932cf7232bd"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/ScaleFactorBands.java",
+          "sha256": "2ef4b38ef1f34a6459be537f7948e633d38480e1bd4b18e4a18f4534b8d96d03"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/ScaleFactorTable.java",
+          "sha256": "9b1522406ce385ac25a11d227f87288ec68d72d9920d14ba875521612b5421d9"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/syntax/SyntacticElements.java",
+          "sha256": "20bb2dfa4d261faa8ac8ad3de4514f4cd5c53520b110a401712cdad16dbaaac4"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/tools/ICPrediction.java",
+          "sha256": "9c2aecbb40684d11708fd2af5aa434d418bec38deec702dbb02572f33a9207ef"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/tools/IS.java",
+          "sha256": "13d68f40759e2cb7b8afe426dca9886fab38fcef8a1806d5ded9e553bdb9ae7f"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/tools/ISScaleTable.java",
+          "sha256": "6c89fa4d253ea197dd24711dd8840489f9a3e926e6caa19171e8ef9133061a4a"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/tools/LTPrediction.java",
+          "sha256": "38f1c2575955f3c2f850682ef8c90983179f6387782f8e220e72342c52bc9ca5"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/tools/MS.java",
+          "sha256": "37274bc360a4de0fdcb5852ee6d80d33b16da2ef33f645ac17b3b49c4763a299"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/tools/MSMask.java",
+          "sha256": "a721bac22a2c8abebced9533edecf2bf3c23d3070530428811898eccb18246f3"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/tools/TNS.java",
+          "sha256": "70976a7e1e99e054349c8a3a9761c33429c6042ada6938481819218166c2ed45"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/tools/TNSTables.java",
+          "sha256": "24a5a35d34f0a329f27d85df7555766de490bfa674bd9558671edf8772bce51a"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/tools/Utils.java",
+          "sha256": "e138602b77e04cf3ce92100a07c4df1c6b86cd499546c7c218e0828dd4136903"
+        },
+        {
+          "path": "net/sourceforge/jaad/aac/transport/ADIFHeader.java",
+          "sha256": "c10a42ae7a14d530f08ae7e7dde4f8cae450141f675a9669a6c4602445f5fb63"
+        },
+        {
+          "path": "net/sourceforge/jaad/adts/ADTSDemultiplexer.java",
+          "sha256": "aee52fbf0bff828741662bbc57dbf2843ed41263bd342ba769280c47f6265f60"
+        },
+        {
+          "path": "net/sourceforge/jaad/adts/ADTSFrame.java",
+          "sha256": "7301c8bb56a8ccf7a2be8459e728c466ec6948431d7c494d218577ebd1e89e96"
+        },
+        {
+          "path": "net/sourceforge/jaad/mp4/MP4Exception.java",
+          "sha256": "84172b012ddcb22996f034ec4bd99857590b1fcb2d209d2579f91a99860783f7"
+        }
+      ]
+    },
+    {
+      "name": "wma",
+      "upstream": "https://github.com/devoxin/lavaplayer",
+      "revision": "2a5e4a279e3643d380c78207cc139c03cbbf6aa6",
+      "source_root": "vendor/upstream/wma/src",
+      "license": "vendor/upstream/wma/LICENSE",
+      "version": "WMA v1/v2 FFmpeg-derived Java port",
+      "sources": [
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaBitReader.java",
+          "sha256": "d5767703ebde6c251e25b4ccf9afa6397fe1864ed2e013da169e15abfb78ddaa"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaData.java",
+          "sha256": "73555a71f2c28838253d26d45f99bca2f2743bc2a57b1052ba400397155d9a11"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaDecoder.java",
+          "sha256": "3d8c92f8fb855cb315bb1400b3c20bb204af5de981257f581b3a5389b619e7d1"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaImdct.java",
+          "sha256": "a56d698650206151ffe7cd58854f55aa6cbcfa14b596dcee4983fc2e17b98e46"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaVlc.java",
+          "sha256": "14f25615d0551833a1d6a41f6ba81e99086ed18731e9a4df374600fd51d20635"
+        }
+      ],
+      "patches": [
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaBitReader.java",
+          "upstream_sha256": "d5767703ebde6c251e25b4ccf9afa6397fe1864ed2e013da169e15abfb78ddaa",
+          "compiled_sha256": "b69f97233f7810c150257eba187ca3997989b440f80e6122862ef3643e247860",
+          "patch": "vendor/patches/wma/WmaBitReader.patch",
+          "patch_sha256": "945e16f9d724116427676f656d1f6f25d5df1a5e17dcb34bc726804050a7a0a7"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaDecoder.java",
+          "upstream_sha256": "3d8c92f8fb855cb315bb1400b3c20bb204af5de981257f581b3a5389b619e7d1",
+          "compiled_sha256": "416864f8736a949fd505d6e49b064e45c7923fc533cea311ddb9ae0714d6ad13",
+          "patch": "vendor/patches/wma/WmaDecoder.patch",
+          "patch_sha256": "ceb1205590e7c052dbb16761cccda638d50ed5e0c4c34b755a9ca3ccf33d0f7b"
+        }
+      ],
+      "license_sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+    }
+  ],
+  "ports": [
+    {
+      "name": "ape-ffmpeg-java-port",
+      "upstream": "https://github.com/FFmpeg/FFmpeg/tree/n9.0.2",
+      "revision": "n9.0.2",
+      "license": "LGPL-2.1-or-later",
+      "provenance": "Controlled Java translation of the pinned C references. port-source is the frozen v2 Java translation, not upstream Java; only namespace relocation applied for integration. Original C copyright and license retained. No JMAC source.",
+      "reference_files": [
+        {
+          "path": "vendor/upstream/ape/reference/apetag.c",
+          "sha256": "3926025ba8307a897e538e53050358bad5d1c43eb3702df195d8d9ffaf21594f"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/apedec.c",
+          "sha256": "981f664b9a9489979cf499c0eb7eb319c46547849719fa2e06363f357faacb50"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/COPYING.LGPLv2.1",
+          "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/lossless_audiodsp.c",
+          "sha256": "d4db72e01f280062257efe236158a0a7c3fe58aff8485a6ab9e6c7fdf750d2b4"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/lossless_audiodsp.h",
+          "sha256": "111371264648a6da9c70e37c1dc625d707600c90ee8f97c31b04184f3ee70c43"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/ape.c",
+          "sha256": "332e3ae87ede8e1e51445b10e94543e7df4c821e1cf7351e26375f6fc4d9ceae"
+        }
+      ],
+      "port_sources": [
+        {
+          "original": "vendor/upstream/ape/port-source/study/ape/ApeDecoder.java",
+          "original_sha256": "572ddc82ccdcb0dc3f66de9c0904cdacbbb987a54dfc993e640ef49242f6d7cd",
+          "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeDecoder.java",
+          "compiled_sha256": "00029f330e9b4baac50571f43df0c6fe09355b92f8840758875a0d917538bd89",
+          "patch": "vendor/patches/ape/ApeDecoder-namespace.patch",
+          "patch_sha256": "76b3942979fb4ee12016695e255a7860eef61f3428abbd2e5c2f2046f0a2d524",
+          "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+        },
+        {
+          "original": "vendor/upstream/ape/port-source/study/ape/ApeInput.java",
+          "original_sha256": "8cd1216694b030433b206534118fc21a199930bceeb1fdb66994b8ee3792d54b",
+          "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeInput.java",
+          "compiled_sha256": "6fb0eda7a335423c863ea49a7d130854f0b364ee56a906c2129f1bb6e6cb1113",
+          "patch": "vendor/patches/ape/ApeInput-namespace.patch",
+          "patch_sha256": "23a24948aa0fe7f108f7817392a9c161b8669f5f453bfcc3cd657c1e94162533",
+          "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+        },
+        {
+          "original": "vendor/upstream/ape/port-source/study/ape/ApeEntropy.java",
+          "original_sha256": "5170ceef7b30324986c0b08c775754dcf25ed78510508004266044e057e67950",
+          "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeEntropy.java",
+          "compiled_sha256": "42fb1ecd6ba4445dd217a475d6ab880db42a5d84f97ab011f40919e2706bb2a7",
+          "patch": "vendor/patches/ape/ApeEntropy-namespace.patch",
+          "patch_sha256": "d5be3f27767c22d3b4f80e12a1dcf8ef7bfdbd3dfc430a1f74e27eb6feecca25",
+          "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+        },
+        {
+          "original": "vendor/upstream/ape/port-source/study/ape/ApePredictor.java",
+          "original_sha256": "49d56e9538fa154a5f25a73feef1f23e80019e1fd72cd3a27ae762b5cc9d75c0",
+          "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApePredictor.java",
+          "compiled_sha256": "779ae5e4c30cca11721f51c1af5a433ad514b2449f7d301384b03eb449521f1e",
+          "patch": "vendor/patches/ape/ApePredictor-namespace.patch",
+          "patch_sha256": "3e88ccc090a579425ed6a612b28e78541b46eabc943a5fc2410d21ead6ec610b",
+          "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+        }
+      ]
+    }
+  ]
+}

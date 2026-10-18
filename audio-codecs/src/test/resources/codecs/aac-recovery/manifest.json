@@ -1,0 +1,47 @@
+{
+  "encoder_revision": "716f4394641d53f0d79c9ddac3fa93b03a49f278",
+  "encoder_source_sha256": "e25671cd96b10bad896aa42ab91a695a9e573395262baed4e4a2ff178d6a3a78",
+  "input": "Self-generated 5s 48kHz stereo multitone + seeded noise bursts, Random seed20261018. No third-party music.",
+  "baseline": "Pinned JAAD core before read-only recovery observation; hashes verify that observation does not change its PCM. These are not independent quality claims.",
+  "files": [
+    {
+      "file": "he-period10-sig0.packets",
+      "sha256": "35aaa3908b777ea38abe75844b4550f499c89a31ef934751a059f3ce4c78bc16",
+      "unchanged_baseline_pcm_bytes": 983040,
+      "unchanged_baseline_pcm_sha256": "5acab0eef80d8fcaf4df35e4ec2d9bf59aaf67b36cf02445bf3691416f9ea852"
+    },
+    {
+      "file": "hev2-period10-sig0.packets",
+      "sha256": "df2381cf9643ccfba59a0f9ea583eec8afce069636012f81d98f1d9ee836f80e",
+      "unchanged_baseline_pcm_bytes": 991232,
+      "unchanged_baseline_pcm_sha256": "a5ed5f6113a0cc8a2ce9ae70cc6f05eab703833b41f441da1bf05680d51e9108"
+    },
+    {
+      "file": "he-period72-sig1.packets",
+      "sha256": "42db87967c0a7ba91f50bdb257e01226cb9281788d5905d005d0b995f2fd34f4",
+      "unchanged_baseline_pcm_bytes": 983040,
+      "unchanged_baseline_pcm_sha256": "dea85ede61aee203c6958989a15a4546bebd7fcc8eca66095425d37c28a5900b"
+    },
+    {
+      "file": "hev2-period72-sig1.packets",
+      "sha256": "e3cfe8f8ab73fb8d38d7b7d015f3d7bbb2e111e18f0ad6aa8add3384116af176",
+      "unchanged_baseline_pcm_bytes": 991232,
+      "unchanged_baseline_pcm_sha256": "4bc630bf27b923ec741ed598369dc06795bb98d49c62a5118991f804fc872717"
+    },
+    {
+      "file": "lc-mono-period10-sig1.packets",
+      "sha256": "205911461262e3bf13e6ea580fa4d481ea2dcadf3bef3dbb90b48d85aaaf01b7",
+      "scope": "Mono without PS; duplicated output is not PS evidence"
+    },
+    {
+      "file": "he-mono-period10-sig1.packets",
+      "sha256": "43c248ec0509a89dd542abac2eb51463491e8e8a897925a27661aa664365a104",
+      "scope": "Mono without PS; duplicated output is not PS evidence"
+    },
+    {
+      "file": "single-rate-sbr.packets",
+      "sha256": "dfe5c78a69849926f3cbd616c948a4aa60bb0f54a981fcc13ed03efd1621591c",
+      "scope": "Known unsupported single-rate SBR"
+    }
+  ]
+}

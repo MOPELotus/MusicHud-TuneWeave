@@ -1,10 +1,11 @@
 // These older hosts lack HTTP; package only the matching codec, never Netty itself.
+def httpDeploymentTask = tasks.named(tasks.findByName('remapJar') == null ? 'jar' : 'remapJar')
 def verifyHttpCompatibility = tasks.register('verifyHttpCompatibilityJar') {
     group = 'verification'
-    dependsOn tasks.named('jar')
-    inputs.file(tasks.named('jar').flatMap { it.archiveFile })
+    dependsOn httpDeploymentTask
+    inputs.file(httpDeploymentTask.flatMap { it.archiveFile })
     doLast {
-        def artifact = tasks.named('jar').get().archiveFile.get().asFile
+        def artifact = httpDeploymentTask.get().archiveFile.get().asFile
         new java.util.zip.ZipFile(artifact).withCloseable { zip ->
             for (path in ['io/netty/handler/codec/http/HttpClientCodec.class',
                           'META-INF/licenses/netty-http/LICENSE.txt',

@@ -1,0 +1,10 @@
+APE Java research component; LGPL-2.1-or-later.
+Controlled Java translation of FFmpeg n9.0.2:
+libavcodec/apedec.c, libavformat/ape.c, scalar DSP in libavcodec/lossless_audiodsp.c; trailing APE tag format checked against libavformat/apetag.c.
+Copyright (c) 2007 Benjamin Zores <ben@geexbox.org>, based on libdemac by Dave Chapman.
+Java translation and input adapters 2026.
+Pinned C reference and per-file SHA256 retained in source distribution and source-manifest.json.
+Modern >=3950 paths; v2 adds unknown-length forward input and bounded EOF tail stripping. See followup-results.json.
+No JMAC/GPL implementation source was used. Runtime requires only Java 21+ standard library.
+Public API is study.ape.ApeDecoder and study.ape.ApeInput.
+Container parser and decoder are a research prototype, not production acceptance.

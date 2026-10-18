@@ -1,0 +1,84 @@
+--- a/com/beatofthedrum/alacdecoder/AlacDecodeUtils.java
++++ b/com/beatofthedrum/alacdecoder/AlacDecodeUtils.java
+@@ -722,7 +722,7 @@
+ 				else
+ 				{
+ 					int x ;
+-					int m  = 1 << (24 -1);
++					int m  = 1 << (alac.setinfo_sample_size -1);
+ 					for (int i = 0; i < outputsamples; i++)
+ 					{
+ 						int audiobits ;
+@@ -732,7 +732,7 @@
+ 						 * as we'll be ORing the low 16bits into this */
+ 						audiobits = audiobits << (alac.setinfo_sample_size - 16);
+ 						audiobits = audiobits | readbits(alac, alac.setinfo_sample_size - 16);
+-						x = audiobits & ((1 << 24) - 1);
++						x = audiobits & ((1 << alac.setinfo_sample_size) - 1);
+ 						audiobits = (x ^ m) - m;	// sign extend 24 bits
+ 						
+ 						alac.outputsamples_buffer_a[i] = audiobits;
+@@ -761,6 +761,7 @@
+ 				}
+ 				break;
+ 			}
++			case 20:
+ 			case 24:
+ 			{
+ 				for (int i = 0; i < outputsamples; i++)
+@@ -792,7 +793,6 @@
+ 				}
+ 				break;
+ 			}
+-			case 20:
+ 			case 32:
+ 				AlacDebug.println("FIXME: unimplemented sample size " + alac.setinfo_sample_size);
+ 			default:
+@@ -955,7 +955,7 @@
+ 				else
+ 				{
+ 					int x ;
+-					int m  = 1 << (24 -1);
++					int m  = 1 << (alac.setinfo_sample_size -1);
+ 
+ 					for (int i = 0; i < outputsamples; i++)
+ 					{
+@@ -965,13 +965,13 @@
+ 						audiobits_a = readbits(alac, 16);
+ 						audiobits_a = audiobits_a << (alac.setinfo_sample_size - 16);
+ 						audiobits_a = audiobits_a | readbits(alac, alac.setinfo_sample_size - 16);
+-						x = audiobits_a & ((1 << 24) - 1);
++						x = audiobits_a & ((1 << alac.setinfo_sample_size) - 1);
+ 						audiobits_a = (x ^ m) - m;        // sign extend 24 bits
+ 
+ 						audiobits_b = readbits(alac, 16);
+ 						audiobits_b = audiobits_b << (alac.setinfo_sample_size - 16);
+ 						audiobits_b = audiobits_b | readbits(alac, alac.setinfo_sample_size - 16);
+-						x = audiobits_b & ((1 << 24) - 1);
++						x = audiobits_b & ((1 << alac.setinfo_sample_size) - 1);
+ 						audiobits_b = (x ^ m) - m;        // sign extend 24 bits
+ 
+ 						alac.outputsamples_buffer_a[i] = audiobits_a;
+@@ -990,12 +990,12 @@
+ 				deinterlace_16(alac.outputsamples_buffer_a, alac.outputsamples_buffer_b, outbuffer, alac.numchannels, outputsamples, interlacing_shift, interlacing_leftweight);
+ 				break;
+ 			}
++			case 20:
+ 			case 24:
+ 			{
+ 				deinterlace_24(alac.outputsamples_buffer_a, alac.outputsamples_buffer_b, uncompressed_bytes, alac.uncompressed_bytes_buffer_a, alac.uncompressed_bytes_buffer_b, outbuffer, alac.numchannels, outputsamples, interlacing_shift, interlacing_leftweight);
+ 				break;
+ 			}
+-			case 20:
+ 			case 32:
+ 				AlacDebug.println("FIXME: unimplemented sample size " + alac.setinfo_sample_size);
+ 
+@@ -1012,7 +1012,7 @@
+ 
+ 		newfile.samplesize = samplesize;
+ 		newfile.numchannels = numchannels;
+-		newfile.bytespersample = (samplesize / 8) * numchannels;
++		newfile.bytespersample = ((samplesize + 7) / 8) * numchannels;
+ 
+ 		return newfile;
+ 	}

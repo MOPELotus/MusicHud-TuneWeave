@@ -1,0 +1,18 @@
+{
+  "alac.m4a": {
+    "bytes": 24960,
+    "sha256": "e849dae206e318e7a6bd437fbf0391066548a557964c04e6f9fc819bad92ad6f"
+  },
+  "alac20.m4a": {
+    "bytes": 73830,
+    "sha256": "a05aa4c916d71680bc98dad794f1b65743469f6911660c85a562444557b6569b"
+  },
+  "alac24.m4a": {
+    "bytes": 37440,
+    "sha256": "1c5ea7337aa3f3171e43a1ba987b5722ba6675301cac0077bf9c246b0189a51b"
+  },
+  "switch": {
+    "bytes": 62400,
+    "sha256": "321dab4dfbbf84d40f61d50c2bc3adf1fdc30290a2967f972866e4946b163687"
+  }
+}

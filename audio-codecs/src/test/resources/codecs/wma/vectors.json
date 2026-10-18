@@ -1,0 +1,22 @@
+[
+  {
+    "name": "noise-v1",
+    "codec": "wmav1",
+    "rate": 16000,
+    "channels": 1,
+    "bitrate": 24000,
+    "frames": 10240,
+    "encoded_sha256": "a4064eae15a8bc1b2459b4c7fb43c2cb6eb1b3ecddfce5f2ff0133cf997d125a",
+    "reference_sha256": "f32eae986a7d5f2086db706771d736a3758be3d63fd29d181e57048a9f39f43e"
+  },
+  {
+    "name": "stereo-v2",
+    "codec": "wmav2",
+    "rate": 32000,
+    "channels": 2,
+    "bitrate": 64000,
+    "frames": 14336,
+    "encoded_sha256": "dd376602557597a73f46aea0c4cf061bc18a092782eb931c0c837d657ff12baa",
+    "reference_sha256": "c4fbfe060b3ff84bfa26515f00e346f289642f1d7968383ee42d0e6cbb56c951"
+  }
+]
