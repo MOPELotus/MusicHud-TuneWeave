@@ -67,6 +67,18 @@ gradle.projectsEvaluated {
                                 zip.getEntry('META-INF/licenses/jmtc/NOTICE.txt') == null) {
                             throw new GradleException('Missing JMTC license/attribution')
                         }
+                        ['LICENSE.txt', 'NOTICE.txt'].each { leaf ->
+                            def path = "META-INF/licenses/dbus-java/${leaf}"
+                            def expected = rootProject.file("common/src/main/resources/${path}")
+                            def entry = zip.getEntry(path)
+                            if (entry == null || !java.util.Arrays.equals(expected.bytes, zip.getInputStream(entry).bytes)) {
+                                throw new GradleException("Missing or changed DBus-Java license/attribution: ${leaf}")
+                            }
+                        }
+                        def dbusNotice = rootProject.file('common/src/main/resources/META-INF/licenses/dbus-java/NOTICE.txt').getText('UTF-8')
+                        if (!dbusNotice.contains("DBus-Java ${rootProject.dbus_version}\n")) {
+                            throw new GradleException('Update DBus-Java attribution when changing its dependency version')
+                        }
                         if (!cf && !names.contains('indi/mopelotus/musichud/server/api/ApiServerManager.class')) {
                             throw new GradleException('Missing local TuneWeave process controls')
                         }
