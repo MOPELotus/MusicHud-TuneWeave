@@ -55,6 +55,21 @@ public class HudConfigFragment extends Fragment implements ScreenCallback {
     private DynamicIntegerOption radiusOption;
     private int syncedHeight;
 
+    private static void applyLayoutTransitionWithChildren(LinearLayout category) {
+        applyLayoutTransition(category);
+        for (int i = 0; i < category.getChildCount(); i++) {
+            if (category.getChildAt(i) instanceof ViewGroup child) {
+                applyLayoutTransition(child);
+            }
+        }
+    }
+
+    private static void applyLayoutTransition(ViewGroup view) {
+        LayoutTransition transition = new LayoutTransition();
+        transition.enableTransitionType(LayoutTransition.CHANGING);
+        view.setLayoutTransition(transition);
+    }
+
     @Override
     public boolean hasDefaultBackground() {
         return false;
@@ -92,11 +107,7 @@ public class HudConfigFragment extends Fragment implements ScreenCallback {
         panel.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> updatePanelPosition());
         root.post(this::updatePanelPosition);
 
-        root.post(() -> {
-            LayoutTransition transition = new LayoutTransition();
-            transition.enableTransitionType(LayoutTransition.CHANGING);
-            root.setLayoutTransition(transition);
-        });
+        root.post(() -> applyLayoutTransition(root));
         return root;
     }
 
@@ -186,6 +197,14 @@ public class HudConfigFragment extends Fragment implements ScreenCallback {
                 .setDefaultValue(clientConfig.getDefaultHudBackgroundMixAlpha())
                 .create(appearanceCategory);
         content.addView(appearanceCategory);
+
+        panel.post(() -> {
+            applyLayoutTransition(panel);
+            applyLayoutTransition(content);
+            applyLayoutTransitionWithChildren(layoutCategory);
+            applyLayoutTransitionWithChildren(behaviorCategory);
+            applyLayoutTransitionWithChildren(appearanceCategory);
+        });
 
         return panel;
     }
