@@ -41,8 +41,9 @@ public class WordByWordLyricParser {
         matchLine(lyric, (metaData) -> {
             Duration startTime = metaData.startTime();
             LyricLine lyricLine = map.get(startTime);
-            String lyricString = metaData.lyric() == null ? "" : metaData.lyric();
-            lyricString = lyricString.replace('\n', ' ').trim();
+            String lyricString = metaData.phraseEndingOffsetMap() == null
+                    ? LyricsNormalizer.normalize(metaData.lyric()) : metaData.lyric();
+            int appendedTextOffset = 0;
             if (lyricLine == null) {
                 // Remove duration for smooth transition between lines
                 lyricLine = LyricLine.builder()
@@ -53,10 +54,13 @@ public class WordByWordLyricParser {
                     lyricLinesWithoutValidTimestamp.add(lyricLine);
                 }
             } else if (!lyricString.isEmpty()) {
+                appendedTextOffset = lyricLine.getText().length() + 1;
                 lyricLine.setText(lyricLine.getText() + "\n" + lyricString);
             }
             if (metaData.phraseEndingOffsetMap != null) {
-                lyricLine.getPhraseEndingOffsetMap().putAll(metaData.phraseEndingOffsetMap);
+                for (var phrase : metaData.phraseEndingOffsetMap.entrySet()) {
+                    lyricLine.getPhraseEndingOffsetMap().put(phrase.getKey(), appendedTextOffset + phrase.getValue());
+                }
                 lyricLine.setWordByWord(true);
             }
             map.put(startTime, lyricLine);
@@ -144,7 +148,7 @@ public class WordByWordLyricParser {
             });
         }
         for (LyricLineMetaData metaData : translations) {
-            String text = metaData.lyric() == null ? "" : metaData.lyric().replace('\u00A0', ' ').replace('\n', ' ').trim();
+            String text = LyricsNormalizer.normalize(metaData.lyric());
             if (LyricTiming.isPlaceholderTranslation(text)) continue;
             Duration startTime = metaData.startTime();
             Duration matched = startTime == null ? null
@@ -179,7 +183,7 @@ public class WordByWordLyricParser {
                 LyricLine line = LyricLine.builder()
                         .startTime(Duration.ofMillis(Math.max(0, begin)))
                         .duration(Duration.ofMillis(Math.max(0, end - begin)))
-                        .text(sentence.get("name").getAsString().strip())
+                        .text(LyricsNormalizer.normalize(sentence.get("name").getAsString()))
                         .type(LyricLine.Type.NORMAL)
                         .build();
                 if (line.getText().isEmpty()) continue;
@@ -207,66 +211,69 @@ public class WordByWordLyricParser {
             Matcher timestampMatcher = timestampPattern.matcher(timestampGroups);
             long sourceLineStartMillis = -1;
             while (timestampMatcher.find()) {
-                long lineStartMillis = Long.parseLong(timestampMatcher.group(1));
-                if (sourceLineStartMillis < 0) {
-                    sourceLineStartMillis = lineStartMillis;
-                }
-                Duration lineStart = Duration.ofMillis(lineStartMillis);
+                try {
+                    long lineStartMillis = Long.parseLong(timestampMatcher.group(1));
+                    if (sourceLineStartMillis < 0) {
+                        sourceLineStartMillis = lineStartMillis;
+                    }
+                    Duration lineStart = Duration.ofMillis(lineStartMillis);
 
-                Duration interval = lineStart.minus(lastLineEnd);
-                if (interval.compareTo(emptyLineIgnoreDuration) > 0) {
-                    matchedConsumer.accept(new LyricLineMetaData(lastLineEnd, interval, "", LyricLine.Type.RHYTHM, null));
-                }
+                    Duration interval = lineStart.minus(lastLineEnd);
+                    if (interval.compareTo(emptyLineIgnoreDuration) > 0) {
+                        matchedConsumer.accept(new LyricLineMetaData(lastLineEnd, interval, "", LyricLine.Type.RHYTHM, null));
+                    }
 
-                Matcher phraseMatcher = phraseTimestampPattern.matcher(lineRawText);
-                List<PhraseTimestamp> timestamps = new ArrayList<>();
-                while (phraseMatcher.find()) {
-                    timestamps.add(new PhraseTimestamp(
-                            phraseMatcher.start(), phraseMatcher.end(),
-                            Long.parseLong(phraseMatcher.group(1)),
-                            Long.parseLong(phraseMatcher.group(2))));
-                }
-                Map<Duration, Integer> phrases = new LinkedHashMap<>();
-                StringBuilder lineText = new StringBuilder();
-                Duration lastPhraseEnd = lineStart;
-                if (!timestamps.isEmpty()) {
-                    boolean timestampsFollowText = timestamps.getFirst().start() > 0;
-                    for (int index = 0; index < timestamps.size(); index++) {
-                        PhraseTimestamp timestamp = timestamps.get(index);
-                        int textStart;
-                        int textEnd;
-                        if (timestampsFollowText) {
-                            textStart = index == 0 ? 0 : timestamps.get(index - 1).end();
-                            textEnd = timestamp.start();
-                        } else {
-                            textStart = timestamp.end();
-                            textEnd = index + 1 < timestamps.size()
-                                    ? timestamps.get(index + 1).start() : lineRawText.length();
-                        }
-                        String phraseText = normalizePhraseText(lineRawText.substring(textStart, textEnd));
-                        lineText.append(phraseText);
-                        long relativePhraseEndMillis = timestamp.startMillis()
-                                + timestamp.durationMillis() - sourceLineStartMillis;
-                        Duration phraseEnd = lineStart.plusMillis(relativePhraseEndMillis);
-                        phrases.put(phraseEnd, lineText.length());
-                        if (phraseEnd.compareTo(lastPhraseEnd) > 0) {
-                            lastPhraseEnd = phraseEnd;
+                    Matcher phraseMatcher = phraseTimestampPattern.matcher(lineRawText);
+                    List<PhraseTimestamp> timestamps = new ArrayList<>();
+                    while (phraseMatcher.find()) {
+                        timestamps.add(new PhraseTimestamp(
+                                phraseMatcher.start(), phraseMatcher.end(),
+                                Long.parseLong(phraseMatcher.group(1)),
+                                Long.parseLong(phraseMatcher.group(2))));
+                    }
+                    Map<Duration, Integer> phrases = new LinkedHashMap<>();
+                    StringBuilder lineText = new StringBuilder();
+                    Duration lastPhraseEnd = lineStart;
+                    if (!timestamps.isEmpty()) {
+                        boolean timestampsFollowText = !LyricsNormalizer.normalize(
+                                lineRawText.substring(0, timestamps.getFirst().start())).isEmpty();
+                        for (int index = 0; index < timestamps.size(); index++) {
+                            PhraseTimestamp timestamp = timestamps.get(index);
+                            int textStart;
+                            int textEnd;
+                            if (timestampsFollowText) {
+                                textStart = index == 0 ? 0 : timestamps.get(index - 1).end();
+                                textEnd = timestamp.start();
+                            } else {
+                                textStart = timestamp.end();
+                                textEnd = index + 1 < timestamps.size()
+                                        ? timestamps.get(index + 1).start() : lineRawText.length();
+                            }
+                            String phraseText = lineRawText.substring(textStart, textEnd);
+                            lineText.append(phraseText);
+                            long relativePhraseEndMillis = Math.subtractExact(
+                                    Math.addExact(timestamp.startMillis(), timestamp.durationMillis()), sourceLineStartMillis);
+                            Duration phraseEnd = lineStart.plusMillis(relativePhraseEndMillis);
+                            phrases.put(phraseEnd, lineText.length());
+                            if (phraseEnd.compareTo(lastPhraseEnd) > 0) {
+                                lastPhraseEnd = phraseEnd;
+                            }
                         }
                     }
+                    Duration lineDuration = Duration.ofMillis(Long.parseLong(timestampMatcher.group(2)));
+                    Duration phraseDuration = lastPhraseEnd.minus(lineStart);
+                    if (!timestamps.isEmpty() && phraseDuration.compareTo(lineDuration) < 0) {
+                        lineDuration = phraseDuration;
+                    }
+                    LyricsNormalizer.Normalized normalized = LyricsNormalizer.withOffsets(lineText.toString());
+                    phrases.replaceAll((time, offset) -> normalized.offset(offset));
+                    matchedConsumer.accept(new LyricLineMetaData(lineStart, lineDuration, normalized.text(), LyricLine.Type.NORMAL, phrases));
+                    lastLineEnd = lineStart.plus(lineDuration);
+                } catch (NumberFormatException | ArithmeticException malformedTimestamp) {
+                    logger.debug("Ignoring overflowing lyric timestamp", malformedTimestamp);
                 }
-                Duration lineDuration = Duration.ofMillis(Long.parseLong(timestampMatcher.group(2)));
-                Duration phraseDuration = lastPhraseEnd.minus(lineStart);
-                if (!timestamps.isEmpty() && phraseDuration.compareTo(lineDuration) < 0) {
-                    lineDuration = phraseDuration;
-                }
-                matchedConsumer.accept(new LyricLineMetaData(lineStart, lineDuration, lineText.toString(), LyricLine.Type.NORMAL, phrases));
-                lastLineEnd = lineStart.plus(lineDuration);
             }
         }
-    }
-
-    private static String normalizePhraseText(String text) {
-        return text.replace('\u00A0', ' ').replace("\r", "").replace("\n", "");
     }
 
     private record PhraseTimestamp(int start, int end, long startMillis, long durationMillis) {
