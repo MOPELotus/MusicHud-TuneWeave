@@ -275,6 +275,7 @@
   "musichud_tuneweave.modal.downloadApiServer.existingVersion": "已下載 TuneWeave {version}（tag \"{tag}\"）",
   "musichud_tuneweave.modal.downloadApiServer.hide": "隱藏對話框",
   "musichud_tuneweave.modal.downloadApiServer.proxy": "GitHub 下載代理",
+  "musichud_tuneweave.modal.downloadApiServer.proxy.AXIS_NOW_IPV4": "Axis Now CDN (全球 IPv4)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.CLOUDFLARE_CN_DUAL": "CloudFlare (最佳化 IPv4/IPv6)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.CLOUDFLARE_CN_IPV4": "CloudFlare (最佳化 IPv4)",
   "musichud_tuneweave.modal.downloadApiServer.proxy.CLOUDFLARE_IPV4": "CloudFlare (全球 IPv4)",
