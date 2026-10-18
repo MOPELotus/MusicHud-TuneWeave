@@ -189,6 +189,9 @@ public class NowPlayingInfo {
     }
 
     public float getProgressRate() {
+        PlaybackSnapshot state = snapshot();
+        Duration musicDuration = state.duration();
+        ZonedDateTime musicStartTime = state.startedAt();
         if (musicDuration == null || musicStartTime == null) {
             return 0.0f;
         }
@@ -358,6 +361,9 @@ public class NowPlayingInfo {
     }
 
     public Duration getPlayedDuration() {
+        PlaybackSnapshot state = snapshot();
+        Duration musicDuration = state.duration();
+        ZonedDateTime musicStartTime = state.startedAt();
         if (musicStartTime == null) {
             return Duration.ZERO;
         }
@@ -373,6 +379,9 @@ public class NowPlayingInfo {
     }
 
     public boolean isCompleted() {
+        PlaybackSnapshot state = snapshot();
+        Duration musicDuration = state.duration();
+        ZonedDateTime musicStartTime = state.startedAt();
         if (musicStartTime == null || musicDuration == null) {
             return false;
         }
@@ -381,8 +390,9 @@ public class NowPlayingInfo {
     }
 
     public PlayerInfo getPusherPlayerInfo() {
-        if (currentlyPlayingMusicDetail != null) {
-            return PlayerInfoUtil.getPlayerInfoByUUID(currentlyPlayingMusicDetail.getPusherInfo().getPlayerUUID());//Mainly just a Map.get call, no need to cache
+        MusicDetail musicDetail = snapshot().musicDetail();
+        if (musicDetail != null) {
+            return PlayerInfoUtil.getPlayerInfoByUUID(musicDetail.getPusherInfo().getPlayerUUID());//Mainly just a Map.get call, no need to cache
         } else {
             return null;
         }
