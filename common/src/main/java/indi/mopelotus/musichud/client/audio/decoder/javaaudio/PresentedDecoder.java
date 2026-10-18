@@ -95,7 +95,7 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
         }
         remaining -= segment.frames();
       }
-      if (selected == null) return -1;
+      if (selected == null) return endOfStream(version);
       int count = (int) Math.min(maxFrames, selected.frames() - remaining);
       if (selected.silence())
         Arrays.fill(target, offset, offset + count * format.frameBytes(), (byte) 0);
@@ -111,7 +111,7 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
         count = current.readFrames(target, offset, count);
         observeChannels(current);
         if (count < 0) {
-          if (plan.totalFrames() == Long.MAX_VALUE) return -1;
+          if (plan.totalFrames() == Long.MAX_VALUE) return endOfStream(version);
           throw new EOFException("Media ended before declared presentation edit");
         }
         if (count == 0) throw new IOException("Decoder made no progress");
@@ -221,6 +221,13 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
       ready = true;
     }
     return true;
+  }
+
+  private int endOfStream(long version) throws IOException {
+    synchronized (state) {
+      checkEpoch(version);
+      return -1;
+    }
   }
 
   private void check() throws IOException {

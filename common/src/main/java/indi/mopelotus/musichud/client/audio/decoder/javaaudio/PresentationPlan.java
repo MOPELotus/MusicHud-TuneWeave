@@ -31,10 +31,9 @@ public record PresentationPlan(List<Segment> segments, long totalFrames) {
     }
     if (track.edits().isEmpty()) {
       long first = framesCeil(track.codecDelay(), sampleRate);
-      long last =
-          track.mediaDuration() == null
-              ? Long.MAX_VALUE
-              : framesCeil(track.mediaDuration(), sampleRate);
+      if (track.mediaDuration() == null)
+        return new PresentationPlan(List.of(new Segment(first, Long.MAX_VALUE)), Long.MAX_VALUE);
+      long last = framesCeil(track.mediaDuration(), sampleRate);
       if (first > last) throw new IllegalArgumentException("Delay exceeds media duration");
       return new PresentationPlan(List.of(new Segment(first, last - first)), last - first);
     }

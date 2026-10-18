@@ -145,4 +145,88 @@ class JavaStreamDecoderTest {
       executor.shutdownNow();
     }
   }
+
+  @Test
+  @org.junit.jupiter.api.Timeout(10)
+  void staleEndOfStreamCannotEndAReplacementOrClosedGeneration() throws Exception {
+    for (boolean stop : List.of(false, true)) {
+      CountDownLatch reading = new CountDownLatch(1), release = new CountDownLatch(1);
+      AtomicInteger opens = new AtomicInteger();
+      PresentedDecoder.Factory factory =
+          () ->
+              new PresentedDecoder.Attempt() {
+                final int generation = opens.incrementAndGet();
+                final PcmDecoder source =
+                    generation == 1
+                        ? new PcmDecoder() {
+                          public PcmFormat format() {
+                            return STEREO;
+                          }
+
+                          public long framePosition() {
+                            return 0;
+                          }
+
+                          public int readFrames(byte[] bytes, int offset, int frames)
+                              throws IOException {
+                            reading.countDown();
+                            try {
+                              release.await();
+                            } catch (InterruptedException e) {
+                              Thread.currentThread().interrupt();
+                              throw new IOException(e);
+                            }
+                            return -1; // A reader can observe EOF after its input was concurrently
+                                       // closed.
+                          }
+
+                          public void close() {}
+                        }
+                        : new Samples();
+
+                public PcmDecoder open() {
+                  return source;
+                }
+
+                public void cancel() {
+                  try {
+                    source.close();
+                  } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                  }
+                }
+              };
+      var executor = Executors.newSingleThreadExecutor();
+      var decoder = new PresentedDecoder(factory, plan(Long.MAX_VALUE));
+      try {
+        Future<?> old =
+            executor.submit(
+                () -> assertThrows(IOException.class, () -> decoder.readFrames(new byte[4], 0, 1)));
+        assertTrue(reading.await(2, TimeUnit.SECONDS));
+        if (stop) decoder.close();
+        else assertTrue(decoder.seekFrame(0));
+        release.countDown();
+        old.get(2, TimeUnit.SECONDS);
+        if (!stop) assertEquals(1, decoder.readFrames(new byte[4], 0, 1));
+      } finally {
+        release.countDown();
+        decoder.close();
+        executor.shutdownNow();
+      }
+    }
+  }
+  @Test void unknownDurationWithInitialPrimingRemainsAnUnboundedStream() throws Exception {
+    var track = new indi.mopelotus.musichud.audio.codec.PacketSource.Track(
+        new indi.mopelotus.musichud.audio.codec.PacketSource.Format("mp4a",new byte[0]),null,List.of(),
+        new indi.mopelotus.musichud.audio.codec.PacketSource.Time(1024,48000),
+        indi.mopelotus.musichud.audio.codec.PacketSource.Time.ZERO);
+    var plan=PresentationPlan.from(track,48000,false);
+    assertEquals(Long.MAX_VALUE,plan.totalFrames());
+    try(var decoder=new PresentedDecoder(factory(),plan)) {
+      byte[] bytes=new byte[4096*4];long frames=0;
+      for(;;){int count=decoder.readFrames(bytes,0,4096);if(count<0)break;frames+=count;}
+      assertEquals(48000-1024,frames);
+    }
+  }
+
 }
