@@ -65,11 +65,20 @@ def verifyVendoredSources = tasks.register('verifyVendoredSources') {
                 throw new GradleException("Codec source guard failed: ${path}")
             }
         }
-        def declaredPatched = vendorManifest.vendors.collectMany { it.patches.collect { patch -> patch.source } } as Set
+        def declaredPatched = (vendorManifest.vendors.collectMany { it.patches.collect { patch -> patch.source } } +
+            (vendorManifest.ports ?: []).collectMany { it.port_sources.collect { source -> source.compiled - 'src/thirdParty/java/' } }) as Set
         def actualPatched = fileTree('src/thirdParty/java').matching { include '**/*.java' }.files.collect {
             file('src/thirdParty/java').toPath().relativize(it.toPath()).toString().replace(File.separator, '/')
         } as Set
         if (declaredPatched != actualPatched) throw new GradleException('Unreviewed codec patch source set')
+        (vendorManifest.ports ?: []).each { port ->
+            port.reference_files.each { source -> verify(source.path, source.sha256) }
+            port.port_sources.each { source ->
+                verify(source.original, source.original_sha256)
+                verify(source.compiled, source.compiled_sha256)
+                verify(source.patch, source.patch_sha256)
+            }
+        }
         vendorManifest.vendors.each { vendor ->
             verify(vendor.license, vendor.license_sha256)
             def declared = vendor.sources.collect { it.path } as Set
@@ -119,6 +128,7 @@ shadowJar {
     ['javazoom.jl', 'com.jcraft', 'org.concentus', 'net.sourceforge.jaad', 'com.beatofthedrum'].each { original ->
         relocate original, "${privatePrefix}.${original}"
     }
+    relocate 'com.sedmelluq.discord.lavaplayer.natives.wma', "${privatePrefix}.wma"
     minimize {
         r8 {
             keepRules.add('-keep public class indi.mopelotus.musichud.audio.codec.* { public *; }')
@@ -131,6 +141,10 @@ shadowJar {
     vendorManifest.vendors.each { vendor ->
         from(vendor.license) { into "META-INF/licenses/audio-codecs/${vendor.name}"; rename { 'LICENSE' } }
     }
+    from('vendor/upstream/ape/reference/COPYING.LGPLv2.1') { into 'META-INF/licenses/audio-codecs/ape'; rename { 'LICENSE' } }
+    from('vendor/upstream/ape/README.md') { into 'META-INF/licenses/audio-codecs/ape'; rename { 'NOTICE' } }
+    from('vendor/upstream/wma/UPSTREAM-APACHE-LICENSE') { into 'META-INF/licenses/audio-codecs/wma' }
+    from('vendor/upstream/wma/NOTICE') { into 'META-INF/licenses/audio-codecs/wma' }
     from('vendor/NOTICE') { into 'META-INF/licenses/audio-codecs' }
 }
 

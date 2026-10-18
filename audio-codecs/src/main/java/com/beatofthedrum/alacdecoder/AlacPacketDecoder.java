@@ -37,7 +37,7 @@ public final class AlacPacketDecoder implements AutoCloseable {
     if (version != 0
         || frames < 1
         || frames > 16384
-        || (bits != 16 && bits != 24)
+        || (bits != 16 && bits != 20 && bits != 24)
         || (ch != 1 && ch != 2)
         || rate < 1
         || rate > 768000) throw new IOException("Unsupported ALAC config");
@@ -50,7 +50,7 @@ public final class AlacPacketDecoder implements AutoCloseable {
         legacy); // Original core writes one silent partner after each mono sample, including the
     // final one.
     // Six guard ints preserve that bounded convention without forking the DSP.
-    scratch = new int[frames * ch * (bits / 8) + 6];
+    scratch = new int[frames * ch * ((bits + 7) / 8) + 6];
   }
 
   public Format format() {
@@ -83,16 +83,26 @@ public final class AlacPacketDecoder implements AutoCloseable {
     }
     try {
       int n = AlacDecodeUtils.decode_frame(decoder, data, scratch, scratch.length);
-      int bytes = expected * format.channels() * (format.bits() / 8);
+      int bytes = expected * format.channels() * ((format.bits() + 7) / 8);
       if (n != bytes || decoder.ibIdx * 8 + decoder.input_buffer_bitaccumulator > size * 8)
         throw new IOException("Invalid or truncated ALAC frame");
       byte[] out = new byte[n];
-      if (format.bits() == 24) {
+      if (format.bits() == 24 || format.bits() == 20) {
         for (int i = 0; i < n; i++) out[i] = (byte) scratch[i];
       } else {
         for (int i = 0; i < n / 2; i++) {
           out[2 * i] = (byte) scratch[i];
           out[2 * i + 1] = (byte) (scratch[i] >>> 8);
+        }
+      }
+      if (format.bits() == 20) {
+        // API: signed20-bit samples left-aligned in little-endian24-bit containers, matching Apple.
+        for (int i = 0; i < out.length; i += 3) {
+          int value = (out[i] & 255) | ((out[i + 1] & 255) << 8) | (out[i + 2] << 16);
+          value <<= 4;
+          out[i] = (byte) value;
+          out[i + 1] = (byte) (value >>> 8);
+          out[i + 2] = (byte) (value >>> 16);
         }
       }
       return out;

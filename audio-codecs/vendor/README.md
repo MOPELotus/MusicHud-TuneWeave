@@ -25,6 +25,12 @@ The 2026-10-18 JOrbis patches correct multichannel coupling index widths and bou
 
 The 2026-10-18 AAC patch changes eight files: per-decoder noise state and its recurrence, implicit SBR rate initialization, ADTS first-frame handling and construction validation, decoder construction validation, PS implementation selection and filter corrections, stereo SBR coupling, and high-frequency generation. The existing upstream `PSOrig` implementation is reused without copying another project's algorithm source. The full diff, rather than a rewritten algorithm snapshot, is retained for review and future upstream reconciliation.
 
-The Concentus files, including `VorbisLayout.java`, match the pinned upstream Git blobs exactly. JLayer, ALAC and WavPack decoder files are unchanged. Vendoring a core does not by itself claim that every optional format profile or malformed input has been qualified by the player.
+The Concentus files, including `VorbisLayout.java`, match the pinned upstream Git blobs exactly. JLayer remains unchanged. ALAC has a finite native20-bit packing/sign-extension patch; WavPack preserves intermediate integer values before exact bounded IEEE float reconstruction. Their prediction and entropy algorithms are unchanged. Vendoring a core does not by itself claim that every optional format profile or malformed input has been qualified by the player.
 
 When distributing binaries, include these license texts and preserve the required attribution. Source distribution must retain the original sources, the corresponding patches, and the project's existing LGPL license and upstream attribution.
+
+The isolated WMA1/2 core retains its pinned original Java source and finite sign,
+bit-reader and overlap patches; ASF transport-free parsing is a separate adapter.
+APE is a controlled LGPL FFmpeg-to-Java translation, not upstream Java: its C
+references, original translation, namespace-only integration diff and SHA guards
+are recorded separately under the manifest's ports array. No GPL JMAC is used.

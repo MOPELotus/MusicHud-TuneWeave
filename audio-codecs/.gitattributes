@@ -6,3 +6,16 @@ src/test/resources/codecs/*.s32 binary
 src/test/resources/codecs/*.packets binary
 src/test/resources/codecs/*.mp3 binary
 src/test/resources/codecs/*.wv binary
+*.pcm binary
+*.f32 binary
+*.raw binary
+*.s16 binary
+*.s24 binary
+*.s32 binary
+*.packets binary
+*.wv binary
+*.wma binary
+*.ape binary
+*.aiff binary
+*.aifc binary
+*.au binary

@@ -21,7 +21,7 @@ public final class PacketCodecs {
         pcm(
             f.sampleRate(),
             f.channels(),
-            f.bits() == 24 ? PcmFormat.Encoding.S24LE : PcmFormat.Encoding.S16LE);
+            f.bits() > 16 ? PcmFormat.Encoding.S24LE : PcmFormat.Encoding.S16LE);
     return new Base(initial, format) {
       protected byte[] decodeBytes(PacketSource.Packet packet) throws IOException {
         return core.decode(packet.encoded());

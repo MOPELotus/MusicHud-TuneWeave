@@ -8,8 +8,8 @@ JLayer: JavaLayer authors, LGPL; unchanged decoder core.
 JOrbis/Jogg: JCraft and original authors, GNU Library GPL; three local patches
 correct multichannel indexing and bound untrusted setup allocations.
 Concentus: Logan Stromberg and the Opus authors, BSD terms; unchanged sources.
-ALAC: Peter McQuillan / David Hammerton, BSD terms; unchanged DSP.
-WavPack Tiny Decoder: David Bryant / Peter McQuillan, BSD terms; unchanged DSP.
+ALAC: Peter McQuillan / David Hammerton, BSD terms; finite20-bit packing and sign-extension patch.
+WavPack Tiny Decoder: David Bryant / Peter McQuillan, BSD terms; finite float intermediate-preservation hook, unchanged prediction/entropy algorithms.
 AAC: JAAD / Vavi authors, retained upstream public-domain dedication; eight
 finite compatibility/correctness patches, with originals and complete diff.
 
@@ -21,3 +21,9 @@ embed FFmpeg native code or JNI binaries.
 Local adapters and integration are part of MusicHud-TuneWeave under its existing
 LGPL license. The project source distribution includes corresponding third-party
 sources, finite patches and upstream attribution; preserve these on redistribution.
+
+WMA1/2: isolated FFmpeg-derived Java core from pinned devoxin source, LGPL2.1+,
+finite sign/overlap/input-boundary corrections; no Lavaplayer dependency/JAR.
+APE: controlled FFmpeg9.0.2 scalar Java translation, LGPL2.1+; original C
+references and finite namespace integration diffs are retained with the source.
+AIFF/AIFC/AU: project-owned bounded PCM container reader, no third-party DSP.

@@ -6,11 +6,11 @@ import java.nio.*;
 
 /**
  * Bounded per-block wrapper: supplements Tiny Decoder's omitted integer WVX bits. Uses public Tiny
- * Decoder API; no modification to its DSP. Integer mono/stereo, non-hybrid only. WVX arithmetic
- * follows FFmpeg LGPL2.1+ libavcodec/wavpack.c wv_get_value_integer and wavpackenc.c scan_int32
- * (CRC covers the full restored integer before post-shift).
+ * Decoder API; no modification to its DSP. Integer/float mono/stereo blocks and hybrid main-file
+ * output. WVX arithmetic follows FFmpeg LGPL2.1+ libavcodec/wavpack.c wv_get_value_integer and
+ * wavpackenc.c scan_int32 (CRC covers the full restored integer before post-shift).
  */
-public final class WavPackExtendedCore implements AutoCloseable {
+public final class WavPackVariantCore implements AutoCloseable {
   private final InputStream input;
   private WavPackContext context;
   private int flags,
@@ -26,12 +26,14 @@ public final class WavPackExtendedCore implements AutoCloseable {
       postShift;
   private long total = -1, delivered;
   private int metadataOnlyBlocks;
+  private int floatFlags, floatShift, floatMaxExp;
+  private boolean floating;
   private byte[] extra;
   private int bitCursor, extraExpected, extraCrc;
   private boolean closed;
   private final int[] samples = new int[Defines.SAMPLE_BUFFER_SIZE];
 
-  public WavPackExtendedCore(InputStream input) throws IOException {
+  public WavPackVariantCore(InputStream input) throws IOException {
     this.input = input;
     try {
       if (!loadBlock()) throw new EOFException("Empty WavPack");
@@ -43,6 +45,10 @@ public final class WavPackExtendedCore implements AutoCloseable {
       }
       throw e;
     }
+  }
+
+  public boolean isFloating() {
+    return floating;
   }
 
   public int bits() {
@@ -73,6 +79,9 @@ public final class WavPackExtendedCore implements AutoCloseable {
     ByteBuffer h = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
     long size = Integer.toUnsignedLong(h.getInt(4)) + 8;
     flags = h.getInt(24);
+    int version = Short.toUnsignedInt(h.getShort(8));
+    if (version < 0x402 || version > 0x410 || (flags & 0x80000000) != 0)
+      throw new IOException("Unsupported WavPack version/DSD");
     long count = Integer.toUnsignedLong(h.getInt(20)), index = Integer.toUnsignedLong(h.getInt(16));
     if (size < 32 || size > 8 * 1024 * 1024 || count > 1048576)
       throw new IOException("WavPack block exceeds limits");
@@ -83,9 +92,11 @@ public final class WavPackExtendedCore implements AutoCloseable {
       return loadBlock();
     }
     metadataOnlyBlocks = 0;
-    if ((flags & 0x88) != 0 || (flags & 0x1800) != 0x1800)
+    if ((flags & 0x1800) != 0x1800)
       throw new IOException("Unqualified float/hybrid/multiblock WavPack");
     if (index != delivered) throw new IOException("Unexpected WavPack block index");
+    floating = (flags & 0x80) != 0;
+    floatFlags = floatShift = floatMaxExp = 0;
     extraBits = zeros = ones = dups = 0;
     extra = null;
     extraCrc = -1;
@@ -104,7 +115,14 @@ public final class WavPackExtendedCore implements AutoCloseable {
       if ((id & 0x40) != 0) len--;
       if (len < 0 || stored > body.length - p) throw new EOFException("Metadata exceeds block");
       int kind = id & 0x3f;
-      if (kind == 9) {
+      if (kind == 8) {
+        if (len != 4) throw new IOException("Invalid float info");
+        floatFlags = body[p] & 255;
+        floatShift = body[p + 1] & 255;
+        floatMaxExp = body[p + 2] & 255;
+        if (floatShift > 31 || (floatFlags & ~0x3f) != 0)
+          throw new IOException("Invalid float flags");
+      } else if (kind == 9) {
         if (len != 4) throw new IOException("Invalid integer info");
         extraBits = body[p] & 255;
         zeros = body[p + 1] & 255;
@@ -119,14 +137,15 @@ public final class WavPackExtendedCore implements AutoCloseable {
       }
       p += stored;
     }
-    if (extraBits > 0 && extra == null) throw new IOException("Missing WVX precision bits");
+    if (extraBits > 0 && extra == null && (flags & 8) == 0)
+      throw new IOException("Missing WVX precision bits");
     byte[] full = new byte[(int) size];
     System.arraycopy(header, 0, full, 0, 32);
     System.arraycopy(body, 0, full, 32, body.length);
     context = WavPackUtils.OpenFileInput(new DataInputStream(new ByteArrayInputStream(full)));
     if (context.error) throw new IOException(context.error_message);
     int ch = WavPackUtils.GetNumChannels(context),
-        depth = WavPackUtils.GetBytesPerSample(context) * 8,
+        depth = floating ? 32 : WavPackUtils.GetBytesPerSample(context) * 8,
         sampleRate = (int) WavPackUtils.GetSampleRate(context);
     if (ch < 1 || ch > 2 || WavPackUtils.GetReducedChannels(context) != ch)
       throw new IOException("Unsupported WavPack channel layout");
@@ -154,6 +173,43 @@ public final class WavPackExtendedCore implements AutoCloseable {
     return value;
   }
 
+  private int floatBits(int sample) throws IOException {
+    int sign = 0, exp = floatMaxExp;
+    boolean hasExtra = extra != null;
+    if (sample != 0) {
+      sample *= 1 << floatShift;
+      sign = sample < 0 ? 1 : 0;
+      if (sign != 0) sample = -sample;
+      if (Integer.toUnsignedLong(sample) >= 0x1000000L) {
+        sample = hasExtra && extra(1) != 0 ? extra(23) : 0;
+        exp = 255;
+      } else if (exp != 0) {
+        int shift = 23 - (31 - Integer.numberOfLeadingZeros(sample));
+        if (exp <= shift) shift = --exp;
+        exp -= shift;
+        if (shift < 0 || shift > 23) throw new IOException("Invalid float exponent");
+        if (shift != 0) {
+          sample <<= shift;
+          if ((floatFlags & 1) != 0 || (hasExtra && (floatFlags & 2) != 0 && extra(1) != 0))
+            sample |= (1 << shift) - 1;
+          else if (hasExtra && (floatFlags & 4) != 0) sample |= extra(shift);
+        }
+      }
+      sample &= 0x7fffff;
+    } else {
+      exp = 0;
+      if (hasExtra && (floatFlags & 8) != 0) {
+        if (extra(1) != 0) {
+          sample = extra(23);
+          if (floatMaxExp >= 25) exp = extra(8);
+          sign = extra(1);
+        } else if ((floatFlags & 16) != 0) sign = extra(1);
+      }
+    }
+    extraCrc = extraCrc * 27 + sample * 9 + exp * 3 + sign;
+    return (sign << 31) | (exp << 23) | sample;
+  }
+
   public byte[] next() throws IOException {
     if (closed) return null;
     if (Thread.currentThread().isInterrupted())
@@ -170,7 +226,11 @@ public final class WavPackExtendedCore implements AutoCloseable {
     for (int f = 0; f < request; f++)
       for (int ch = 0; ch < channels; ch++) {
         int v = samples[f * channels + ch];
-        if (extraBits > 0) {
+        if (floating) {
+          boolean duplicate = (flags & 0x40000000) != 0 && ch == 1;
+          v = duplicate ? samples[f * channels] : floatBits(v);
+          samples[f * channels + ch] = v;
+        } else if (extraBits > 0 && (flags & 8) == 0) {
           boolean duplicate = (flags & 0x40000000) != 0 && ch == 1;
           if (duplicate) v = samples[f * channels];
           else {
@@ -190,8 +250,11 @@ public final class WavPackExtendedCore implements AutoCloseable {
       }
     remaining -= request;
     delivered += request;
-    if (remaining == 0 && extraBits > 0 && extraCrc != extraExpected)
-      throw new IOException("WVX CRC mismatch");
+    if (remaining == 0
+        && extra != null
+        && (floating || extraBits > 0)
+        && (flags & 8) == 0
+        && extraCrc != extraExpected) throw new IOException("WVX CRC mismatch");
     return pcm;
   }
 

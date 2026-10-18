@@ -827,7 +827,16 @@
       "source_root": "vendor/upstream/alac/src",
       "license": "vendor/upstream/alac/LICENSE",
       "license_sha256": "2000b58ee3d5d56a723dba1ef8e90f880f75935044681c2987a065223a69e89a",
-      "patches": [],
+      "patches": [
+        {
+          "source": "com/beatofthedrum/alacdecoder/AlacDecodeUtils.java",
+          "upstream_sha256": "7ac3be921b940273584fe6ec2457d95ce2e2ffbacae3afb8c04aa5c9773f2dcf",
+          "compiled_sha256": "e988e84a109ed28b9dd4e495b95f35e3cce06822c11d6603ce2596e632c4a2c5",
+          "patch": "vendor/patches/alac/AlacDecodeUtils-format-extension.patch",
+          "patch_sha256": "ab6dfad512acb9203c87d0dcaf2b5303686830dc83b8e02cce438d22055876b1",
+          "reason": "Finite native20 bit packing/sign-extension support; Rice/FIR unchanged"
+        }
+      ],
       "source_artifact": {
         "coordinate": "com.tianscar.javasound:javasound-alac:0.2.3:sources",
         "sha256": "ef277cd759e1c403e59d5a582c806dceed296898d398d0466020d390563b747a",
@@ -863,7 +872,16 @@
       "source_root": "vendor/upstream/wavpack/src",
       "license": "vendor/upstream/wavpack/LICENSE",
       "license_sha256": "cd82ab325383eccec6ce202c8c2d5e74142fe50437344eb861dc2b869c0add0d",
-      "patches": [],
+      "patches": [
+        {
+          "source": "com/beatofthedrum/wv/FloatUtils.java",
+          "upstream_sha256": "4a077fe7aeb8bf0d3fdd20871215a5eed04a2b34f75504b4e4739d6fde95303e",
+          "compiled_sha256": "5216dc5e502e4f060c118b242a2dbdfb547bbcc99ed65ffa78226e64f7e04c97",
+          "patch": "vendor/patches/wavpack/FloatUtils-format-extension.patch",
+          "patch_sha256": "d5595b37aa89d0d389d855d1e2fc831b38fae571a1e311777ec493d1c4781213",
+          "reason": "Preserve intermediate integers for exact bounded WVX IEEE reconstruction; no entropy/predictor change"
+        }
+      ],
       "source_artifact": {
         "coordinate": "io.github.jseproject:jse-spi-wavpack:1.1.0:sources",
         "sha256": "6ae702f6ea4ee58548b3359967f909f41e288e09869a50a21f3b81115c45bdf7",
@@ -1461,6 +1479,126 @@
         {
           "path": "net/sourceforge/jaad/mp4/MP4Exception.java",
           "sha256": "84172b012ddcb22996f034ec4bd99857590b1fcb2d209d2579f91a99860783f7"
+        }
+      ]
+    },
+    {
+      "name": "wma",
+      "upstream": "https://github.com/devoxin/lavaplayer",
+      "revision": "2a5e4a279e3643d380c78207cc139c03cbbf6aa6",
+      "source_root": "vendor/upstream/wma/src",
+      "license": "vendor/upstream/wma/LICENSE",
+      "version": "WMA v1/v2 FFmpeg-derived Java port",
+      "sources": [
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaBitReader.java",
+          "sha256": "d5767703ebde6c251e25b4ccf9afa6397fe1864ed2e013da169e15abfb78ddaa"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaData.java",
+          "sha256": "73555a71f2c28838253d26d45f99bca2f2743bc2a57b1052ba400397155d9a11"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaDecoder.java",
+          "sha256": "3d8c92f8fb855cb315bb1400b3c20bb204af5de981257f581b3a5389b619e7d1"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaImdct.java",
+          "sha256": "a56d698650206151ffe7cd58854f55aa6cbcfa14b596dcee4983fc2e17b98e46"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaVlc.java",
+          "sha256": "14f25615d0551833a1d6a41f6ba81e99086ed18731e9a4df374600fd51d20635"
+        }
+      ],
+      "patches": [
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaBitReader.java",
+          "upstream_sha256": "d5767703ebde6c251e25b4ccf9afa6397fe1864ed2e013da169e15abfb78ddaa",
+          "compiled_sha256": "b69f97233f7810c150257eba187ca3997989b440f80e6122862ef3643e247860",
+          "patch": "vendor/patches/wma/WmaBitReader.patch",
+          "patch_sha256": "945e16f9d724116427676f656d1f6f25d5df1a5e17dcb34bc726804050a7a0a7"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaDecoder.java",
+          "upstream_sha256": "3d8c92f8fb855cb315bb1400b3c20bb204af5de981257f581b3a5389b619e7d1",
+          "compiled_sha256": "416864f8736a949fd505d6e49b064e45c7923fc533cea311ddb9ae0714d6ad13",
+          "patch": "vendor/patches/wma/WmaDecoder.patch",
+          "patch_sha256": "ceb1205590e7c052dbb16761cccda638d50ed5e0c4c34b755a9ca3ccf33d0f7b"
+        }
+      ],
+      "license_sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+    }
+  ],
+  "ports": [
+    {
+      "name": "ape-ffmpeg-java-port",
+      "upstream": "https://github.com/FFmpeg/FFmpeg/tree/n9.0.2",
+      "revision": "n9.0.2",
+      "license": "LGPL-2.1-or-later",
+      "provenance": "Controlled Java translation of the pinned C references. port-source is the frozen v2 Java translation, not upstream Java; only namespace relocation applied for integration. Original C copyright and license retained. No JMAC source.",
+      "reference_files": [
+        {
+          "path": "vendor/upstream/ape/reference/apetag.c",
+          "sha256": "3926025ba8307a897e538e53050358bad5d1c43eb3702df195d8d9ffaf21594f"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/apedec.c",
+          "sha256": "981f664b9a9489979cf499c0eb7eb319c46547849719fa2e06363f357faacb50"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/COPYING.LGPLv2.1",
+          "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/lossless_audiodsp.c",
+          "sha256": "d4db72e01f280062257efe236158a0a7c3fe58aff8485a6ab9e6c7fdf750d2b4"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/lossless_audiodsp.h",
+          "sha256": "111371264648a6da9c70e37c1dc625d707600c90ee8f97c31b04184f3ee70c43"
+        },
+        {
+          "path": "vendor/upstream/ape/reference/ape.c",
+          "sha256": "332e3ae87ede8e1e51445b10e94543e7df4c821e1cf7351e26375f6fc4d9ceae"
+        }
+      ],
+      "port_sources": [
+        {
+          "original": "vendor/upstream/ape/port-source/study/ape/ApeDecoder.java",
+          "original_sha256": "572ddc82ccdcb0dc3f66de9c0904cdacbbb987a54dfc993e640ef49242f6d7cd",
+          "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeDecoder.java",
+          "compiled_sha256": "00029f330e9b4baac50571f43df0c6fe09355b92f8840758875a0d917538bd89",
+          "patch": "vendor/patches/ape/ApeDecoder-namespace.patch",
+          "patch_sha256": "76b3942979fb4ee12016695e255a7860eef61f3428abbd2e5c2f2046f0a2d524",
+          "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+        },
+        {
+          "original": "vendor/upstream/ape/port-source/study/ape/ApeInput.java",
+          "original_sha256": "8cd1216694b030433b206534118fc21a199930bceeb1fdb66994b8ee3792d54b",
+          "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeInput.java",
+          "compiled_sha256": "6fb0eda7a335423c863ea49a7d130854f0b364ee56a906c2129f1bb6e6cb1113",
+          "patch": "vendor/patches/ape/ApeInput-namespace.patch",
+          "patch_sha256": "23a24948aa0fe7f108f7817392a9c161b8669f5f453bfcc3cd657c1e94162533",
+          "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+        },
+        {
+          "original": "vendor/upstream/ape/port-source/study/ape/ApeEntropy.java",
+          "original_sha256": "5170ceef7b30324986c0b08c775754dcf25ed78510508004266044e057e67950",
+          "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeEntropy.java",
+          "compiled_sha256": "42fb1ecd6ba4445dd217a475d6ab880db42a5d84f97ab011f40919e2706bb2a7",
+          "patch": "vendor/patches/ape/ApeEntropy-namespace.patch",
+          "patch_sha256": "d5be3f27767c22d3b4f80e12a1dcf8ef7bfdbd3dfc430a1f74e27eb6feecca25",
+          "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+        },
+        {
+          "original": "vendor/upstream/ape/port-source/study/ape/ApePredictor.java",
+          "original_sha256": "49d56e9538fa154a5f25a73feef1f23e80019e1fd72cd3a27ae762b5cc9d75c0",
+          "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApePredictor.java",
+          "compiled_sha256": "779ae5e4c30cca11721f51c1af5a433ad514b2449f7d301384b03eb449521f1e",
+          "patch": "vendor/patches/ape/ApePredictor-namespace.patch",
+          "patch_sha256": "3e88ccc090a579425ed6a612b28e78541b46eabc943a5fc2410d21ead6ec610b",
+          "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
         }
       ]
     }
