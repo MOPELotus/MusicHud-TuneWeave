@@ -1,10 +1,10 @@
 package indi.mopelotus.musichud.audio.container;
 
+import indi.mopelotus.musichud.audio.codec.PacketSource;
+import indi.mopelotus.musichud.audio.container.info.AudioTrackInfoProvider;
+import indi.mopelotus.musichud.audio.container.io.SeekableInputStream;
 import indi.mopelotus.musichud.audio.container.matroska.*;
 import indi.mopelotus.musichud.audio.container.matroska.format.*;
-import indi.mopelotus.musichud.audio.container.io.SeekableInputStream;
-import indi.mopelotus.musichud.audio.container.info.AudioTrackInfoProvider;
-import indi.mopelotus.musichud.audio.codec.PacketSource;
 import java.io.*;
 import java.math.BigInteger;
 import java.util.*;
@@ -17,6 +17,7 @@ public final class MatroskaPacketSource implements PacketSource {
   private final MatroskaFileTrack selected;
   private final Format format;
   private final Track info;
+  private final Time estimatedDuration;
   private Packet pending;
   private volatile boolean closed;
   private boolean discontinuity;
@@ -36,18 +37,17 @@ public final class MatroskaPacketSource implements PacketSource {
           new Format(
               codecName(selected.codecId),
               selected.codecPrivate == null ? new byte[0] : selected.codecPrivate);
-      Time duration = null;
-      double ticks = file.getDuration();
-      if (Double.isFinite(ticks)
-          && ticks >= 0
-          && ticks == Math.rint(ticks)
-          && ticks < Long.MAX_VALUE)
-        duration =
-            new Time(Math.multiplyExact((long) ticks, file.getTimecodeScale()), 1_000_000_000);
+      // Info.Duration is a muxer estimate on the segment clock, not a decoded sample endpoint.
+      // Keep it available to UI/probing without advertising an exact mediaDuration to playback.
+      double durationNs = file.getDuration() * file.getTimecodeScale();
+      estimatedDuration =
+          Double.isFinite(durationNs) && durationNs >= 0 && durationNs < Long.MAX_VALUE
+              ? new Time(Math.round(durationNs), 1_000_000_000)
+              : null;
       info =
           new Track(
               format,
-              duration,
+              null,
               List.of(),
               new Time(selected.codecDelayNs, 1_000_000_000),
               new Time(selected.seekPreRollNs, 1_000_000_000));
@@ -72,6 +72,25 @@ public final class MatroskaPacketSource implements PacketSource {
     };
   }
 
+  /** The exact quantum of stored Cluster/Block timestamps, before codec-delay subtraction. */
+  public Time timestampQuantum() {
+    return new Time(file.getTimecodeScale(), 1_000_000_000);
+  }
+
+  /**
+   * Approximate Info.Duration for display/probing, rounded to nanoseconds; never an exact PCM end.
+   * Packet BlockDuration also uses the segment clock. DefaultDuration, when present, uses native
+   * nanoseconds instead. Neither inferred packet duration may override the decoder's sample count.
+   */
+  public Time estimatedDuration() {
+    return estimatedDuration;
+  }
+
+  /**
+   * Packet PTS already subtracts Matroska CodecDelay from the stored timestamp. Track.codecDelay
+   * describes codec priming; consumers must not subtract it again as a timestamp translation.
+   * Negative leading PTS and packet discard padding still require presentation trimming once.
+   */
   public Track track() {
     return info;
   }
