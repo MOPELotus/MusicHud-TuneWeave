@@ -14,7 +14,7 @@ class BackgroundShaderContractTest {
                 "/assets/musichud_tuneweave/shaders/core/background.fsh")) {
             String shader = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             assertTrue(shader.contains("u_Dark.a - 0.25"));
-            assertTrue(shader.contains("fragColor = vec4(rgb, mask)"));
+            assertTrue(shader.contains("fragColor = vec4(rgb, mask * u_Style.a)"));
             assertTrue(!shader.contains("alpha * mask"));
         }
     }

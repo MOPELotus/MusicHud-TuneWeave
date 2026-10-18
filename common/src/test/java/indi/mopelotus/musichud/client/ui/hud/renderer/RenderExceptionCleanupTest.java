@@ -32,16 +32,16 @@ class RenderExceptionCleanupTest {
         try (Scene s = new Scene()) { s.verifyDrawFailure(s.text(true), 2, 1); }
     }
 
-    @Test void lyricBaseDrawFailureRestoresOuterClipAndTransform() throws Exception {
+    @Test void flatLyricDrawFailureRestoresOuterClipAndTransform() throws Exception {
+        try (Scene s = new Scene()) { s.verifyDrawFailure(s.lyrics(false, false), 1, 1); }
+    }
+
+    @Test void lyricGradientFailureRestoresClipAndTransform() throws Exception {
         try (Scene s = new Scene()) { s.verifyDrawFailure(s.lyrics(true, false), 1, 1); }
     }
 
-    @Test void lyricHighlightFailureRestoresNestedClipsAndTransform() throws Exception {
-        try (Scene s = new Scene()) { s.verifyDrawFailure(s.lyrics(true, false), 2, 2); }
-    }
-
     @Test void translatedLyricFailureRestoresTheCallerState() throws Exception {
-        try (Scene s = new Scene()) { s.verifyDrawFailure(s.lyrics(true, false), 3, 1); }
+        try (Scene s = new Scene()) { s.verifyDrawFailure(s.lyrics(true, false), 2, 1); }
     }
 
     @Test void transitionIncomingLineFailureRestoresTheCallerState() throws Exception {
@@ -87,7 +87,7 @@ class RenderExceptionCleanupTest {
             s.render(s.text(false));
             s.render(s.lyrics(true, false));
             s.assertBalanced();
-            assertEquals(3, s.field("draws"));
+            assertEquals(2, s.field("draws"));
         }
     }
 

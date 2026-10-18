@@ -97,7 +97,8 @@ public class PlayingStatusRenderer implements HudRenderer {
                     .rotate(rotationRadians)
                     .translate(-centerX, -centerY)
                     .end(transforming -> {
-                        hudRenderContext.blit(RenderPipelines.GUI_TEXTURED, currentResourceLocation1, screenX, screenY, 0, 0, width, height, width, height);
+                        hudRenderContext.blit(RenderPipelines.GUI_TEXTURED, currentResourceLocation1, screenX, screenY, 0, 0, width, height, width, height, width, height,
+                                net.minecraft.util.ARGB.color(layout.getEffectiveAlpha(), 0xFFFFFF));
                     });
         }
     }
