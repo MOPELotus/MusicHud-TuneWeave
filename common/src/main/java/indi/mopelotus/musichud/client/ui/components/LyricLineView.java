@@ -25,7 +25,6 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 
 import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -169,6 +168,14 @@ public class LyricLineView extends LinearLayout {
         }
     }
 
+    static Duration emphasizeDuration(Duration lineDuration, Duration musicDuration, Duration lineStart, Duration elapsed) {
+        Duration remaining = lineDuration == null
+                ? (musicDuration == null ? Duration.ZERO : musicDuration.minus(lineStart))
+                : lineDuration.minus(elapsed);
+        remaining = remaining.minusMillis(800);
+        return remaining.isNegative() ? Duration.ofMillis(900) : remaining;
+    }
+
     public synchronized void emphasize() {
         if (emphasized) return;
         emphasized = true;
@@ -176,14 +183,8 @@ public class LyricLineView extends LinearLayout {
         cancelAnimations();
         Duration delta = nowPlayingInfo.getPlayedDuration().minus(lyricLine.getStartTime());
         Duration duration = lyricLine.getDuration();
-        Duration stayEmphasizeDuration =
-                duration == null ?
-                        nowPlayingInfo.getMusicDuration().minus(lyricLine.getStartTime())
-                        : duration.minus(delta);
-        stayEmphasizeDuration = stayEmphasizeDuration.minus(Duration.of(800, ChronoUnit.MILLIS));
-        if (stayEmphasizeDuration.isNegative()) {
-            stayEmphasizeDuration = Duration.ofMillis(900);
-        }
+        Duration musicDuration = nowPlayingInfo.getMusicDuration();
+        Duration stayEmphasizeDuration = emphasizeDuration(duration, musicDuration, lyricLine.getStartTime(), delta);
         switch (lyricLine.getType()) {
             case META_DATA -> {
             }

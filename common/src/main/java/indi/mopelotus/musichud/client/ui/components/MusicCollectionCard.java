@@ -18,7 +18,6 @@ import indi.mopelotus.musichud.beans.user.ProfileConfigData;
 import indi.mopelotus.musichud.client.services.music.MusicService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.ui.Theme;
-import indi.mopelotus.musichud.client.utils.PlayerInfoUtil;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
 import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.interfaces.Unregister;
@@ -202,32 +201,8 @@ public class MusicCollectionCard extends LinearLayout {
                 buttons.addView(intelligenceButton, new LayoutParams(row2.dp(22), row2.dp(22), 0));
             }
         } else {
-            LinearLayout pusherRow = new LinearLayout(context);
-            pusherRow.setOrientation(LinearLayout.HORIZONTAL);
-            pusherRow.setGravity(Gravity.CENTER_VERTICAL);
-
-            TextView pusherText = new TextView(context);
-            pusherText.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-            pusherText.setTextSize(Theme.TEXT_SIZE_NORMAL);
-            pusherText.setTextAlignment(TEXT_ALIGNMENT_TEXT_START);
-            pusherText.setText(pusherInfo.getPlayerName());
-
-            PlayerHeadView pusherHeadView = new PlayerHeadView(context);
-            int rowHeight = pusherText.dp(Theme.TEXT_SIZE_LARGER);
-            //noinspection SuspiciousNameCombination
-            pusherHeadView.setLayoutParams(new LinearLayout.LayoutParams(rowHeight, rowHeight));
-            pusherHeadView.setPlayerSkinSupplier(() -> {
-                try {
-                    return PlayerInfoUtil.getPlayerSkin(PlayerInfoUtil.getPlayerInfoByUUID(pusherInfo.getPlayerUUID()));
-                } catch (Exception ignored) {}
-                return null;
-            });
-
-            pusherRow.addView(pusherHeadView);
-            LinearLayout.LayoutParams params5 = new LinearLayout.LayoutParams(WRAP_CONTENT, rowHeight);
-            params5.gravity = Gravity.LEFT | Gravity.CENTER_HORIZONTAL;
-            params5.setMargins(pusherText.dp(4), 0, 0, 0);
-            pusherRow.addView(pusherText, params5);
+            PusherWidget pusherRow = new PusherWidget(context);
+            pusherRow.bind(pusherInfo);
 
             LayoutParams pusherParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
             pusherParams.setMargins(dp(4), dp(4), 0, dp(4));
