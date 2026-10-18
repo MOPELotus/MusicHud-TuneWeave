@@ -91,10 +91,10 @@ class RenderExceptionCleanupTest {
         }
     }
 
-    @Test void clearingSettledLyricsStopsDrawingImmediately() throws Exception {
+    @Test void hardClearingSettledLyricsStopsDrawingImmediately() throws Exception {
         try (Scene s = new Scene()) {
             Object renderer = s.lyrics(true, false);
-            s.call(renderer, "clear");
+            s.call(renderer, "hardClear");
             s.render(renderer);
             assertEquals(0, s.field("draws"));
             s.render(renderer);
@@ -103,15 +103,15 @@ class RenderExceptionCleanupTest {
         }
     }
 
-    @Test void clearingAnIncomingTransitionCannotResurrectEitherLine() throws Exception {
+    @Test void hardClearingAnIncomingTransitionCannotResurrectEitherLine() throws Exception {
         try (Scene s = new Scene()) {
             Object renderer = s.lyrics(false, true);
-            s.call(renderer, "clear");
+            s.call(renderer, "hardClear");
             s.render(renderer);
             assertEquals(0, s.field("draws"));
             s.render(renderer);
             assertEquals(0, s.field("draws"));
-            s.call(renderer, "clear");
+            s.call(renderer, "hardClear");
             // A fresh track after clearing must still animate and become visible.
             Class<?> lyric = s.loadClass(ROOT + "client.ui.dto.LyricLine");
             Class<?> line = s.loadClass(RENDER + "ScrollingLyricLineRenderer$Line");
@@ -122,6 +122,45 @@ class RenderExceptionCleanupTest {
             assertTrue((int) s.field("draws") > 0);
             s.assertBalanced();
         }
+    }
+
+    @Test void ordinaryClearReplacesPendingLyricsButLetsTheVisiblePairSlideOut() throws Exception {
+        try (Scene s = new Scene()) {
+            Object renderer = s.lyrics(false, true); // Visible "abc", queued "next".
+            var pairs = (List<?>) rendererField(renderer, "pairs");
+            Object outgoing = pairs.getFirst();
+            s.call(renderer, "clear");
+            assertSame(outgoing, pairs.getFirst());
+            var pending = (java.util.Queue<?>) rendererField(renderer, "pendingLines");
+            assertEquals(1, pending.size());
+            s.render(renderer);
+            assertEquals(2, pairs.size());
+            assertSame(outgoing, pairs.getFirst());
+            assertEquals(true, rendererField(outgoing, "leaving"));
+            Object incoming = rendererField(pairs.getLast(), "line1");
+            Object line = rendererField(incoming, "line");
+            assertEquals("", s.call(line, "text"));
+            s.assertBalanced();
+        }
+    }
+
+    @Test void hardClearRetiresBothAVisiblePairAndQueuedSoftClear() throws Exception {
+        try (Scene s = new Scene()) {
+            Object renderer = s.lyrics(false, true);
+            s.call(renderer, "clear");
+            s.call(renderer, "hardClear");
+            assertTrue(((List<?>) rendererField(renderer, "pairs")).isEmpty());
+            assertTrue(((java.util.Queue<?>) rendererField(renderer, "pendingLines")).isEmpty());
+            s.render(renderer);
+            assertEquals(0, s.field("draws"));
+            s.assertBalanced();
+        }
+    }
+
+    private static Object rendererField(Object target, String name) throws Exception {
+        var field = target.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(target);
     }
 
     private static final class Scene extends URLClassLoader {
