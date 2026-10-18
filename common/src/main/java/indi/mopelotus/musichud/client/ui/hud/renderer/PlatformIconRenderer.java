@@ -53,7 +53,8 @@ public final class PlatformIconRenderer implements HudRenderer {
         Identifier texture = texture(platform, rasterSize);
         if (texture == null) return;
         context.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0,
-                width, height, width, height);
+                width, height, width, height, width, height,
+                net.minecraft.util.ARGB.color(layout.getEffectiveAlpha(), 0xFFFFFF));
     }
 
     private static synchronized Identifier texture(TuneWeavePlatform platform, int rasterSize) {

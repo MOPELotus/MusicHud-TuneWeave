@@ -6,7 +6,7 @@
 
 layout(std140) uniform MHAlbumPosition {
     mat4 u_Translation;
-    vec3 u_Layout; // (halfWidth, halfHeight, cornerRadius)
+    vec4 u_Style; // (halfWidth, halfHeight, cornerRadius)
 };
 
 layout(location = 0) in vec3 Position;

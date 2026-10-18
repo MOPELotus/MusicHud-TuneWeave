@@ -148,7 +148,7 @@ public class TextRenderer implements HudRenderer {
         if (text == null || text.isEmpty()) return;
 
         // 计算带透明度的颜色
-        int color = getColorWithAlpha(textData.baseColor, alpha);
+        int color = getColorWithAlpha(textData.baseColor, alpha * layout.getEffectiveAlpha());
 
         // 计算位置
         float measuredWidth = measureWidth(text);
