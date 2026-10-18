@@ -24,6 +24,7 @@ def profiles = active.split(',').collect { it.trim().toLowerCase() } as Set
 include 'processor'
 include 'core'
 include 'common'
+include 'metadata'
 
 if (profiles.contains('all') || profiles.contains('fabric')) {
     include 'fabric'
