@@ -51,7 +51,7 @@ public final class PlatformIconRenderer implements HudRenderer {
         ResourceLocation texture = texture(platform, rasterSize);
         if (texture == null) return;
         context.blit( texture, x, y, 0, 0,
-                width, height, width, height);
+                width, height, width, height, width, height, layout.getEffectiveAlpha());
     }
 
     private static synchronized ResourceLocation texture(TuneWeavePlatform platform, int rasterSize) {

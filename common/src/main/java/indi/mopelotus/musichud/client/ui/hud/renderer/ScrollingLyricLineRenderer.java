@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import indi.mopelotus.musichud.client.ui.hud.renderer.text.GradientSpec;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -280,8 +281,7 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
                 continue;
             }
             if (line1.lyricLine.isWordByWord()) {
-                renderLine(context, pair.line1, line1.fadeColor, cachedContainerX, startY, line1Height, yOffset);
-                renderLineHighlight(context, pair.line1, cachedContainerX, startY, line1Height, y, x, calcHighlightWidth(pair.line1, line1Height), yOffset);
+                renderLineHighlight(context, pair.line1, line1.emphasizeColor, line1.fadeColor, cachedContainerX, startY, line1Height, yOffset);
             } else {
                 renderLine(context, pair.line1, line1.emphasizeColor, cachedContainerX, startY, line1Height, yOffset);
             }
@@ -353,33 +353,26 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
                 .translate(drawX, drawY)
                 .scale(scale)
                 .end(transforming -> {
-                    context.drawString(Minecraft.getInstance().font, text, 0, 0, color, false);
+                    context.drawGradientString(Minecraft.getInstance().font, text, 0, 0, GradientSpec.flat(color), layout.getEffectiveAlpha());
                 });
     }
 
-    private void renderLineHighlight(HudRenderContext context, LineState line, int baseX, int baseY, float lineHeight, float positionY, float highlightFromX, float highlightToX, float yOffset) {
-        if (line.line == null) return;
+    /** Smooth karaoke boundary in text space, including the entire first and last glyph. */
+    private void renderLineHighlight(HudRenderContext context, LineState line, int sungColor, int pendingColor,
+                                     int baseX, int baseY, float lineHeight, float yOffset) {
+        if (line.line == null || line.line.text.isEmpty()) return;
         String text = line.line.text;
-        if (text.isEmpty()) return;
-
         float scale = lineHeight / Minecraft.getInstance().font.lineHeight;
-        if (!(scale <= 0)) {
-            float scrollOffset = line.scrollOffset;// 始终左对齐：起始X = baseX + scrollOffset
-            float drawX = baseX + scrollOffset;
-            float drawY = baseY + yOffset;
-            int toX = (int) (drawX + highlightToX);
-            context.pushScissor((int) highlightFromX, (int) positionY, toX, (int) (positionY + layout.getHeight()));
-            try {
-            context.transform()
-                    .translate(drawX, drawY)
-                    .scale(scale)
-                    .end(transforming -> {
-                        context.drawString(Minecraft.getInstance().font, text, 0, 0, line.line.emphasizeColor, false);
-                    });
-            } finally {
-                context.popScissor();
-            }
-        }
+        if (!(scale > 0f)) return;
+        float totalWidth = calcTextWidth(text, lineHeight);
+        float sweep = totalWidth > 0f ? Math.clamp(calcHighlightWidth(line, lineHeight) / totalWidth, 0f, 1f) : 1f;
+        float rawWidth = calcTextWidth(text, Minecraft.getInstance().font.lineHeight);
+        float band = rawWidth > 0f ? Math.clamp(4f / rawWidth, 0.002f, 0.5f) : 0.002f;
+        float center = sweep * (1f + 2f * band) - band;
+        GradientSpec gradient = GradientSpec.window(sungColor, pendingColor, center, band);
+        context.transform().translate(baseX + line.scrollOffset, baseY + yOffset).scale(scale)
+                .end(transforming -> context.drawGradientString(Minecraft.getInstance().font, text,
+                        0, 0, gradient, layout.getEffectiveAlpha()));
     }
 
     private record PendingLines(Line line1, Line line2, boolean animate) {

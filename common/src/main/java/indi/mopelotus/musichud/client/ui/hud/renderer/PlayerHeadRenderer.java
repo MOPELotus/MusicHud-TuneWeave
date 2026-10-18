@@ -3,11 +3,10 @@ package indi.mopelotus.musichud.client.ui.hud.renderer;
 import indi.mopelotus.musichud.client.ui.hud.metadata.Layout;
 import lombok.Getter;
 import net.minecraft.client.Minecraft;
-
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.resources.ResourceLocation;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Supplier;
@@ -16,27 +15,16 @@ public class PlayerHeadRenderer implements HudRenderer {
     private static final int SKIN_TEXTURE_SIZE = 64;
     @Getter
     private Layout layout;
-    private ResourceLocation previousSkinResource;
-    private ResourceLocation skinResource;
     @Getter
-    private Supplier<ResourceLocation> playerSkinSupplier;
-    private long lastUpdateTime = -1;
-    private static final int TRANSITION_DURATION = 400;
+    private volatile Supplier<ResourceLocation> playerSkinSupplier;
+    // Transition state belongs exclusively to the render thread.
+    private final SkinTransition<ResourceLocation> transition = new SkinTransition<>(400_000_000L);
 
     public void setPlayerSkinSupplier(@Nullable Supplier<ResourceLocation> playerSkinSupplier) {
         this.playerSkinSupplier = playerSkinSupplier;
-        ResourceLocation newSkin = playerSkinSupplier == null ? null : playerSkinSupplier.get();
-        long now = System.currentTimeMillis();
-        if (now - lastUpdateTime > TRANSITION_DURATION) {
-            previousSkinResource = skinResource;
-        } else {
-            previousSkinResource = null;
-        }
-        lastUpdateTime = now;
-        skinResource = newSkin;
     }
 
-    public boolean isVisible() { return skinResource != null; }
+    public boolean isVisible() { return transition.isVisible(); }
 
     public void configure(Layout layout) {
         this.layout = layout;
@@ -46,38 +34,25 @@ public class PlayerHeadRenderer implements HudRenderer {
     public void render(HudRenderContext context) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) return;
-        long currentTimeMillis = System.currentTimeMillis();
-        try {
-            if (playerSkinSupplier != null) {
-                ResourceLocation skin = playerSkinSupplier.get();
-                if (!java.util.Objects.equals(skinResource, skin)) {
-                    if (currentTimeMillis - lastUpdateTime > TRANSITION_DURATION) {
-                        previousSkinResource = skinResource;
-                    } else {
-                        previousSkinResource = null;
-                    }
-                    lastUpdateTime = currentTimeMillis;
-                    skinResource = skin;
-                }
+        ResourceLocation skin = null;
+        Supplier<ResourceLocation> supplier = playerSkinSupplier;
+        if (supplier != null) {
+            try {
+                skin = supplier.get();
+            } catch (Exception ignored) {
+                // A stale player lookup must not abort extraction of the HUD frame.
             }
-            if (skinResource == null) return;
-        } catch (Exception ignored) {}
+        }
+        var layers = transition.sample(skin, System.nanoTime());
+        if (layers.isEmpty()) return;
 
         Layout.AbsolutePosition absolutePosition = layout.calcAbsolutePosition(context);
         int w = (int) layout.getWidth();
         int h = (int) layout.getHeight();
-
-        if (currentTimeMillis - lastUpdateTime > TRANSITION_DURATION) {
-            renderHead(context.getGraphics(), skinResource,
-                    absolutePosition.x(), absolutePosition.y(), w, h, 1);
-        } else {
-            float transitionProgress = Math.clamp((float) (currentTimeMillis - lastUpdateTime) / TRANSITION_DURATION, 0, 1);
-            if (previousSkinResource != null) {
-                renderHead(context.getGraphics(), previousSkinResource,
-                        absolutePosition.x(), absolutePosition.y(), w, h, 1 - transitionProgress);
-            }
-            renderHead(context.getGraphics(), skinResource,
-                    absolutePosition.x(), absolutePosition.y(), w, h, transitionProgress);
+        float styleAlpha = layout.getEffectiveAlpha();
+        for (var layer : layers) {
+            renderHead(context.getGraphics(), layer.skin(),
+                    absolutePosition.x(), absolutePosition.y(), w, h, layer.alpha() * styleAlpha);
         }
     }
 

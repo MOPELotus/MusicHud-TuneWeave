@@ -12,6 +12,10 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.renderer.LightTexture;
+import indi.mopelotus.musichud.client.ui.hud.renderer.text.GradientSpec;
+import indi.mopelotus.musichud.client.ui.hud.renderer.text.GradientTextRenderer;
+import indi.mopelotus.musichud.client.ui.hud.renderer.text.LegacyTextGeometry;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix3x2f;
@@ -42,6 +46,7 @@ public class HudRenderContext {
     }
 
     public void releaseBuffers() {
+        LegacyTextGeometry.release();
         uboHandles.values().forEach(HudShaderProgram.UniformBufferHandle::delete);
         uboHandles.clear();
         uboBuffers.clear();
@@ -104,7 +109,16 @@ public class HudRenderContext {
         int x1 = (int)(left + hudRenderState.width() / 2f);
         int y1 = (int)(top + hudRenderState.height() / 2f);
 
-        graphics.fill(x0, y0, x1, y1, 0x33FFFFFF);
+        float opacity = 1f;
+        if (hudRenderState.uniforms() != null) {
+            for (HudUniform uniform : hudRenderState.uniforms()) {
+                if (uniform instanceof indi.mopelotus.musichud.client.ui.hud.metadata.Layout layout) {
+                    opacity = layout.getEffectiveAlpha();
+                    break;
+                }
+            }
+        }
+        graphics.fill(x0, y0, x1, y1, ((int) (0x33 * opacity) << 24) | 0xFFFFFF);
     }
 
     private void setBuiltinUniforms(HudShaderProgram program) {
@@ -240,7 +254,51 @@ public class HudRenderContext {
     }
 
     public void drawString(Font font, String text, int x, int y, int color, boolean dropShadow) {
-        graphics.drawString(font, text, x, y, color, dropShadow);
+        int alpha = color >>> 24;
+        if (alpha == 0) return;
+        if (!dropShadow) {
+            drawGradientString(font, text, x, y, GradientSpec.flat(color), 1f);
+            return;
+        }
+        // Flush previous batches before altering the shared shader multiplier. Vanilla Font
+        // forces tiny vertex alphas opaque; carry shadow opacity in ColorModulator instead.
+        graphics.flush();
+        float[] previousColor = RenderSystem.getShaderColor().clone();
+        try {
+            RenderSystem.setShaderColor(1, 1, 1, alpha / 255f);
+            graphics.drawString(font, text, x, y, color | 0xFF000000, true);
+            graphics.flush();
+        } finally {
+            RenderSystem.setShaderColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3]);
+        }
+    }
+
+    public void drawGradientString(Font font, String text, int x, int y, GradientSpec gradient, float alpha) {
+        if (font == null || text == null || text.isEmpty() || gradient == null || !(alpha > 0f)) return;
+        graphics.flush();
+        float[] previousColor = RenderSystem.getShaderColor().clone();
+        try {
+            RenderSystem.setShaderColor(1, 1, 1, 1);
+            GradientTextRenderer.draw(font, text, x, y, gradient, alpha,
+                    graphics.pose().last().pose(), graphics.bufferSource(), LightTexture.FULL_BRIGHT);
+        } finally {
+            RenderSystem.setShaderColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3]);
+        }
+    }
+
+    public void blit(ResourceLocation texture, int x, int y, int sourceX, int sourceY,
+                     int width, int height, int sourceWidth, int sourceHeight,
+                     int textureWidth, int textureHeight, float alpha) {
+        graphics.flush();
+        float[] previousColor = RenderSystem.getShaderColor().clone();
+        try {
+            graphics.setColor(1, 1, 1, alpha);
+            blit(texture, x, y, sourceX, sourceY, width, height,
+                    sourceWidth, sourceHeight, textureWidth, textureHeight);
+            graphics.flush();
+        } finally {
+            graphics.setColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3]);
+        }
     }
 
     public void fill(int fromX, int fromY, int toX, int toY, int color) {

@@ -12,9 +12,11 @@ import org.joml.Matrix4f;
 @EqualsAndHashCode
 @Getter
 public class Layout implements HudUniform {
-    public static final int UBO_SIZE = new Calculator().putMat4f().putVec3().align(16).get(); // pad to 16-byte alignment (std140)
+    public static final int UBO_SIZE = new Calculator().putMat4f().putVec4().align(16).get(); // pad to 16-byte alignment (std140)
     private volatile float x, y, width, height;
     private volatile float radius;
+    private volatile float alpha = 1f;
+    private float lastEffectiveAlpha = Float.NaN;
     private volatile HorizontalAlign horizontalAlign;
     private volatile VerticalAlign verticalAlign;
     private String targetElementName;
@@ -63,7 +65,7 @@ public class Layout implements HudUniform {
         Matrix3x2f localMatrix = new Matrix3x2f();
         Layout.AbsolutePosition absolutePosition = calcAbsoluteCenterPosition(HudRenderContext.getCurrent());
         localMatrix.translate(absolutePosition.x(), absolutePosition.y());
-        builder.putMat4f(new Matrix4f().mul(localMatrix)).putVec3(width / 2, height / 2, radius);
+        builder.putMat4f(new Matrix4f().mul(localMatrix)).putVec4(width / 2, height / 2, radius, getEffectiveAlpha());
         if (dirty) {
             dirty = false;
         }
@@ -77,6 +79,11 @@ public class Layout implements HudUniform {
 
     private void checkAbsolutePositionDirty() {
         AbsolutePosition absolutePosition = calcAbsoluteCenterPosition(HudRenderContext.getCurrent());
+        float effectiveAlpha = getEffectiveAlpha();
+        if (effectiveAlpha != lastEffectiveAlpha) {
+            dirty = true;
+            lastEffectiveAlpha = effectiveAlpha;
+        }
         if (!absolutePosition.equals(lastAbsolutePosition)) {
             dirty = true;
             lastAbsolutePosition = absolutePosition;
@@ -111,6 +118,16 @@ public class Layout implements HudUniform {
         } else {
             return this;
         }
+    }
+
+    /** Multiplies opacity through the layout tree, including the HUD-wide fade. */
+    public float getEffectiveAlpha() {
+        return alpha * (parent == null ? 1f : parent.getEffectiveAlpha());
+    }
+
+    public void setAlpha(float alpha) {
+        this.alpha = Float.isFinite(alpha) ? Math.clamp(alpha, 0f, 1f) : 0f;
+        this.dirty = true;
     }
 
     public void setX(float x) {

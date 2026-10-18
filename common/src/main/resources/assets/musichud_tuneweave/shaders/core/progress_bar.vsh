@@ -5,7 +5,7 @@
 
 layout(std140) uniform MHProgressPosition {
     mat4 u_Translation;
-    vec3 u_Layout; // (halfWidth, halfHeight, cornerRadius)
+    vec4 u_Style; // (halfWidth, halfHeight, cornerRadius)
 };
 
 in vec3 Position;
