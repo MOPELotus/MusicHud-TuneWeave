@@ -57,9 +57,15 @@ ModernUI 有以下三条来源，按上表选择其中一条，再选择对应�
 
 [Mod Menu](https://modrinth.com/mod/modmenu) 为 Fabric 可选依赖。不要同时安装多份 ModernUI，也不要与原版 MusicHud 同时安装。
 
+## 已知外部兼容性
+
+**NeoForge 26.2 与原生 Vulkan：** 受早期加载窗口（ELS）冲突影响的实例可能无法启动，已记录的案例包括 `26.2.0.0-beta`。受影响实例可在 `config/fml.toml` 中设置 `earlyWindowControl=false` 后重启。上游已在 **26.3.0.26-beta** 修复，维护者说明该修复不能回移到 26.2；不要将旧版绕过措施套用于已修复的 26.3。参见[原问题](https://github.com/neoforged/NeoForge/issues/3230)、[重复报告](https://github.com/neoforged/NeoForge/issues/3257)及[修复与回移说明](https://github.com/neoforged/NeoForge/pull/3493)。
+
+**Linux 日志：** 部分 NeoForge、Log4J 与 KQueue 组合可能出现 `DebugFile Appender` 或 KQueue 初始化错误，[上游问题 #3224](https://github.com/neoforged/NeoForge/issues/3224) 仍开放。此类日志不能一概视为无害，应结合当前实例的网络、播放和正常退出情况判断。
+
 ## 首次使用
 
-以下内置下载步骤适用于普通版。CF 版请先自行安装 TuneWeave，再选择本地程序或配置已有服务地址；详见下方“构建发行版本”。
+以下内置下载步骤适用于普通版。CF 版请在模组外安装并启动 TuneWeave，再在设置中填写服务地址；详见下方“构建发行版本”。
 
 1. 将模组和对应依赖放入游戏实例的 `mods` 目录，进入世界或服务器，按 **M** 打开界面。
 2. 首次使用需要准备 **TuneWeave 本地服务**。打开设置中的 API 服务区域，点击“下载 TuneWeave 服务端”，选择保存目录和下载方式，再点击“下载”。内置下载会按系统选择发布文件并校验 SHA-256。
@@ -69,9 +75,9 @@ ModernUI 有以下三条来源，按上表选择其中一条，再选择对应�
 
 在账户页点击“最近播放”，可切换歌曲、专辑和歌单记录，显示最近最多 100 条及其时间、可用的设备信息。点击歌曲加入队列，点击专辑或歌单卡片打开详情；时间按本机时区显示。此功能需要 **TuneWeave 0.1.0-alpha.11 或更新版本**及音乐平台登录，目前由网易云提供支持。
 
-也可以自行下载 [TuneWeave 发布文件](https://github.com/MOPELotus/TuneWeave/releases)，在设置中选择可执行文件；已有独立实例时可直接配置其服务地址，默认地址为 `http://127.0.0.1:7832`。TuneWeave 是运行在客户端机器上的独立程序，不是放进 `mods` 或 `plugins` 的 JAR。
+普通版也可以自行下载 [TuneWeave 发布文件](https://github.com/MOPELotus/TuneWeave/releases)，在设置中选择可执行文件；已有独立实例时可直接配置其服务地址，默认地址为 `http://127.0.0.1:7832`。TuneWeave 是运行在客户端机器上的独立程序，不是放进 `mods` 或 `plugins` 的 JAR。
 
-下载较慢时可在下载窗口选择 GitHub 下载代理。连接或启动失败时，可在同一设置区域查看服务状态、版本和日志。
+普通版下载较慢时可在下载窗口选择 GitHub 下载代理，包括 Axis Now CDN；连接或启动失败时，可查看服务状态、版本和日志。CF 版仅连接已在模组外启动的服务，不提供程序下载或进程日志管理。
 
 ## 常用按键
 
@@ -101,7 +107,7 @@ ModernUI 有以下三条来源，按上表选择其中一条，再选择对应�
 
 ## 获取更新与反馈
 
-全量 CI 和发布流程由默认分支 `26.3` 管理。当前矩阵覆盖七个客户端版本组的双加载器 JAR，以及 `plugin` 分支的三个跨版本插件，共 17 个部署文件，并附带 `SHA256SUMS` 与构建来源清单。
+全量 CI 和发布流程由默认分支 `26.3` 管理。当前矩阵覆盖七个客户端版本组的双加载器 JAR，以及 `plugin` 分支的三个跨版本插件，每种发行版各有 17 个部署文件，普通版与 CF 版合计 34 个，并附带 `SHA256SUMS` 与构建来源清单。
 
 GitHub Release 在推送匹配版本标签，或从 `26.3` 手动运行 CI 并选择 `publish` 时发布。Modrinth、CurseForge、Hangar 使用独立的 `Platform publishing` 工作流：从 `26.3` 运行，填写已发布的 GitHub Release 标签，先 `prepare` 再 `publish`。该流程也保留对旧版 15 文件发布包的校验和重试支持。
 
@@ -109,9 +115,9 @@ Actions 中的 `release-bundle` 可用于获取开发构建。报告问题时请
 
 ## 构建发行版本
 
-CF 专版移除了 TuneWeave 下载和更新功能；完整功能请使用普通版。平台说明见 [CF 版 README](README-CF.md)。
+CF 专版仅连接已有 TuneWeave 服务，不负责外部程序的下载、更新、启动或管理；完整功能请使用普通版。平台说明见 [CF 版 README](README-CF.md)。
 
-默认构建为普通版。使用 `-Pdistribution=cf` 构建移除 TuneWeave 下载和更新功能的 CF 送审版：
+默认构建为普通版。使用 `-Pdistribution=cf` 构建仅连接已有 TuneWeave 服务的 CF 送审版：
 
 ```bash
 ./gradlew common:test fabric:build neoforge:build -Pdistribution=cf --rerun-tasks
@@ -119,9 +125,9 @@ CF 专版移除了 TuneWeave 下载和更新功能；完整功能请使用普通
 
 Windows 使用 `gradlew.bat`。`gradle.properties` 中的 `mod_version` 保持原值；例如 `1.3.0-beta-3` 会生成 `1.3.0-beta-3-cf.1+26.2`，其他分支使用各自的 Minecraft 版本范围。省略参数或使用 `-Pdistribution=standard` 可构建普通版，无需先执行 `clean`。
 
-CF 版不包含 TuneWeave 下载器、更新器或下载界面。用户需自行安装 TuneWeave，再配置本地可执行文件路径并手动启动，或连接已自行运行的服务。新配置默认关闭自动启动且不预设程序路径；用户可主动开启自动启动，已有配置中的明确设置会保留。启动后的日志和 TuneWeave 数据仍写入所选程序所在目录。
+CF 版请在模组外自行安装并启动 TuneWeave，再在设置中填写服务地址，通常为 `http://127.0.0.1:7832`。CF 版没有可执行文件路径、自动启动、子进程控制或进程日志管理设置。服务地址使用独立的 `musichud_tuneweave-cf-server.toml`，切换发行版时保留普通版的进程配置。
 
-两种版本使用相同的模组标识、配置路径及通信协议，请只安装其中一种。CF 后缀标识发行方式，不代表已经通过 CurseForge 审核。构建会检查最终 JAR、嵌套依赖和源码 JAR，防止 CF 版残留下载实现。
+两种版本使用相同的模组标识及通信协议，请只安装其中一种。CF 后缀标识发行方式，不代表已经通过 CurseForge 审核。构建会检查最终 JAR、嵌套依赖和源码 JAR，防止 CF 版残留下载实现。
 
 插件分支也接受该参数并添加 `-cf` 后缀，功能不变：服务器和代理始终不运行 TuneWeave。Actions 手动运行时可选择 `distribution=cf` 获取全版本送审产物；该模式不自动发布 GitHub Release 或上传平台；平台发布由前述独立的 `Platform publishing` 工作流控制。
 
@@ -131,8 +137,8 @@ CF 版不包含 TuneWeave 下载器、更新器或下载界面。用户需自行
 
 ### 客户端更新
 
-客户端启动后检查 GitHub Release 中匹配当前发行版、游戏版本和加载器的更新，正式版与测试版都会提示；设置页也提供手动检查。普通版只自动更新普通版，CF 版只提示匹配的 CF 更新并打开下载页面。CF 版选择“去下载”后打开对应的 GitHub Release 页面，退出游戏后手动替换匹配的 CF JAR，不含自动安装器。普通版选择“立即更新”后下载并校验文件，退出游戏后由独立 Java 进程安装，下次启动生效。请正常退出并稍等安装完成后再启动；旧版 JAR 与安装日志保留在 `mods/.musichud-tuneweave-updates/`。开发目录、符号链接或非 `mods` 目录安装不执行自动替换。
+客户端启动后检查 GitHub Release 中匹配当前发行版、游戏版本和加载器的更新，正式版与测试版都会提示；设置页也提供手动检查。普通版只自动更新普通版，CF 版只提示匹配的 CF 更新，选择“去看看”仅打开项目主页，不打开 Release 下载页，也不下载或安装文件。普通版选择“立即更新”后下载并校验文件，退出游戏后由独立 Java 进程安装，下次启动生效。请正常退出并稍等安装完成后再启动；旧版 JAR 与安装日志保留在 `mods/.musichud-tuneweave-updates/`。开发目录、符号链接或非 `mods` 目录安装不执行自动替换。
 
-更新目录只接受本仓库发布流程产生、含有客户端身份元数据的文件。历史版本没有更新目录时不会被作为自动更新候选。CF 首次提示与更新提示均说明精简范围，并提供 [完整版下载](https://github.com/MOPELotus/MusicHud-TuneWeave/releases) 入口；请只安装一种发行版。
+更新目录只接受本仓库发布流程产生、含有客户端身份元数据的文件。历史版本没有更新目录时不会被作为自动更新候选。CF 首次提示与更新提示均说明精简范围，并提供[项目主页](https://github.com/MOPELotus/MusicHud-TuneWeave)入口查看源码及其他内容；请只安装一种发行版。
 
 普通版更新备份只保留到新版首次正常启动：进入主菜单或游戏并持续正常运行一秒后，验证当前 JAR 与安装记录一致，清理对应更新会话目录（旧 JAR、安装器和日志）；更新根目录为空时一并移除。失败、待安装、身份不匹配或含未知文件的目录不自动删除。
