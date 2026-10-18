@@ -625,8 +625,8 @@ public final class MediaTransport implements AutoCloseable {
           if (message instanceof LastHttpContent) {
             if (expected >= 0 && received != expected)
               throw new IOException("Truncated media body");
-            ended = true;
             offer(END);
+            ended = true;
             ctx.close();
           }
         }
@@ -672,6 +672,8 @@ public final class MediaTransport implements AutoCloseable {
     // Stream wrapper stays separate from the channel handler (InputStream is a class).
     private final InputStream input =
         new InputStream() {
+          private boolean exhausted;
+
           @Override
           public int read() throws IOException {
             byte[] b = new byte[1];
@@ -686,24 +688,35 @@ public final class MediaTransport implements AutoCloseable {
             cancellation.check();
             if (opening) remainingMillis(openingDeadline);
             if (closed) throw new IOException("Media stream closed");
+            if (exhausted) return -1;
             while (current == null || offset == current.length) {
               current = null;
               offset = 0;
               Object item = queue.poll();
               if (item == null) {
-                if (ended) return -1;
-                channel.read();
-                try {
-                  item =
-                      queue.poll(
-                          opening
-                              ? Math.min(timeoutMillis, remainingMillis(openingDeadline))
-                              : timeoutMillis,
-                          TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                  Thread.currentThread().interrupt();
-                  close();
-                  throw new IOException("Media interrupted", e);
+                if (ended) {
+                  // The producer publishes its terminal queue item before ended. Recheck after
+                  // observing that publication: the first poll may predate the final bytes/error.
+                  item = queue.poll();
+                  if (item == null) {
+                    cancellation.check();
+                    if (closed) throw new IOException("Media stream closed");
+                    return -1;
+                  }
+                } else {
+                  channel.read();
+                  try {
+                    item =
+                        queue.poll(
+                            opening
+                                ? Math.min(timeoutMillis, remainingMillis(openingDeadline))
+                                : timeoutMillis,
+                            TimeUnit.MILLISECONDS);
+                  } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    close();
+                    throw new IOException("Media interrupted", e);
+                  }
                 }
               }
               cancellation.check();
@@ -712,7 +725,10 @@ public final class MediaTransport implements AutoCloseable {
                 close();
                 throw new IOException("Media read timeout");
               }
-              if (item == END) return -1;
+              if (item == END) {
+                exhausted = true;
+                return -1;
+              }
               if (item instanceof IOException e) throw e;
               current = (byte[]) item;
             }
