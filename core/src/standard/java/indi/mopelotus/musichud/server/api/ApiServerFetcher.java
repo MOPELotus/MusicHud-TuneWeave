@@ -74,7 +74,8 @@ public class ApiServerFetcher {
         CLOUDFLARE_IPV4("https://gh-proxy.org/"),
         CLOUDFLARE_CN_IPV4("https://v4.gh-proxy.org/"),
         CLOUDFLARE_CN_DUAL("https://v6.gh-proxy.org/"),
-        FASTLY_IPV4("https://cdn.gh-proxy.org/");
+        FASTLY_IPV4("https://cdn.gh-proxy.org/"),
+        AXIS_NOW_IPV4("https://axisnow.gh-proxy.org/");
 
         private final String proxyBase;
 
