@@ -75,10 +75,14 @@ public class HudRendererManager {
     private final HudVisibilityFade visibilityFade = new HudVisibilityFade();
 
     private void publishLyricStyles(LyricStyles lines) {
-        var current = nowPlayingInfo.snapshot();
-        if (closed || current.musicDetail() != lines.source().musicDetail()
-                || !java.util.Objects.equals(current.startedAt(), lines.source().startedAt())) return;
-        LYRICS_LINE_RENDERER.setLines(lines.first(), lines.second());
+        // TimedUiQueue publishes under its monitor. Never acquire the manager here: playback
+        // changes already hold the manager while cancelling that queue.
+        synchronized (LYRICS_LINE_RENDERER) {
+            var current = nowPlayingInfo.snapshot();
+            if (closed || current.musicDetail() != lines.source().musicDetail()
+                    || !java.util.Objects.equals(current.startedAt(), lines.source().startedAt())) return;
+            LYRICS_LINE_RENDERER.setLines(lines.first(), lines.second());
+        }
     }
 
     protected HudRendererManager() {
@@ -95,7 +99,7 @@ public class HudRendererManager {
                 if (lyricLine != null) {
                     Duration duration = lyricLine.getDuration();
                     if (duration == null && totalDuration != null) duration = totalDuration.minus(lyricLine.getStartTime());
-                    if (duration != null) scrollMillis = Math.max(0, (long)(duration.toMillis() * .8));
+                    if (duration != null) scrollMillis = Math.max(0, (long)(duration.toMillis() * .75));
                 }
                 lyrics.add(new LyricStyles(
                         new ScrollingLyricLineRenderer.Line(lyricLine, text, Theme.HUD_FADE_COLOR, Theme.HUD_EMPHASIZE_COLOR, scrollMillis),
@@ -133,9 +137,12 @@ public class HudRendererManager {
     public static void shutdown() {
         HudRendererManager manager = instance;
         if (manager == null) return;
-        manager.closed = true;
-        manager.lyrics.cancel();
-        manager.artwork.cancel();
+        synchronized (manager) {
+            manager.closed = true;
+            manager.lyrics.cancel();
+            manager.artwork.cancel();
+            manager.LYRICS_LINE_RENDERER.hardClear();
+        }
     }
 
     private static void updateStatus(@Nullable StreamAudioPlayer.Status status) {
@@ -222,7 +229,7 @@ public class HudRendererManager {
             float subLyricsSize = showSubLyrics ? contentUnit * 5 : 0;
 
             float lyricsY = contentPadding + titleSize + contentInterval;
-            float aboveProgressY = progressY - infoTextSize - contentInterval;
+            float aboveProgressY = progressY - infoTextSize - contentInterval / 2;
             float progressRightX = mainContentX + contentWidth;
 
             Layout statusLayout = new Layout("Status", statusX, titleY, titleSize, titleSize, 0f);
