@@ -1,0 +1,7 @@
+Netty HTTP codec 4.1.118.Final
+https://github.com/netty/netty/tree/netty-4.1.118.Final
+https://repo.maven.apache.org/maven2/io/netty/netty-codec-http/4.1.118.Final/
+
+This Minecraft target does not supply the HTTP codec. Only netty-codec-http
+is bundled, unchanged; all transitive dependencies are excluded and supplied
+by the Minecraft host. LICENSE.txt and NOTICE.txt are the upstream files.

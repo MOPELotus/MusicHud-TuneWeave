@@ -64,6 +64,14 @@ configurations {
 }
 
 dependencies {
+    // Only this codec is absent from the host; all other Netty modules stay host-owned.
+    implementation("io.netty:netty-codec-http:$rootProject.netty_http_compat_version") {
+        transitive = false
+    }
+    shadowBundle("io.netty:netty-codec-http:$rootProject.netty_http_compat_version") {
+        transitive = false
+    }
+
     implementation "com.twelvemonkeys.imageio:imageio-webp:3.13.1"
     shadowBundle "com.twelvemonkeys.imageio:imageio-webp:3.13.1"
     minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
@@ -224,3 +232,5 @@ apply from: rootProject.file('gradle/verify-shaded-webp.gradle')
 apply from: rootProject.file('gradle/verify-shaded-svg.gradle')
 
 apply from: rootProject.file('gradle/verify-shaded-qr.gradle')
+
+apply from: rootProject.file('gradle/verify-http-compatibility.gradle')

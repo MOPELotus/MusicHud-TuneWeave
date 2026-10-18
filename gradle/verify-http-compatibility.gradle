@@ -1,0 +1,25 @@
+// These older hosts lack HTTP; package only the matching codec, never Netty itself.
+def verifyHttpCompatibility = tasks.register('verifyHttpCompatibilityJar') {
+    group = 'verification'
+    dependsOn tasks.named('jar')
+    inputs.file(tasks.named('jar').flatMap { it.archiveFile })
+    doLast {
+        def artifact = tasks.named('jar').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+            for (path in ['io/netty/handler/codec/http/HttpClientCodec.class',
+                          'META-INF/licenses/netty-http/LICENSE.txt',
+                          'META-INF/licenses/netty-http/NOTICE.txt',
+                          'META-INF/licenses/netty-http/SOURCE.txt']) {
+                if (zip.getEntry(path) == null) throw new GradleException("Missing HTTP compatibility component/license ${path}")
+            }
+            def allowed = ['io/netty/handler/codec/http/', 'io/netty/handler/codec/rtsp/', 'io/netty/handler/codec/spdy/']
+            if (zip.entries().any { entry ->
+                entry.name.startsWith('io/netty/') && entry.name.endsWith('.class') &&
+                    !allowed.any { prefix -> entry.name.startsWith(prefix) }
+            }) {
+                throw new GradleException('Host-owned Netty modules must not be bundled with the HTTP compatibility codec')
+            }
+        }
+    }
+}
+tasks.named('check') { dependsOn verifyHttpCompatibility }

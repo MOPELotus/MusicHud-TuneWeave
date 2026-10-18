@@ -63,7 +63,38 @@ configurations {
     runtimeClasspath.extendsFrom common
 }
 
+// These hosts supply the split Netty 4.2 codec-base. Core's legacy 4.1 aggregate
+// duplicates its decoder classes on the standalone test classpath, unlike the game.
+if (rootProject.minecraft_version in ['1.21.11', '26.1.2', '26.2', '26.3']) {
+    configurations.testRuntimeClasspath.exclude group: 'io.netty', module: 'netty-codec'
+    tasks.named('test').configure {
+        doFirst {
+            def decoderProviders = classpath.files.findAll { artifact ->
+                artifact.isFile() && artifact.name.startsWith('netty-') && artifact.name.endsWith('.jar') &&
+                    new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                        zip.getEntry('io/netty/handler/codec/ByteToMessageDecoder.class') != null
+                    }
+            }
+            if (decoderProviders.size() != 1) {
+                throw new GradleException("Expected one host Netty decoder provider, found ${decoderProviders*.name}")
+            }
+        }
+    }
+}
+
+// Exercise the game's actual Netty version, including the 1.21.1 host. Core's
+// newer compile dependencies must not silently replace that runtime in tests.
+configurations.testRuntimeClasspath.resolutionStrategy.eachDependency { requested ->
+    if (requested.requested.group == 'io.netty' && requested.requested.version?.startsWith('4.')) {
+        requested.useVersion(rootProject.netty_http_compat_version)
+    }
+}
+
 dependencies {
+    implementation("io.netty:netty-codec-http:$rootProject.netty_http_compat_version") {
+        transitive = false
+    }
+
     implementation "com.twelvemonkeys.imageio:imageio-webp:3.13.1"
     api project(':core')
 
