@@ -9,6 +9,7 @@
     "ModernUiGraphicsLifecycleMixin",
     "ModernUiEmojiCanvasMixin",
     "ModernUiEmojiResourcesMixin",
+    "ModernUiEmojiTextLineMixin",
     "ModernUiGlTextureLifecycleMixin",
     "GuiRendererHudMixin",
     "GuiFrameHudMixin",

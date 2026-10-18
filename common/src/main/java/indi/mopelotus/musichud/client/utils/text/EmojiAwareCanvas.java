@@ -9,6 +9,9 @@ import icyllis.modernui.graphics.text.CharUtils;
 import icyllis.modernui.graphics.text.EmojiFont;
 import icyllis.modernui.graphics.text.Font;
 import icyllis.modernui.graphics.text.FontPaint;
+import icyllis.modernui.graphics.text.LayoutPiece;
+import java.util.List;
+import java.util.function.Consumer;
 import icyllis.modernui.graphics.text.ShapedText;
 import icyllis.modernui.mc.text.GlyphManager;
 
@@ -33,7 +36,7 @@ public final class EmojiAwareCanvas extends ArcCanvas {
             for (int i = 0; i < text.getGlyphCount(); i++) {
                 if (text.getFont(i) instanceof EmojiFont font) {
                     drawEmoji(font, text.getGlyph(i), x + text.getX(i), y + text.getY(i),
-                            imagePaint, text.getPaint(), paint);
+                            imagePaint, text.getPaint().getFontSize(), text.getPaint().isLinearMetrics(), paint);
                 }
             }
         } finally {
@@ -54,7 +57,7 @@ public final class EmojiAwareCanvas extends ArcCanvas {
                         for (int i = 0; i < piece.getGlyphCount(); i++) {
                             if (piece.getFont(i) instanceof EmojiFont font) {
                                 drawEmoji(font, piece.getGlyphs()[i], x + offsetX + piece.getPositions()[i * 2],
-                                        y + piece.getPositions()[i * 2 + 1], imagePaint, piecePaint, paint);
+                                        y + piece.getPositions()[i * 2 + 1], imagePaint, piecePaint.getFontSize(), piecePaint.isLinearMetrics(), paint);
                             }
                         }
                     });
@@ -95,7 +98,47 @@ public final class EmojiAwareCanvas extends ArcCanvas {
         try {
             for (int i = 0; i < glyphCount; i++) {
                 drawEmoji(emoji, glyphs[glyphOffset + i], x + positions[positionOffset + i * 2],
-                        y + positions[positionOffset + i * 2 + 1], imagePaint, fontPaint, paint);
+                        y + positions[positionOffset + i * 2 + 1], imagePaint, fontPaint.getFontSize(), fontPaint.isLinearMetrics(), paint);
+            }
+        } finally {
+            imagePaint.reset();
+        }
+    }
+
+    /** The original layout piece is immutable; only the two image-font metrics need freezing. */
+    public record EmojiRun(LayoutPiece piece, float offsetX, float fontSize, boolean linearMetrics) {}
+
+    /** Keep the host's native glyph consumer and retain only the image-font runs it cannot draw. */
+    public static ShapedText.RunConsumer collectEmojiRuns(ShapedText.RunConsumer original,
+                                                          Consumer<EmojiRun> captured) {
+        if (original == null) return null; // Measurement must never collect images or replace the null consumer.
+        return (piece, start, end, rtl, fontPaint, offsetX) -> {
+            EmojiRun images = null;
+            for (int i = 0; i < piece.getGlyphCount(); i++) {
+                if (piece.getFont(i) instanceof EmojiFont) {
+                    images = new EmojiRun(piece, offsetX, fontPaint.getFontSize(), fontPaint.isLinearMetrics());
+                    break;
+                }
+            }
+            original.accept(piece, start, end, rtl, fontPaint, offsetX);
+            if (images != null) captured.accept(images);
+        };
+    }
+
+    /** TextLine has already applied RTL alignment and baselineShift to these draw coordinates. */
+    public void drawEmojiRuns(List<EmojiRun> runs, float x, float baseline, Paint textPaint) {
+        if (runs == null || runs.isEmpty()) return;
+        Paint imagePaint = imagePaint(textPaint);
+        try {
+            for (EmojiRun run : runs) {
+                LayoutPiece piece = run.piece();
+                for (int i = 0; i < piece.getGlyphCount(); i++) {
+                    if (piece.getFont(i) instanceof EmojiFont font) {
+                        drawEmoji(font, piece.getGlyphs()[i], x + run.offsetX() + piece.getPositions()[i * 2],
+                                baseline + piece.getPositions()[i * 2 + 1], imagePaint,
+                                run.fontSize(), run.linearMetrics(), textPaint);
+                    }
+                }
             }
         } finally {
             imagePaint.reset();
@@ -113,12 +156,13 @@ public final class EmojiAwareCanvas extends ArcCanvas {
         return paint;
     }
 
-    private void drawEmoji(EmojiFont font, int glyph, float x, float y, Paint paint, FontPaint fontPaint, Paint textPaint) {
+    private void drawEmoji(EmojiFont font, int glyph, float x, float y, Paint paint,
+                           float fontSize, boolean linearMetrics, Paint textPaint) {
         var image = images.get(font, glyph);
         if (image == null) return;
-        float size = GlyphManager.EMOJI_SIZE / (float) GlyphManager.EMOJI_BASE * fontPaint.getFontSize();
-        float ascent = GlyphManager.EMOJI_ASCENT / (float) GlyphManager.EMOJI_BASE * fontPaint.getFontSize();
-        if (!fontPaint.isLinearMetrics()) {
+        float size = GlyphManager.EMOJI_SIZE / (float) GlyphManager.EMOJI_BASE * fontSize;
+        float ascent = GlyphManager.EMOJI_ASCENT / (float) GlyphManager.EMOJI_BASE * fontSize;
+        if (!linearMetrics) {
             size = (int) (0.95d + size);
             ascent = (int) (0.95d + ascent);
         }
