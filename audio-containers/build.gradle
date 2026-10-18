@@ -88,6 +88,10 @@ shadowJar {
         keepRules.add('-keep public class indi.mopelotus.musichud.audio.container.* { public *; }')
         keepRules.add('-keep public class indi.mopelotus.musichud.audio.container.io.* { public *; }')
         keepRules.add('-keep public interface indi.mopelotus.musichud.audio.container.info.* { public *; }')
+        ['hls', 'ts', 'input'].each { apiPackage ->
+            keepRules.add("-keep public class indi.mopelotus.musichud.audio.container.${apiPackage}.* { public *; }")
+        }
+        keepRules.add('-keep public interface indi.mopelotus.musichud.audio.container.input.* { public *; }')
         keepRules.add('-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*,Exceptions')
     } }
     from('vendor/upstream/lavaplayer/LICENSE') { into 'META-INF/licenses/audio-containers/lavaplayer'; rename { 'LICENSE' } }

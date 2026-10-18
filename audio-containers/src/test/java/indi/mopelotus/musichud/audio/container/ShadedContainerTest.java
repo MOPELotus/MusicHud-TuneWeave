@@ -16,6 +16,63 @@ class ShadedContainerTest {
   @TempDir Path temporary;
 
   @Test
+  void isolatedArtifactRetainsAndExecutesHlsTsAndIcyApis() throws Exception {
+    var urls = new ArrayList<URL>();
+    urls.add(Path.of(System.getProperty("containerJar")).toUri().toURL());
+    for (String path : System.getProperty("containerLibraries").split(File.pathSeparator))
+      urls.add(Path.of(path).toUri().toURL());
+    try (var loader =
+        new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader())) {
+      loader.setDefaultAssertionStatus(true);
+      String prefix = "indi.mopelotus.musichud.audio.container.";
+      var manifestType = loader.loadClass(prefix + "hls.HlsManifest");
+      var manifest =
+          manifestType
+              .getMethod("parse", URI.class, String.class)
+              .invoke(
+                  null,
+                  URI.create("https://example.com/index.m3u8"),
+                  "#EXTM3U\n#EXTINF:1,\na.ts\n#EXT-X-ENDLIST\n");
+      assertEquals(
+          1, ((List<?>) manifest.getClass().getMethod("segments").invoke(manifest)).size());
+      var resolver = loader.loadClass(prefix + "input.PlaylistResolver");
+      var uri = URI.create("https://example.com/a.ts");
+      assertEquals(
+          uri,
+          resolver
+              .getMethod("validate", URI.class, URI.class, boolean.class)
+              .invoke(null, uri, null, false));
+      var ts = loader.loadClass(prefix + "ts.TsPacketSource");
+      try (var fixture =
+          ShadedContainerTest.class.getResourceAsStream("/container/ts/pes-40000.ts")) {
+        assertNotNull(fixture);
+        var source = ts.getConstructor(InputStream.class).newInstance(fixture);
+        try {
+          var packet = ts.getMethod("next").invoke(source);
+          assertNotNull(packet);
+          byte[] data = (byte[]) packet.getClass().getMethod("data").invoke(packet);
+          assertEquals(39997, data.length);
+          for (byte value : data) assertEquals((byte) 0x55, value);
+          assertNull(ts.getMethod("next").invoke(source));
+        } finally {
+          ((AutoCloseable) source).close();
+        }
+      }
+      var icy = loader.loadClass(prefix + "input.IcyMetadataInputStream");
+      try (var input =
+          (InputStream)
+              icy.getConstructor(InputStream.class, int.class, java.util.function.Consumer.class)
+                  .newInstance(
+                      new ByteArrayInputStream(new byte[] {1, 2, 3, 0, 4, 5, 6}), 3, null)) {
+        assertArrayEquals(new byte[] {1, 2, 3, 4, 5, 6}, input.readAllBytes());
+      }
+      loader.loadClass(prefix + "hls.HlsSession").getConstructor().newInstance();
+      loader.loadClass(prefix + "input.HlsPlaybackInput");
+      loader.loadClass(prefix + "input.HlsTsPesSource");
+    }
+  }
+
+  @Test
   void isolatedShadedArtifactOpensAndReadsAacAndAlac() throws Exception {
     var urls = new ArrayList<URL>();
     urls.add(Path.of(System.getProperty("containerJar")).toUri().toURL());
