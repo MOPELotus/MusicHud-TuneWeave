@@ -1,0 +1,19 @@
+--- a/com/sedmelluq/discord/lavaplayer/container/matroska/format/MutableMatroskaElement.java
++++ b/indi/mopelotus/musichud/audio/container/matroska/format/MutableMatroskaElement.java
+@@ -1,4 +1,4 @@
+-package com.sedmelluq.discord.lavaplayer.container.matroska.format;
++package indi.mopelotus.musichud.audio.container.matroska.format;
+ 
+ /**
+  * Mutable instance of {@link MatroskaElement} for reducing allocation rate during parsing.
+@@ -24,7 +24,9 @@
+         this.headerSize = headerSize;
+     }
+ 
+-    public void setDataSize(int dataSize) {
++    public void setUnknownSize(boolean value) { unknownSize = value; }
++
++    public void setDataSize(long dataSize) {
+         this.dataSize = dataSize;
+     }
+ }

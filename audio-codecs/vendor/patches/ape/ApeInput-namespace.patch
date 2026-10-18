@@ -1,0 +1,9 @@
+--- port-source/study/ape/ApeInput.java
++++ src/main/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeInput.java
+@@ -1,5 +1,5 @@
+ /* LGPL-2.1-or-later. Bounded Java input adapters for the controlled FFmpeg APE port. */
+-package study.ape;
++package indi.mopelotus.musichud.audio.codec.internal.ape;
+ import java.io.*;
+ import java.nio.*;
+ import java.nio.channels.*;

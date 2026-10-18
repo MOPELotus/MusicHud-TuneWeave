@@ -1,0 +1,49 @@
+--- a/com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaElement.java
++++ b/indi/mopelotus/musichud/audio/container/matroska/format/MatroskaElement.java
+@@ -1,4 +1,4 @@
+-package com.sedmelluq.discord.lavaplayer.container.matroska.format;
++package indi.mopelotus.musichud.audio.container.matroska.format;
+ 
+ /**
+  * Matroska container element.
+@@ -9,7 +9,8 @@
+     protected MatroskaElementType type;
+     protected long position;
+     protected int headerSize;
+-    protected int dataSize;
++    protected long dataSize;
++    protected boolean unknownSize;
+ 
+     protected MatroskaElement(int level) {
+         this.level = level;
+@@ -53,7 +54,7 @@
+     /**
+      * @return Size of the payload in bytes.
+      */
+-    public int getDataSize() {
++    public long getDataSize() {
+         return dataSize;
+     }
+ 
+@@ -91,6 +92,13 @@
+     /**
+      * @return A frozen version of the element safe to keep for later use.
+      */
++    public void resolveUnknownEnd(long end) throws java.io.IOException {
++        if(!unknownSize||end<getDataPosition()||end>getDataPosition()+dataSize)throw new java.io.IOException("Invalid unknown element boundary");
++        dataSize=end-getDataPosition();
++    }
++
++    public boolean isUnknownSize() { return unknownSize; }
++
+     public MatroskaElement frozen() {
+         MatroskaElement element = new MatroskaElement(level);
+         element.id = id;
+@@ -98,6 +106,7 @@
+         element.position = position;
+         element.headerSize = headerSize;
+         element.dataSize = dataSize;
++        element.unknownSize = unknownSize;
+         return element;
+     }
+ }

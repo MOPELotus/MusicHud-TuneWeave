@@ -1,0 +1,28 @@
+--- upstream/StaticCodeBook.java
++++ patched/StaticCodeBook.java
+@@ -24,6 +24,7 @@
+  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+  */
+ 
++/* Modified 2026-10-18 for TuneWeave research: bound hostile codebook allocation sizes and ordered lengths. */
+ package com.jcraft.jorbis;
+ 
+ import com.jcraft.jogg.*;
+@@ -194,7 +195,7 @@
+     // first the basic parameters
+     dim=opb.read(16);
+     entries=opb.read(24);
+-    if(entries==-1){
++    if(dim<=0 || entries<=0 || entries>(1<<20) || (long)dim*entries>(8L<<20)){
+       //    goto _eofout;
+       clear();
+       return (-1);
+@@ -246,7 +247,7 @@
+ 
+         for(i=0; i<entries;){
+           int num=opb.read(Util.ilog(entries-i));
+-          if(num==-1){
++          if(num<0 || num>entries-i || length>32){
+             //          goto _eofout;
+             clear();
+             return (-1);

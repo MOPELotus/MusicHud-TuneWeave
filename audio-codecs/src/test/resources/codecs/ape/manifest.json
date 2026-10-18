@@ -1,0 +1,47 @@
+[
+  {
+    "file": "synthetic-16-1.ape",
+    "frames": 2173,
+    "bits": 16,
+    "channels": 1,
+    "compression": 1000,
+    "sha256": "b26d47935aef28b6f02253a40182537e2251b6557218c2cefddbca5131eff7d4",
+    "pcm_sha256": "d30928609d18a357f586459b5d7ebad86d1e4ab97f79586b1078195944425bbf"
+  },
+  {
+    "file": "synthetic-16-2.ape",
+    "frames": 2173,
+    "bits": 16,
+    "channels": 2,
+    "compression": 2000,
+    "sha256": "1c82dac2a14ef3924c65aefb12117fb2491055bcd1f1aed6d5db011863740925",
+    "pcm_sha256": "34fcc2fab482321a1015f460f83e53b2da2867720b5cd1402d457f72db2fc483"
+  },
+  {
+    "file": "synthetic-24-1.ape",
+    "frames": 2173,
+    "bits": 24,
+    "channels": 1,
+    "compression": 3000,
+    "sha256": "fb16363a45b48bbc09db00142cf8b534eab7b3423aed5f576ad4f72dd05d0e5b",
+    "pcm_sha256": "68cc60ccdcbd6ea3e67a761f2203235640a30131071a1c721bb046503e702c97"
+  },
+  {
+    "file": "synthetic-24-2.ape",
+    "frames": 2173,
+    "bits": 24,
+    "channels": 2,
+    "compression": 4000,
+    "sha256": "f1e54254e3efd760039a1108a1906a684d5e936207558d69d913926b4b243f54",
+    "pcm_sha256": "aa40827ee9d951948990120fee2f426187710c8f17ca90b2099d9559ea12576a"
+  },
+  {
+    "file": "synthetic-8-1.ape",
+    "frames": 2173,
+    "bits": 8,
+    "channels": 1,
+    "compression": 5000,
+    "sha256": "f6c29e195e4fdbcd49df3f12b0ce3cb8588c35b8ba47bdce7269d55fcfd462c5",
+    "pcm_sha256": "481c245fec43188d6be3649ed0f7a45edc6092439134c39f935f4f25bcc39d5c"
+  }
+]

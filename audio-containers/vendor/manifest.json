@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "vendors": [
+    {
+      "name": "lavaplayer-matroska",
+      "upstream": "https://github.com/lavalink-devs/lavaplayer",
+      "version": "2.2.7",
+      "source_root": "vendor/upstream/lavaplayer/src",
+      "license": "vendor/upstream/lavaplayer/LICENSE",
+      "sources": [
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/MatroskaStreamingFile.java",
+          "sha256": "3d4a85bbe6c6c656d1e865c2e13c3fa05b3b3d6fe894db1f80793605ed44de8e"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/MatroskaTrackConsumer.java",
+          "sha256": "270e4befedfa407e460aa0ccc75fde4e5969abdd7a443fd55ef6d93a09a2c314"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaBlock.java",
+          "sha256": "eb555767919ac7fa2af24e6fbf6086aba7efef48a12c0c92c06c2f7c90d87846"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaCuePoint.java",
+          "sha256": "bb80e598f590fc0318f063fa83d1916bc249b35ed04a37470049360e83134da8"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaEbmlReader.java",
+          "sha256": "3e6e2d5dd244083dea6d4f813a5160bcd55bfc93846f7043ed10f437d38642a4"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaElement.java",
+          "sha256": "fd4f0f3914346a8e4c06a6beb1c95a7845fb95b6c10a457de93c3efb9690f649"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaElementType.java",
+          "sha256": "200803885f1720593b10ddc582293c69172c8ccb0877ad78c2fcbfd0e18f95b1"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaFileReader.java",
+          "sha256": "f61fba5866449392cf181bd77b0bc21c60bef51227a6f9b14a728513bcfbcdc9"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaFileTrack.java",
+          "sha256": "7c2aed906f548c56be4c3616d328266d92cf1c720c4bac1ccbf4398724226804"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MutableMatroskaBlock.java",
+          "sha256": "8bde10e8da93d6b3d9d89ce7bef4e720ab06d9ea1b6d05707ec52a0ce6b1df23"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MutableMatroskaElement.java",
+          "sha256": "8a69f201792dd9954da1623956956ff449ef927b36cddbe79bc90984352e7eac"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/tools/io/SeekableInputStream.java",
+          "sha256": "fd708cd3525c577340fcd05356f042589d31c32fca8415fc8a1be878bb5786c9"
+        },
+        {
+          "path": "com/sedmelluq/discord/lavaplayer/track/info/AudioTrackInfoProvider.java",
+          "sha256": "17c07cd65281c21c8bd1d5beb02d1deafbe251d7b8d09d260292fe6aadb5ce72"
+        }
+      ],
+      "patches": [
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/MatroskaStreamingFile.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/MatroskaStreamingFile.java",
+          "upstream_sha256": "3d4a85bbe6c6c656d1e865c2e13c3fa05b3b3d6fe894db1f80793605ed44de8e",
+          "compiled_sha256": "64c934626d36e9aeb44308f6975b616693923eff84d4000182469ea8e4088cc7",
+          "patch": "vendor/patches/MatroskaStreamingFile.patch",
+          "patch_sha256": "07d50b5e7aac76a8d1d67019d3655623740f49251032a4c34c74370a7f671606"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/MatroskaTrackConsumer.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/MatroskaTrackConsumer.java",
+          "upstream_sha256": "270e4befedfa407e460aa0ccc75fde4e5969abdd7a443fd55ef6d93a09a2c314",
+          "compiled_sha256": "d222dfed50ac4a648fc379e7dc83e1ad14617dc5a8c6a8a09ee438af3dec424e",
+          "patch": "vendor/patches/MatroskaTrackConsumer.patch",
+          "patch_sha256": "ef7d2d76b4ab084be0fae44e675f793737cdd13976adfea65840d4353c726a10"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaBlock.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/format/MatroskaBlock.java",
+          "upstream_sha256": "eb555767919ac7fa2af24e6fbf6086aba7efef48a12c0c92c06c2f7c90d87846",
+          "compiled_sha256": "77c0d11e2076d8199f0f74417ee75b48f14f280b8c6a2c9ace5b211db76cba59",
+          "patch": "vendor/patches/MatroskaBlock.patch",
+          "patch_sha256": "4eb45c4078494036fa4e66393afc56f80b9cf473d47a60925cdb5cf45aa67125"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaCuePoint.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/format/MatroskaCuePoint.java",
+          "upstream_sha256": "bb80e598f590fc0318f063fa83d1916bc249b35ed04a37470049360e83134da8",
+          "compiled_sha256": "c519c7a07c158df4df88bf53ebeb5e9dcfd9533ca0a43983243c1b4519692c11",
+          "patch": "vendor/patches/MatroskaCuePoint.patch",
+          "patch_sha256": "efa1e96e8d47933c5164e968c7e36733962972840dd49cba57e9932b091b76b6"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaEbmlReader.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/format/MatroskaEbmlReader.java",
+          "upstream_sha256": "3e6e2d5dd244083dea6d4f813a5160bcd55bfc93846f7043ed10f437d38642a4",
+          "compiled_sha256": "7ef810297fc304b9d0a358d04c74b2fd6a8661bdd8cf77ede6858bbc7f8c4106",
+          "patch": "vendor/patches/MatroskaEbmlReader.patch",
+          "patch_sha256": "5d11be3b3879480a1116e46eadbae444709c86ed38f3a01cc2a3dca8e32ed004"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaElement.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/format/MatroskaElement.java",
+          "upstream_sha256": "fd4f0f3914346a8e4c06a6beb1c95a7845fb95b6c10a457de93c3efb9690f649",
+          "compiled_sha256": "b980d56dddf47ea5e746c8d3655fb76fadb0dc3aa3f26b602568de194f28ec31",
+          "patch": "vendor/patches/MatroskaElement.patch",
+          "patch_sha256": "a67a93e4b5dd39984d76c7a1ba067663a3f2c257f4ffd4a16b4023b83a8674c8"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaElementType.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/format/MatroskaElementType.java",
+          "upstream_sha256": "200803885f1720593b10ddc582293c69172c8ccb0877ad78c2fcbfd0e18f95b1",
+          "compiled_sha256": "248b9b6aa955e46b0cf85dedf387fb31b6b2c28032c88476b2f46eeb85ea62ca",
+          "patch": "vendor/patches/MatroskaElementType.patch",
+          "patch_sha256": "136e5c7b0e0608b03de498f361ae07f850bcaa88ffae025a7bfa4223856746bc"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaFileReader.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/format/MatroskaFileReader.java",
+          "upstream_sha256": "f61fba5866449392cf181bd77b0bc21c60bef51227a6f9b14a728513bcfbcdc9",
+          "compiled_sha256": "50b494be2f3e40aa8084a27ef6f76db904d9c2d22ef4636f4995ac7e8bc24168",
+          "patch": "vendor/patches/MatroskaFileReader.patch",
+          "patch_sha256": "efb026da80c40704f8621959ad90c833fede27576f8306244302e2703f400d97"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaFileTrack.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/format/MatroskaFileTrack.java",
+          "upstream_sha256": "7c2aed906f548c56be4c3616d328266d92cf1c720c4bac1ccbf4398724226804",
+          "compiled_sha256": "b96552d8d590e2d8dec08d102a2e238552ed886ff394cb1db3de3d4f24644e1c",
+          "patch": "vendor/patches/MatroskaFileTrack.patch",
+          "patch_sha256": "7b838762f54d8af318d2d19cb4b5ad30f68c2e555674f310e799ec899f23821d"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MutableMatroskaBlock.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/format/MutableMatroskaBlock.java",
+          "upstream_sha256": "8bde10e8da93d6b3d9d89ce7bef4e720ab06d9ea1b6d05707ec52a0ce6b1df23",
+          "compiled_sha256": "3d1974d4ba68f9e6834b7c9d519a14d538e20f13c567a3598be9e80e25c973db",
+          "patch": "vendor/patches/MutableMatroskaBlock.patch",
+          "patch_sha256": "959897fc67a771f76431b2bfd12a808d7e1ff71e0109f72083fc99c418b73bea"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/container/matroska/format/MutableMatroskaElement.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/matroska/format/MutableMatroskaElement.java",
+          "upstream_sha256": "8a69f201792dd9954da1623956956ff449ef927b36cddbe79bc90984352e7eac",
+          "compiled_sha256": "1f2e1ad22a0e502012ca8f17dc6dbeb221f1ee9719fa4cf47ffad74db6d92e86",
+          "patch": "vendor/patches/MutableMatroskaElement.patch",
+          "patch_sha256": "fc2b583ed335c19bfe0ac6cf45597a59e258db1c162000a411e36ac5b1d3a42a"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/tools/io/SeekableInputStream.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/io/SeekableInputStream.java",
+          "upstream_sha256": "fd708cd3525c577340fcd05356f042589d31c32fca8415fc8a1be878bb5786c9",
+          "compiled_sha256": "15c53df1108ff7d3710d7365d5de5f36d26f0b503c74f58eb82660dff6c5c104",
+          "patch": "vendor/patches/SeekableInputStream.patch",
+          "patch_sha256": "3e572f0de6a3bb224836045c2d3cfb87dbe625af30daad6c911cba5aed9bf34f"
+        },
+        {
+          "source": "com/sedmelluq/discord/lavaplayer/track/info/AudioTrackInfoProvider.java",
+          "compiled_source": "indi/mopelotus/musichud/audio/container/info/AudioTrackInfoProvider.java",
+          "upstream_sha256": "17c07cd65281c21c8bd1d5beb02d1deafbe251d7b8d09d260292fe6aadb5ce72",
+          "compiled_sha256": "7af76067a646ee273e763d01d30e06a85111556af275ff1d42befb594cc4897c",
+          "patch": "vendor/patches/AudioTrackInfoProvider.patch",
+          "patch_sha256": "577bc677347ae18ae82c1758a88cb4ec2180c9f8143c22316fb56324d0a595c8"
+        }
+      ],
+      "license_sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+      "source_archive": "https://repo.maven.apache.org/maven2/dev/arbjerg/lavaplayer/2.2.7/lavaplayer-2.2.7-sources.jar",
+      "source_archive_sha256": "8a5a7214f8479869516812aa4b640113f6ca4725ac23917e4800b9581b9097e3"
+    }
+  ],
+  "notices": [
+    {
+      "path": "vendor/NOTICE",
+      "sha256": "9bba47190ba27fed509a5ae6bb0dfe0049fa0243fc23f5352ec3eabfa7613360"
+    },
+    {
+      "path": "vendor/mp4parser-LICENSE.txt",
+      "sha256": "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+    },
+    {
+      "path": "vendor/mp4parser-NOTICE.txt",
+      "sha256": "435e04685ef0d289cb0bdbc8b0d80a67e8a64ccbb2cc7b4c0d4eaf19a8fba68d"
+    },
+    {
+      "path": "vendor/aspectj-LICENSE.txt",
+      "sha256": "7ded76ccd844011e271a8f026c37c331d935103e30085cbf663554cee06a15d8"
+    }
+  ],
+  "libraries": [
+    {
+      "name": "isoparser-1.9.56.jar",
+      "sha256": "703368e17cbbe65bbd8b2aa251f2e7d1087a4a8b46cd99149ccca14d31efe2cc"
+    },
+    {
+      "name": "aspectjrt-1.9.7.jar",
+      "sha256": "66af2d9a028d1c3f9d9f05bcf75e36ba1ded6d3d4d5ee90e7fce86891390e4ba"
+    }
+  ]
+}

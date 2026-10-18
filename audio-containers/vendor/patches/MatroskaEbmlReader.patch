@@ -1,0 +1,49 @@
+--- a/com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaEbmlReader.java
++++ b/indi/mopelotus/musichud/audio/container/matroska/format/MatroskaEbmlReader.java
+@@ -1,4 +1,4 @@
+-package com.sedmelluq.discord.lavaplayer.container.matroska.format;
++package indi.mopelotus.musichud.audio.container.matroska.format;
+ 
+ import java.io.DataInput;
+ import java.io.IOException;
+@@ -8,6 +8,15 @@
+  * Handles reading various different EBML code formats.
+  */
+ public class MatroskaEbmlReader {
++    public record Size(long value, boolean unknown) {}
++    public static Size readSize(DataInput input) throws IOException {
++        int first=input.readUnsignedByte();if(first==0)throw new IOException("Invalid EBML size VINT");
++        int width=Integer.numberOfLeadingZeros(first)-23;long value=first&(255>>>width);
++        for(int i=1;i<width;i++)value=(value<<8)|input.readUnsignedByte();
++        long maximum=(1L<<(7*width))-1;
++        return new Size(value,value==maximum);
++    }
++
+     /**
+      * Read an EBML code from data input with fixed size - no size encoded in the data.
+      *
+@@ -18,13 +27,14 @@
+      * @throws IOException On read error
+      */
+     public static long readFixedSizeEbmlInteger(DataInput input, int codeLength, Type type) throws IOException {
++        if (codeLength < 1 || codeLength > 8) throw new IOException("Invalid fixed integer width");
+         long code = 0;
+ 
+         for (int i = 1; i <= codeLength; i++) {
+             code |= applyNextByte(codeLength, input.readByte() & 0xFF, i);
+         }
+ 
+-        return applyType(code, codeLength, type);
++        return type == Type.SIGNED ? (code << (64-codeLength*8)) >> (64-codeLength*8) : code;
+     }
+ 
+     /**
+@@ -82,7 +92,7 @@
+     }
+ 
+     private static long applyNextByte(int codeLength, int value, int index) {
+-        return value << ((codeLength - index) << 3);
++        return ((long)value) << ((codeLength - index) << 3);
+     }
+ 
+     private static long applyType(long code, int codeLength, Type type) {
