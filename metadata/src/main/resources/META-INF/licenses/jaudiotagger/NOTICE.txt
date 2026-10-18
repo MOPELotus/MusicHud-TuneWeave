@@ -3,6 +3,11 @@ https://github.com/ijabz/jaudiotagger
 Copyright Paul Taylor and JAudiotagger contributors.
 Contains Entagged Audio Tag library code, Copyright (c) 2003-2005 Raphael Slinckx and contributors.
 Licensed under the GNU Lesser General Public License, version 2.1 or later.
-The library is distributed without modification.
+The bundled library is a read-only subset. Two DFF reader classes are modified:
+org.jaudiotagger.audio.dff.BaseChunk and DffFileReader.
+Changes: bounded chunk traversal, odd-byte padding, correct DSD form-type length,
+and skipping unknown/ID3 payloads. No audio decoding algorithms are changed.
+The modified source is included in metadata/src/main/java/org/jaudiotagger/audio/dff
+in this project; source headers and original attribution are retained.
 Corresponding source for the bundled version:
 https://repo.maven.apache.org/maven2/net/jthink/jaudiotagger/3.0.1/jaudiotagger-3.0.1-sources.jar
