@@ -17,6 +17,9 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
   public interface Factory {
     Attempt attempt();
 
+    /** Pins already-captured data before cancellation of the current input; must not fetch data. */
+    default void prepareSeek() throws IOException {}
+
     default boolean supportsFastSeek() {
       return false;
     }
@@ -196,18 +199,23 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
    */
   public boolean seekFrame(long target) throws IOException {
     if (target < 0) return false;
+    factory.prepareSeek();
     long version;
     Attempt previous;
+    List<Attempt> superseded;
     synchronized (state) {
       check();
       version = ++epoch;
       ready = false;
       atEnd = false;
       previous = owned;
+      superseded = new ArrayList<>(pending);
+      pending.clear();
       owned = null;
       decoder = null;
     }
     if (previous != null) previous.cancel();
+    superseded.forEach(Attempt::cancel);
     // Resolve edits before reopening so an indexed source sees the true raw-media target.
     long remaining = target, wanted = -1;
     for (var segment : plan.segments()) {

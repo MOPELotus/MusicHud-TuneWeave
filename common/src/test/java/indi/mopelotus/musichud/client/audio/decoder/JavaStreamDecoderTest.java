@@ -68,6 +68,52 @@ class JavaStreamDecoderTest {
   }
 
   @Test
+  void aNewSeekCancelsThePreviousAttemptWhileItsOpenIsBlocked() throws Exception {
+    var entered = new CountDownLatch(1);
+    var cancelled = new CountDownLatch(1);
+    var opens = new AtomicInteger();
+    PresentedDecoder.Factory factory =
+        () ->
+            new PresentedDecoder.Attempt() {
+              final int number = opens.getAndIncrement();
+              final Samples samples = new Samples();
+
+              public PcmDecoder open() throws IOException {
+                if (number == 1) {
+                  entered.countDown();
+                  try {
+                    if (!cancelled.await(2, TimeUnit.SECONDS))
+                      throw new IOException("Old opening request was not cancelled");
+                  } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(error);
+                  }
+                  throw new IOException("Cancelled old opening request");
+                }
+                return samples;
+              }
+
+              public void cancel() {
+                samples.close();
+                if (number == 1) cancelled.countDown();
+              }
+            };
+    var executor = Executors.newSingleThreadExecutor();
+    try (var input = new PresentedDecoder(factory, plan(48000))) {
+      Future<?> old =
+          executor.submit(() -> assertThrows(IOException.class, () -> input.seekFrame(2000)));
+      assertTrue(entered.await(1, TimeUnit.SECONDS));
+      assertTrue(input.seekFrame(0));
+      assertTrue(cancelled.await(100, TimeUnit.MILLISECONDS));
+      old.get(1, TimeUnit.SECONDS);
+      assertEquals(0, input.framePosition());
+      assertEquals(1, input.readFrames(new byte[4], 0, 1));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
   void exactAndPastTailSeeksCommitNaturalEofAndCanRestart() throws Exception {
     for (long declared : new long[] {48000, Long.MAX_VALUE}) {
       try (var decoder =
