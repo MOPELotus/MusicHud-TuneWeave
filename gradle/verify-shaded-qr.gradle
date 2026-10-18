@@ -2,7 +2,7 @@ def qrDistribution = tasks.named(tasks.findByName('remapJar') == null ? 'jar' : 
 def imageTestOwner = project(':common')
 def packagedImageTest = imageTestOwner.tasks.register("${project.name}VerifyShadedQr", Test) {
     group = 'verification'
-    description = 'Scans generated QR codes from the isolated, minimized distribution JAR.'
+    description = 'Scans generated QR codes from the isolated distribution JAR, without a bundled scanner.'
     dependsOn qrDistribution, imageTestOwner.tasks.named('testClasses')
     testClassesDirs = imageTestOwner.sourceSets.test.output.classesDirs
     classpath = imageTestOwner.sourceSets.test.runtimeClasspath
