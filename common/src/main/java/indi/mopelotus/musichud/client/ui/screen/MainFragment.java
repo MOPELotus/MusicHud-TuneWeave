@@ -247,8 +247,10 @@ public class MainFragment extends Fragment {
     /** The album cover is full size only when a track is actually playing and not muted. */
     private static boolean isCoverExpanded() {
         MusicDetail detail = NowPlayingInfo.getInstance().getCurrentlyPlayingMusicDetail();
-        float targetGain = clientConfig.getMuted() ? 0 : (float) clientConfig.getSoundVolume() / 100 *
-                (clientConfig.getMixWithVanillaSoundVolume() ? Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC) : 1);
+        float targetGain = indi.mopelotus.musichud.client.audio.PlaybackGain.calculate(
+                (float)clientConfig.getSoundVolume(), clientConfig.getMixWithVanillaSoundVolume(),
+                clientConfig.getMuted(), Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MASTER),
+                Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC), 1);
         if (detail == null || detail.equals(MusicDetail.NONE) || targetGain == 0) {
             return false;
         }
