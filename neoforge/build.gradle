@@ -159,8 +159,6 @@ dependencies {
         exclude group: "org.slf4j", module: "slf4j-api"
     }
     shadowBundle "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
-    implementation "com.google.zxing:core:3.5.4"
-    shadowBundle "com.google.zxing:core:3.5.4"
 
     implementation("com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version") {
         exclude group: "org.slf4j", module: "slf4j-api"
@@ -190,12 +188,11 @@ processResources {
 }
 
 shadowJar {
-    // Minimize only directly instantiated QR/WebP codecs; keep reflection-based dependencies intact.
+    // Minimize only the directly instantiated WebP codec; keep reflection-based dependencies intact.
     minimize {
-        exclude { it.moduleGroup != "com.google.zxing" && !it.moduleGroup.startsWith("com.twelvemonkeys.") }
+        exclude { !it.moduleGroup.startsWith("com.twelvemonkeys.") }
     }
     sourceSetsClassesDirs.from(project(":common").sourceSets.main.output.classesDirs)
-    relocate 'com.google.zxing', 'indi.mopelotus.musichud.shaded.zxing'
     relocate 'com.github.weisj.jsvg', 'indi.mopelotus.musichud.shaded.jsvg'
     relocate 'com.twelvemonkeys', 'indi.mopelotus.musichud.shaded.twelvemonkeys'
     // The private WebP reader is instantiated explicitly, without global ImageIO registration.
