@@ -48,6 +48,8 @@ public class MusicInfoCard extends LinearLayout {
     private final TextView titleText;
     private final FlexWrapLayout artists;
     private final LinearLayout albumContainer;
+    private final LinearLayout pusherRow;
+    private long pusherBinding;
     private final PlayerHeadView pusherHeadView;
     private final TextView pusherText;
     private final PlaybackSourceLink sourceButton;
@@ -99,7 +101,8 @@ public class MusicInfoCard extends LinearLayout {
         albumContainer.setGravity(Gravity.TOP | Gravity.LEFT);
         musicInfo.addView(albumContainer);
 
-        LinearLayout pusherRow = new LinearLayout(context);
+        pusherRow = new LinearLayout(context);
+        pusherRow.setVisibility(View.GONE);
         pusherRow.setOrientation(LinearLayout.HORIZONTAL);
         pusherRow.setGravity(Gravity.CENTER_VERTICAL);
 
@@ -108,15 +111,6 @@ public class MusicInfoCard extends LinearLayout {
         //noinspection SuspiciousNameCombination
         pusherHeadView.setLayoutParams(new LinearLayout.LayoutParams(rowHeight, rowHeight));
         pusherHeadView.setVisibility(View.GONE);
-        pusherHeadView.setPlayerSkinSupplier(() -> {
-            try {
-                PlayerInfo pusherPlayerInfo = boundMusic == null ? null
-                        : PlayerInfoUtil.getPlayerInfoByUUID(boundMusic.getPusherInfo().getPlayerUUID());
-                return PlayerInfoUtil.getPlayerSkin(pusherPlayerInfo);
-            } catch (Exception ignored) {
-            }
-            return null;
-        });
         pusherRow.addView(pusherHeadView);
 
         pusherText = new TextView(context);
@@ -212,8 +206,7 @@ public class MusicInfoCard extends LinearLayout {
             platformIcon.setVisibility(GONE);
             artists.removeAllViews();
             albumContainer.removeAllViews();
-            pusherHeadView.setVisibility(View.GONE);
-            pusherText.setText("");
+            bindPusher(null);
             sourceButton.setVisibility(View.GONE);
             sourceButton.bind(indi.mopelotus.musichud.beans.music.PlaybackSource.NONE);
             progressBar.setIndeterminate(false);
@@ -244,8 +237,7 @@ public class MusicInfoCard extends LinearLayout {
             platformIcon.setVisibility(GONE);
             artists.removeAllViews();
             albumContainer.removeAllViews();
-            pusherHeadView.setVisibility(View.GONE);
-            pusherText.setText("");
+            bindPusher(null);
             sourceButton.setVisibility(View.GONE);
             sourceButton.bind(indi.mopelotus.musichud.beans.music.PlaybackSource.NONE);
             progressBar.setVisibility(View.GONE);
@@ -264,14 +256,7 @@ public class MusicInfoCard extends LinearLayout {
             platformIcon.setImageDrawable(platformImage == null ? null : new indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable(
                     getContext().getResources(), platformImage, dp(16), dp(16)));
             platformIcon.setVisibility(platformImage == null ? GONE : VISIBLE);
-            String name = musicDetail.getPusherInfo().getPlayerName();
-            if (name == null || name.isEmpty()) {
-                pusherHeadView.setVisibility(View.GONE);
-                pusherText.setText("");
-            } else {
-                pusherHeadView.setVisibility(View.VISIBLE);
-                pusherText.setText(name);
-            }
+            bindPusher(musicDetail);
             sourceButton.bind(musicDetail.getPlaybackSource());
             Context context = getContext();
             artists.removeAllViews();
@@ -341,6 +326,27 @@ public class MusicInfoCard extends LinearLayout {
             buttonsLayout.setVisibility(View.VISIBLE);
         }
     }
+    private void bindPusher(MusicDetail detail) {
+        long expectedBinding = ++pusherBinding;
+        var pusher = detail == null ? indi.mopelotus.musichud.beans.music.PusherInfo.EMPTY : detail.getPusherInfo();
+        String name = pusher.getPlayerName();
+        boolean visible = !indi.mopelotus.musichud.beans.music.PusherInfo.EMPTY.equals(pusher)
+                && name != null && !name.isBlank();
+        pusherRow.setVisibility(visible ? VISIBLE : GONE);
+        pusherHeadView.setVisibility(visible ? VISIBLE : GONE);
+        pusherText.setText(visible ? name : "");
+        pusherHeadView.setPlayerSkinSupplier(visible ? () -> {
+            if (expectedBinding != pusherBinding || boundMusic != detail) return null;
+            try {
+                PlayerInfo info = PlayerInfoUtil.getPlayerInfoByUUID(pusher.getPlayerUUID());
+                var skin = PlayerInfoUtil.getPlayerSkin(info);
+                return expectedBinding == pusherBinding && boundMusic == detail ? skin : null;
+            } catch (Exception ignored) {
+                return null;
+            }
+        } : null);
+    }
+
     /** Updates only this card's track; binding initializes both texts before it becomes visible. */
     public void updateProgress(NowPlayingInfo.PlaybackSnapshot snapshot, boolean refreshText) {
         MusicDetail detail = boundMusic;
