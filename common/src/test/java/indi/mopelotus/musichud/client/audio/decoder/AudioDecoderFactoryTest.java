@@ -14,6 +14,73 @@ import org.junit.jupiter.api.Test;
 
 final class AudioDecoderFactoryTest {
   @Test
+  void malformedResourceUrisFailWithoutLeakingQueriesThroughAnyCause() throws Exception {
+    String secret = "private-signed-malformed-query";
+    for (String uri :
+        new String[] {
+          "https://example.invalid/audio?token=" + secret + "%zz",
+          "HTTP://example.invalid/audio?token=" + secret + "%",
+          "icy://example.invalid/audio?token=" + secret + "%zz",
+          "https:/media?token=" + secret,
+          "http:media?token=" + secret,
+          "file:///tmp/audio?token=" + secret,
+          "file:///tmp/" + secret + "%zz",
+          "file:relative?token=" + secret,
+          "https://user:" + secret + "@example.invalid/audio"
+        }) {
+      for (int entry = 0; entry < 3; entry++) {
+        final int selected = entry;
+        Throwable error =
+            assertThrows(
+                Exception.class,
+                () -> {
+                  if (selected == 0) AudioFormatDetector.normalizeIdentifier(uri);
+                  else if (selected == 1) AudioDecoderFactory.open(uri, FormatType.AUTO);
+                  else AudioDecoderFactory.probe(uri, FormatType.AUTO);
+                });
+        var trace = new java.io.StringWriter();
+        error.printStackTrace(new java.io.PrintWriter(trace));
+        assertFalse(
+            trace.toString().contains(secret),
+            "Malformed URI must not become a local filename or retained parser cause");
+      }
+    }
+  }
+
+  @Test
+  void literalLocalPathsKeepSpacesPercentSignsQueriesAndDriveLetters() throws Exception {
+    Path directory = Files.createTempDirectory("java-audio-paths-");
+    Path file = directory.resolve("local audio?literal=%zz.wav");
+    try {
+      Files.write(file, fixture());
+      assertEquals(
+          file.toAbsolutePath().normalize().toString(),
+          AudioFormatDetector.normalizeIdentifier(file.toString()));
+      assertEquals(
+          file.toAbsolutePath().normalize().toString(),
+          AudioFormatDetector.normalizeIdentifier(file.toUri().toString()));
+      try (var decoder = AudioDecoderFactory.open(file.toString(), FormatType.AUTO)) {
+        assertNotNull(decoder.readChunk(4096));
+      }
+      try (var decoder = AudioDecoderFactory.open(file.toUri().toString(), FormatType.AUTO)) {
+        assertNotNull(decoder.readChunk(4096));
+      }
+      String relative = "missing local audio?literal=%zz.wav";
+      assertEquals(
+          Path.of(relative).toAbsolutePath().normalize().toString(),
+          AudioFormatDetector.normalizeIdentifier(relative));
+      for (String drive :
+          new String[] {"C:\\audio files\\literal%zz.wav", "D:/audio files/literal%zz.wav"})
+        assertEquals(
+            Path.of(drive).toAbsolutePath().normalize().toString(),
+            AudioFormatDetector.normalizeIdentifier(drive));
+    } finally {
+      Files.deleteIfExists(file);
+      Files.deleteIfExists(directory);
+    }
+  }
+
+  @Test
   void probeRetainsTheValidatedLogicalOggCodec() throws Exception {
     Path file = Files.createTempFile("java-ogg-codec-", ".bin");
     try {
