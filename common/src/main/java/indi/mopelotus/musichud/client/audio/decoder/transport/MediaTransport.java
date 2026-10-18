@@ -134,18 +134,16 @@ public final class MediaTransport implements AutoCloseable {
       throws IOException {
     Objects.requireNonNull(cancellation);
     Map<String, String> safe = validateHeaders(headers, publicOnly);
-    long openingDeadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
     URI current = uri;
     boolean sensitiveAllowed = true;
     for (int redirect = 0; redirect <= 5; redirect++) {
       cancellation.check();
       validateUri(current, publicOnly);
       InetAddress[] addresses =
-          resolve(current.getHost(), publicOnly, cancellation, openingDeadline);
+          resolve(current.getHost(), publicOnly, cancellation, phaseDeadline(timeoutMillis));
       if (addresses.length == 0) throw new UnknownHostException("No media addresses");
       // No unresolved socket address reaches Netty: this exact validated address is connected.
-      Response response =
-          connect(current, safe, range, cancellation, addresses, sensitiveAllowed, openingDeadline);
+      Response response = connect(current, safe, range, cancellation, addresses, sensitiveAllowed);
       if (!Set.of(301, 302, 303, 307, 308).contains(response.status())) {
         Body owner = ((BodyStream) response.body()).owner;
         try {
@@ -232,20 +230,27 @@ public final class MediaTransport implements AutoCloseable {
       ByteRange range,
       Cancellation cancellation,
       InetAddress[] addresses,
-      boolean sensitiveAllowed,
-      long openingDeadline)
+      boolean sensitiveAllowed)
       throws IOException {
     IOException last = null;
-    for (InetAddress address : addresses) {
+    // DNS, TCP failover, and response opening have separate deadlines per redirect hop.
+    // Keep the old per-address timeout for up to six addresses. Larger DNS sets share
+    // six such budgets fairly, without silently dropping either address family.
+    long connectionDeadline = phaseDeadline((long) timeoutMillis * Math.min(6, addresses.length));
+    for (int index = 0; index < addresses.length; index++) {
       cancellation.check();
-      Body body = new Body(cancellation, timeoutMillis, range, openingDeadline);
+      InetAddress address = addresses[index];
+      long remaining = remainingMillis(connectionDeadline);
+      int connectMillis =
+          (int) Math.min(timeoutMillis, Math.max(1L, remaining / (addresses.length - index)));
+      Body body = new Body(cancellation, timeoutMillis, range);
       final boolean secure = uri.getScheme().equalsIgnoreCase("https");
       int port = port(uri);
       Bootstrap bootstrap =
           new Bootstrap()
               .group(group)
               .channel(NioSocketChannel.class)
-              .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, timeoutMillis)
+              .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectMillis)
               .option(ChannelOption.AUTO_READ, false)
               .handler(
                   new ChannelInitializer<Channel>() {
@@ -272,10 +277,12 @@ public final class MediaTransport implements AutoCloseable {
       cancellation.attach(channel);
       boolean requestSent = false;
       try {
-        if (!connected.await(remainingMillis(openingDeadline)))
-          throw new IOException("Media connect timeout");
+        if (!connected.await(connectMillis)) throw new IOException("Media connect timeout");
         if (!connected.isSuccess())
           throw new IOException("Media connect failed", connected.cause());
+        // TLS/HTTP headers and any compression prefix get a fresh opening budget;
+        // after opening, a long audio stream is limited only by read inactivity.
+        body.openingDeadline = phaseDeadline(timeoutMillis);
         String path = uri.getRawPath();
         if (path == null || path.isEmpty()) path = "/";
         if (uri.getRawQuery() != null) path += "?" + uri.getRawQuery();
@@ -300,7 +307,8 @@ public final class MediaTransport implements AutoCloseable {
         requestSent = true;
         channel.writeAndFlush(request);
         channel.read();
-        Header header = body.header.get(remainingMillis(openingDeadline), TimeUnit.MILLISECONDS);
+        Header header =
+            body.header.get(remainingMillis(body.openingDeadline), TimeUnit.MILLISECONDS);
         if (header.status != 200
             && header.status != 206
             && !Set.of(301, 302, 303, 307, 308).contains(header.status))
@@ -345,15 +353,14 @@ public final class MediaTransport implements AutoCloseable {
     boolean interim;
     String location;
     String encoding = "identity";
-    final long openingDeadline;
+    volatile long openingDeadline;
     volatile boolean opening = true;
     long received, expected = -1;
 
-    Body(Cancellation cancellation, int timeoutMillis, ByteRange range, long openingDeadline) {
+    Body(Cancellation cancellation, int timeoutMillis, ByteRange range) {
       this.cancellation = cancellation;
       this.timeoutMillis = timeoutMillis;
       this.range = range;
-      this.openingDeadline = openingDeadline;
     }
 
     byte[] current;
@@ -535,6 +542,10 @@ public final class MediaTransport implements AutoCloseable {
         cancellation.detach(channel);
       }
     }
+  }
+
+  private static long phaseDeadline(long millis) {
+    return System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
   }
 
   private static long remainingMillis(long deadline) throws IOException {
