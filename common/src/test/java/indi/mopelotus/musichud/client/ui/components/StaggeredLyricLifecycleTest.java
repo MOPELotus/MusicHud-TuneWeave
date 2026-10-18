@@ -149,11 +149,16 @@ class StaggeredLyricLifecycleTest {
         final Object view;
         final Object now;
         final Class<?> viewType;
+        final Set<String> productionClasses;
         Environment(Path fixtures, icyllis.modernui.core.Context context) throws Exception {
             this(fixtures, context, Map.of());
         }
         Environment(Path fixtures, icyllis.modernui.core.Context context, Map<String, String> extras) throws Exception {
+            this(fixtures, context, extras, Set.of());
+        }
+        Environment(Path fixtures, icyllis.modernui.core.Context context, Map<String, String> extras, Set<String> productionClasses) throws Exception {
             super(new java.net.URL[]{fixtures.toUri().toURL()}, StaggeredLyricLifecycleTest.class.getClassLoader());
+            this.productionClasses = productionClasses;
             this.fixtures = fixtures;
             compile(fixtures, extras);
             viewType = loadClass(COMPONENT + "LifecycleView");
@@ -163,8 +168,9 @@ class StaggeredLyricLifecycleTest {
         @Override protected synchronized Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
             Class<?> result = findLoadedClass(name);
             if (result == null) {
-                if (name.equals(COMPONENT + "StaggeredLyricScrollView") || name.startsWith(COMPONENT + "StaggeredLyricScrollView$")
-                        || name.equals(COMPONENT + "MusicInfoCard") || name.startsWith(COMPONENT + "MusicInfoCard$")) {
+                if (productionClasses.stream().anyMatch(type -> name.equals(type) || name.startsWith(type + "$")) || name.equals(COMPONENT + "StaggeredLyricScrollView") || name.startsWith(COMPONENT + "StaggeredLyricScrollView$")
+                        || name.equals(COMPONENT + "MusicInfoCard") || name.startsWith(COMPONENT + "MusicInfoCard$")
+                        || name.equals(COMPONENT + "PusherWidget")) {
                     try (var input = getParent().getResourceAsStream(name.replace('.', '/') + ".class")) {
                         if (input == null) throw new ClassNotFoundException(name);
                         byte[] bytes = input.readAllBytes(); result = defineClass(name, bytes, 0, bytes.length);
@@ -174,6 +180,13 @@ class StaggeredLyricLifecycleTest {
             }
             if (resolve) resolveClass(result);
             return result;
+        }
+        Class<?> productionClass(String name) throws Exception {
+            if (productionClasses.contains(name)) return loadClass(name);
+            try (var input = getParent().getResourceAsStream(name.replace('.', '/') + ".class")) {
+                byte[] bytes = Objects.requireNonNull(input).readAllBytes();
+                return defineClass(name, bytes, 0, bytes.length);
+            }
         }
         Object field(String name) throws Exception {
             var f = viewType.getSuperclass().getDeclaredField(name); f.setAccessible(true); return f.get(view);

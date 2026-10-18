@@ -29,11 +29,9 @@ import indi.mopelotus.musichud.client.ui.components.VoteSkipButton;
 import indi.mopelotus.musichud.client.ui.components.FlexWrapLayout;
 import indi.mopelotus.musichud.client.ui.components.ArtistDetailView;
 import indi.mopelotus.musichud.client.ui.components.MusicCollectionDetailView;
-import indi.mopelotus.musichud.client.utils.PlayerInfoUtil;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
 import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import lombok.Getter;
-import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.resources.language.I18n;
 
 import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
@@ -48,8 +46,7 @@ public class MusicInfoCard extends LinearLayout {
     private final TextView titleText;
     private final FlexWrapLayout artists;
     private final LinearLayout albumContainer;
-    private final LinearLayout pusherRow;
-    private long pusherBinding;
+    private final PusherWidget pusherRow;
     private final PlayerHeadView pusherHeadView;
     private final TextView pusherText;
     private final PlaybackSourceLink sourceButton;
@@ -101,25 +98,9 @@ public class MusicInfoCard extends LinearLayout {
         albumContainer.setGravity(Gravity.TOP | Gravity.LEFT);
         musicInfo.addView(albumContainer);
 
-        pusherRow = new LinearLayout(context);
-        pusherRow.setVisibility(View.GONE);
-        pusherRow.setOrientation(LinearLayout.HORIZONTAL);
-        pusherRow.setGravity(Gravity.CENTER_VERTICAL);
-
-        pusherHeadView = new PlayerHeadView(context);
-        int rowHeight = pusherRow.dp(Theme.TEXT_SIZE_LARGER);
-        //noinspection SuspiciousNameCombination
-        pusherHeadView.setLayoutParams(new LinearLayout.LayoutParams(rowHeight, rowHeight));
-        pusherHeadView.setVisibility(View.GONE);
-        pusherRow.addView(pusherHeadView);
-
-        pusherText = new TextView(context);
-        pusherText.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-        pusherText.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        LinearLayout.LayoutParams pusherTextParams = new LinearLayout.LayoutParams(WRAP_CONTENT, rowHeight);
-        pusherTextParams.gravity = Gravity.LEFT | Gravity.CENTER_HORIZONTAL;
-        pusherTextParams.setMargins(pusherText.dp(4), 0, 0, 0);
-        pusherRow.addView(pusherText, pusherTextParams);
+        pusherRow = new PusherWidget(context);
+        pusherHeadView = pusherRow.getPusherHeadView();
+        pusherText = pusherRow.getPusherText();
 
         LinearLayout.LayoutParams pusherRowParams = new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT);
         int dp2 = musicInfo.dp(2);
@@ -327,24 +308,7 @@ public class MusicInfoCard extends LinearLayout {
         }
     }
     private void bindPusher(MusicDetail detail) {
-        long expectedBinding = ++pusherBinding;
-        var pusher = detail == null ? indi.mopelotus.musichud.beans.music.PusherInfo.EMPTY : detail.getPusherInfo();
-        String name = pusher.getPlayerName();
-        boolean visible = !indi.mopelotus.musichud.beans.music.PusherInfo.EMPTY.equals(pusher)
-                && name != null && !name.isBlank();
-        pusherRow.setVisibility(visible ? VISIBLE : GONE);
-        pusherHeadView.setVisibility(visible ? VISIBLE : GONE);
-        pusherText.setText(visible ? name : "");
-        pusherHeadView.setPlayerSkinSupplier(visible ? () -> {
-            if (expectedBinding != pusherBinding || boundMusic != detail) return null;
-            try {
-                PlayerInfo info = PlayerInfoUtil.getPlayerInfoByUUID(pusher.getPlayerUUID());
-                var skin = PlayerInfoUtil.getPlayerSkin(info);
-                return expectedBinding == pusherBinding && boundMusic == detail ? skin : null;
-            } catch (Exception ignored) {
-                return null;
-            }
-        } : null);
+        pusherRow.bind(detail == null ? null : detail.getPusherInfo());
     }
 
     /** Updates only this card's track; binding initializes both texts before it becomes visible. */
