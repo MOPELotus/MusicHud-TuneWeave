@@ -58,6 +58,31 @@ class ShadedContainerTest {
           ((AutoCloseable) source).close();
         }
       }
+      var framedType = loader.loadClass(prefix + "aac.TsAdtsPacketSource");
+      try (var fixture = ShadedContainerTest.class.getResourceAsStream("/container/hls/aac.ts")) {
+        assertNotNull(fixture);
+        var transport = ts.getConstructor(InputStream.class).newInstance(fixture);
+        var framed = framedType.getConstructor(ts).newInstance(transport);
+        try {
+          var hash = MessageDigest.getInstance("SHA-256");
+          int packets = 0, bytes = 0;
+          Object packet;
+          while ((packet = framedType.getMethod("next").invoke(framed)) != null) {
+            var encoded = (ByteBuffer) packet.getClass().getMethod("encoded").invoke(packet);
+            packets++;
+            bytes += encoded.remaining();
+            hash.update(encoded);
+          }
+          assertEquals(62, packets);
+          assertEquals(20775, bytes);
+          assertEquals(
+              "163ceb1095ff6ca5698de68a43fd90d4e81e8bf9eb148be81a6e3da3f8bd5d13",
+              HexFormat.of().formatHex(hash.digest()));
+          assertEquals(0L, framedType.getMethod("timelineEpoch").invoke(framed));
+        } finally {
+          ((AutoCloseable) framed).close();
+        }
+      }
       var icy = loader.loadClass(prefix + "input.IcyMetadataInputStream");
       try (var input =
           (InputStream)

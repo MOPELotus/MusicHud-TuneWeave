@@ -220,7 +220,7 @@ public final class TsPacketSource implements AutoCloseable {
             n = ((b[p + 3] & 15) << 8) | (b[p + 4] & 255);
         p += 5;
         if (n > end - p) throw new IOException("PMT ES descriptors");
-        if ((st == 15 || st == 17) && next < 0) {
+        if ((st == 15 && nt != 15) || (st == 17 && next < 0)) {
           next = sp;
           nt = st;
         }

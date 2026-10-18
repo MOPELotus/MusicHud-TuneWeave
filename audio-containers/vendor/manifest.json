@@ -175,7 +175,7 @@
   "notices": [
     {
       "path": "vendor/NOTICE",
-      "sha256": "347b7582295af38787e7fa8c1b0417e2f4aad6bd1421d7b5a5f3fda81f1dc2f2"
+      "sha256": "9bba47190ba27fed509a5ae6bb0dfe0049fa0243fc23f5352ec3eabfa7613360"
     },
     {
       "path": "vendor/mp4parser-LICENSE.txt",
