@@ -95,6 +95,7 @@ class CodecFixtureTest {
   static PcmDecoder open(String mode) throws IOException {
     return switch (mode) {
       case "mp3" -> JavaCodecs.mp3(new ByteArrayInputStream(resource("mp3.mp3")));
+      case "mp3-raw" -> JavaCodecs.mp3RawMedia(new ByteArrayInputStream(resource("mp3.mp3")));
       case "vorbis", "opus" -> JavaCodecs.ogg(new ByteArrayInputStream(resource(mode + ".ogg")));
       case "alac", "aac", "aac-no-pns" -> packetStream(mode);
       case "integer" -> JavaCodecs.wavpack(new ByteArrayInputStream(resource("integer.wv")));

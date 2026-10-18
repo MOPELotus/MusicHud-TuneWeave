@@ -4,8 +4,13 @@ import java.io.*;
 import java.util.*;
 import javazoom.jl.decoder.*;
 
-/** Research synchronous JLayer adapter. Serial calls per instance, owned input. */
+/** Synchronous JLayer adapter. Serial calls per instance, owned input. */
 public final class JLayerStreamDecoder implements AutoCloseable {
+  public enum TimingMode {
+    EMBEDDED_GAPLESS,
+    RAW_MEDIA
+  }
+
   // Measured independently across MPEG 1/2/2.5 at eight rates: raw-reference lag minus
   // metadata-frame and declared encoder delay.
   private static final int SYNTHESIS_DELAY = 529;
@@ -24,6 +29,11 @@ public final class JLayerStreamDecoder implements AutoCloseable {
   private boolean reading, eof;
 
   public JLayerStreamDecoder(InputStream input) throws IOException {
+    this(input, TimingMode.EMBEDDED_GAPLESS);
+  }
+
+  public JLayerStreamDecoder(InputStream input, TimingMode timingMode) throws IOException {
+    Objects.requireNonNull(timingMode);
     owned = Objects.requireNonNull(input);
     try {
       PushbackInputStream stream =
@@ -50,9 +60,12 @@ public final class JLayerStreamDecoder implements AutoCloseable {
       bits = new Bitstream(new FrameBoundaryInputStream(stream, h));
       output = new PcmBuffer(h.channels());
       decoder.setOutputBuffer(output);
-      boolean info = metadata.vbrKind().equals("Xing") || metadata.vbrKind().equals("Info");
+      boolean info =
+          timingMode == TimingMode.EMBEDDED_GAPLESS
+              && (metadata.vbrKind().equals("Xing") || metadata.vbrKind().equals("Info"));
       boolean gapless =
-          metadata.declaredFrames() > 0
+          timingMode == TimingMode.EMBEDDED_GAPLESS
+              && metadata.declaredFrames() > 0
               && metadata.encoderDelay() >= 0
               && metadata.encoderPadding() >= 0;
       toSkip =
@@ -145,6 +158,7 @@ public final class JLayerStreamDecoder implements AutoCloseable {
     }
     if (header == null) {
       eof = true;
+      if (emitted == 0) throw new EOFException("MP3 stream produced no PCM");
       if (expected >= 0 && emitted != expected)
         throw new EOFException(
             "MP3 sample count " + emitted + " differs from gapless declaration " + expected);

@@ -25,7 +25,7 @@ public final class Mp3Headers {
 
   public record FramePoint(long byteOffset, long encodedSample, int frameBytes) {}
 
-  static Header parse(byte[] b, int p) {
+  static Header parse(byte[] b, int p) throws IOException {
     int x =
         ((b[p] & 255) << 24)
             | ((b[p + 1] & 255) << 16)
@@ -35,10 +35,10 @@ public final class Mp3Headers {
     if ((x & 0xffe00000) != 0xffe00000
         || v == 1
         || layer != 1
-        || bi == 0
         || bi == 15
         || si == 3
         || (x & 3) == 2) return null;
+    if (bi == 0) throw new IOException("Free-format MP3 is not supported");
     int sr = new int[] {44100, 48000, 32000}[si] / (v == 3 ? 1 : v == 2 ? 2 : 4);
     int br =
         (v == 3

@@ -21,7 +21,21 @@ public final class JavaCodecs {
   }
 
   public static PcmDecoder mp3(InputStream owned) throws IOException {
-    var d = new JLayerStreamDecoder(owned);
+    return mp3(owned, JLayerStreamDecoder.TimingMode.EMBEDDED_GAPLESS);
+  }
+
+  /**
+   * Raw media frames for a container-owned presentation timeline. Does not skip metadata frames,
+   * encoder delay, decoder delay or padding; the caller applies authoritative container edits once.
+   * This stream API does not flatten or interpret source packet timestamps on the caller's behalf.
+   */
+  public static PcmDecoder mp3RawMedia(InputStream owned) throws IOException {
+    return mp3(owned, JLayerStreamDecoder.TimingMode.RAW_MEDIA);
+  }
+
+  private static PcmDecoder mp3(InputStream owned, JLayerStreamDecoder.TimingMode timing)
+      throws IOException {
+    var d = new JLayerStreamDecoder(owned, timing);
     return new ChunkDecoder(
         format(d.sampleRate(), d.channels(), PcmFormat.Encoding.S16LE, false),
         new ChunkDecoder.Core() {

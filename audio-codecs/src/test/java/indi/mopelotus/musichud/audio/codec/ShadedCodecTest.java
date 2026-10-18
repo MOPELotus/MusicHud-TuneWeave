@@ -10,7 +10,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class ShadedCodecTest {
   @ParameterizedTest
-  @ValueSource(strings = {"mp3", "vorbis", "opus", "integer", "aac", "aac-no-pns", "alac"})
+  @ValueSource(
+      strings = {"mp3", "mp3-raw", "vorbis", "opus", "integer", "aac", "aac-no-pns", "alac"})
   void isolatedArtifactPreservesPcmAndPrivateResources(String mode) throws Exception {
     var artifact = Path.of(System.getProperty("audioCodecJar"));
     try (var loader =
@@ -29,9 +30,14 @@ class ShadedCodecTest {
             unshaded(mode), packets(loader, mode), "Packet relocation/R8 must preserve PCM");
         return;
       }
-      String method = mode.equals("integer") ? "wavpack" : mode.equals("mp3") ? "mp3" : "ogg";
+      String method =
+          mode.equals("mp3-raw")
+              ? "mp3RawMedia"
+              : mode.equals("integer") ? "wavpack" : mode.equals("mp3") ? "mp3" : "ogg";
       String fixture =
-          mode + (mode.equals("integer") ? ".wv" : mode.equals("mp3") ? ".mp3" : ".ogg");
+          mode.equals("mp3-raw")
+              ? "mp3.mp3"
+              : mode + (mode.equals("integer") ? ".wv" : mode.equals("mp3") ? ".mp3" : ".ogg");
       Object decoder =
           factory
               .getMethod(method, InputStream.class)
