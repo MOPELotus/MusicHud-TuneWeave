@@ -166,9 +166,28 @@ public final class MediaTransport implements AutoCloseable {
     }
   }
 
+  /**
+   * Body has HTTP content decoding applied, but retains any interleaved ICY metadata. {@code
+   * icyMetaInt} is zero when absent; callers strip metadata before audio decoding.
+   */
   public record Response(
-      URI finalUri, int status, long length, InputStream body, Representation representation)
+      URI finalUri,
+      int status,
+      long length,
+      InputStream body,
+      Representation representation,
+      int icyMetaInt)
       implements AutoCloseable {
+    public Response {
+      if (icyMetaInt < 0 || icyMetaInt > 16 * 1024 * 1024)
+        throw new IllegalArgumentException("Invalid ICY metadata interval");
+    }
+
+    public Response(
+        URI finalUri, int status, long length, InputStream body, Representation representation) {
+      this(finalUri, status, length, body, representation, 0);
+    }
+
     public Response(URI finalUri, int status, long length, InputStream body) {
       this(
           finalUri,
@@ -286,7 +305,8 @@ public final class MediaTransport implements AutoCloseable {
               response.status(),
               decoded == response.body() ? response.length() : -1L,
               decoded,
-              response.representation());
+              response.representation(),
+              response.icyMetaInt());
         } catch (IOException | RuntimeException error) {
           try {
             response.close();
@@ -396,6 +416,7 @@ public final class MediaTransport implements AutoCloseable {
                         engine.setSSLParameters(parameters);
                         channel.pipeline().addLast(new SslHandler(engine));
                       }
+                      channel.pipeline().addLast(new IcyStatusNormalizer());
                       channel.pipeline().addLast(new HttpClientCodec(4096, 16384, 8192));
                       channel.pipeline().addLast(body);
                     }
@@ -451,9 +472,10 @@ public final class MediaTransport implements AutoCloseable {
         return new Response(
             uri,
             header.status,
-            header.length,
+            header.icyMetaInt > 0 ? -1L : header.length,
             new BodyStream(body),
-            header.metadata.representation());
+            header.metadata.representation(),
+            header.icyMetaInt);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         body.close();
@@ -481,7 +503,8 @@ public final class MediaTransport implements AutoCloseable {
     }
   }
 
-  private record Header(int status, long length, MediaValidators.Observation metadata) {}
+  private record Header(
+      int status, long length, MediaValidators.Observation metadata, int icyMetaInt) {}
 
   private static final class Body extends ChannelInboundHandlerAdapter {
     private static final Object END = new Object();
@@ -545,6 +568,11 @@ public final class MediaTransport implements AutoCloseable {
           if (!Set.of("identity", "gzip", "x-gzip", "deflate").contains(encoding)
               || range != null && !encoding.equals("identity"))
             throw new IOException("Unexpected media content encoding");
+          int icyMetaInt = icyMetaInt(response.headers());
+          if (icyMetaInt > 0 && conditionalRange)
+            throw new ResourceChangedException(ChangeReason.ENCODING, status);
+          if (icyMetaInt > 0 && range != null && range.first() > 0)
+            throw new IOException("ICY metadata streams cannot seek by byte range");
           expected = HttpUtil.getContentLength(response, -1);
           if (expected < -1) throw new IOException("Invalid media length");
           long totalLength = status == 200 ? expected : -1;
@@ -578,9 +606,9 @@ public final class MediaTransport implements AutoCloseable {
               MediaValidators.read(
                   targetUri,
                   response.headers(),
-                  encoding.equals("identity") ? totalLength : -1,
+                  encoding.equals("identity") && icyMetaInt == 0 ? totalLength : -1,
                   encoding.equals("identity"));
-          header.complete(new Header(status, expected, metadata));
+          header.complete(new Header(status, expected, metadata, icyMetaInt));
         }
         if (message instanceof HttpContent content) {
           if (interim) return;
@@ -710,6 +738,26 @@ public final class MediaTransport implements AutoCloseable {
         cancellation.detach(channel);
       }
     }
+  }
+
+  /**
+   * Interval counts media payload bytes after HTTP transfer/content decoding, before ICY stripping.
+   */
+  private static int icyMetaInt(HttpHeaders headers) throws IOException {
+    List<String> values = headers.getAll("icy-metaint");
+    if (values.isEmpty()) return 0;
+    if (values.size() != 1) throw new IOException("Ambiguous ICY metadata interval");
+    String value = values.getFirst();
+    if (value.isEmpty()) throw new IOException("Invalid ICY metadata interval");
+    int interval = 0;
+    for (int i = 0; i < value.length(); i++) {
+      char digit = value.charAt(i);
+      if (digit < '0' || digit > '9') throw new IOException("Invalid ICY metadata interval");
+      interval = interval * 10 + (digit - '0');
+      if (interval > 16 * 1024 * 1024) throw new IOException("ICY metadata interval exceeds limit");
+    }
+    if (interval == 0) throw new IOException("Invalid ICY metadata interval");
+    return interval;
   }
 
   private static void validateExpected(
