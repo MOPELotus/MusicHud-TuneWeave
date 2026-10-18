@@ -77,6 +77,44 @@ class WordByWordLyricParserTest {
         assertEquals("让我来看看：有谁睡得不香？", lines.get(1).getTranslatedText());
     }
 
+    @Test
+    void normalizesAcrossPhraseBoundariesWithoutMovingAbsoluteTimings() {
+        var line = parseSingleLine("[1000,2000](1000,500,0)  A,📀(1500,500,0)\u00a0 \t B  ");
+        assertEquals("A, 📀 B", line.lyric());
+        assertEquals(5, line.phraseEndingOffsetMap().get(Duration.ofMillis(1500)));
+        assertEquals(7, line.phraseEndingOffsetMap().get(Duration.ofMillis(2000)));
+        assertEquals("A, 📀", line.lyric().substring(0, 5));
+    }
+
+    @Test
+    void preservesAstralCharactersAndOffsetsInRepeatedPostfixLines() {
+        var lines = parseLines("[1000,1000][3000,1000]📀,(1000,500)\u00a0B (1500,500)");
+        assertEquals(2, lines.size());
+        for (var line : lines) {
+            assertEquals("📀, B", line.lyric());
+            assertEquals(4, line.phraseEndingOffsetMap().get(line.startTime().plusMillis(500)));
+            assertEquals(5, line.phraseEndingOffsetMap().get(line.startTime().plusMillis(1000)));
+        }
+    }
+
+    @Test
+    void ignoresMalformedOverflowingTimestampsAndContinuesFollowingLines() {
+        var lines = parseLines("[9999999999999999999999999,1](0,1)x\n[0,1000](0,500)a(500,500)b");
+        assertEquals(1, lines.size());
+        assertEquals("ab", lines.getFirst().lyric());
+    }
+
+    @Test
+    void shiftsOffsetsWhenTwoRecordsShareOneLineTimestamp() {
+        MusicDetail detail = MusicDetail.fromTuneWeave(1, "qq:test", "track", "album", 3000, null, List.of());
+        detail.setLyricInfo(new LyricInfo(new Lyric(""), new Lyric(""),
+                new Lyric("[0,1000](0,500)📀\n[0,1000](500,500)B"), new Lyric("")));
+        var line = WordByWordLyricParser.parse(detail).getFirst();
+        assertEquals("📀\nB", line.getText());
+        assertEquals(2, line.getPhraseEndingOffsetMap().get(Duration.ofMillis(500)));
+        assertEquals(4, line.getPhraseEndingOffsetMap().get(Duration.ofMillis(1000)));
+    }
+
     private static WordByWordLyricParser.LyricLineMetaData parseSingleLine(String lyric) {
         List<WordByWordLyricParser.LyricLineMetaData> lines = parseLines(lyric);
         assertEquals(1, lines.size());
