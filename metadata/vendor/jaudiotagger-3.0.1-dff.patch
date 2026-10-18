@@ -1,0 +1,46 @@
+--- upstream/org/jaudiotagger/audio/dff/BaseChunk.java
++++ modified/org/jaudiotagger/audio/dff/BaseChunk.java
+@@ -81,0 +82 @@
++        if (fc.size() - fc.position() < 8) throw new IOException("Truncated DFF chunk size");
+@@ -84,0 +86,3 @@
++        long available = fc.size() - chunkStart;
++        if (chunkSize < 0 || chunkSize > available || (chunkSize & 1) > available - chunkSize)
++            throw new IOException("DFF chunk exceeds file boundary");
+@@ -92,7 +96,3 @@
+-        Long skip = (this.getChunkEnd() - fc.position());
+-
+-        if (skip > 0)
+-        {
+-        	// Read audio data
+-            Utils.readFileDataIntoBufferLE(fc, skip.intValue());
+-        }
++        long end = getChunkEnd();
++        if (fc.position() > end) throw new IOException("DFF field exceeds chunk boundary");
++        fc.position(end + (chunkSize & 1));
+--- upstream/org/jaudiotagger/audio/dff/DffFileReader.java
++++ modified/org/jaudiotagger/audio/dff/DffFileReader.java
+@@ -30 +30 @@
+-                DsdChunk dsd = DsdChunk.readChunk(Utils.readFileDataIntoBufferLE(fc, DsdChunk.DSD_HEADER_LENGTH));
++                DsdChunk dsd = DsdChunk.readChunk(Utils.readFileDataIntoBufferLE(fc, DsdChunk.SIGNATURE_LENGTH));
+@@ -39 +39,4 @@
+-                    prop = PropChunk.readChunk(Utils.readFileDataIntoBufferLE(fc, PropChunk.PROP_HEADER_LENGTH));
++                    if (fc.size() - fc.position() < PropChunk.PROP_HEADER_LENGTH)
++                        throw new CannotReadException("Missing or truncated DFF PROP chunk");
++                    java.nio.ByteBuffer header = Utils.readFileDataIntoBufferLE(fc, PropChunk.PROP_HEADER_LENGTH);
++                    prop = PropChunk.readChunk(header);
+@@ -43,0 +47,5 @@
++                    long size = Long.reverseBytes(header.getLong(4));
++                    long remaining = fc.size() - fc.position();
++                    if (size < 0 || size > remaining || (size & 1) > remaining - size)
++                        throw new CannotReadException("DFF chunk exceeds file boundary");
++                    fc.position(fc.position() + size + (size & 1));
+@@ -71,0 +80,2 @@
++                        if (fc.size() - fc.position() < 12)
++                            throw new CannotReadException("Missing or truncated DFF end chunk");
+@@ -77 +87,3 @@
+-
++                        BaseChunk unknown = new BaseChunk(null);
++                        unknown.readDataChunch(fc);
++                        unknown.skipToChunkEnd(fc);
+@@ -141,0 +154 @@
++                        id3.skipToChunkEnd(fc);
