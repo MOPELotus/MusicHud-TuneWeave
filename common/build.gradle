@@ -63,6 +63,25 @@ configurations {
     runtimeClasspath.extendsFrom common
 }
 
+// 26.3 supplies the split Netty 4.2 codec-base. Core's legacy 4.1 aggregate
+// duplicates its decoder classes on the standalone test classpath, unlike the game.
+if (rootProject.minecraft_version == '26.3') {
+    configurations.testRuntimeClasspath.exclude group: 'io.netty', module: 'netty-codec'
+    tasks.named('test').configure {
+        doFirst {
+            def decoderProviders = classpath.files.findAll { artifact ->
+                artifact.isFile() && artifact.name.startsWith('netty-') && artifact.name.endsWith('.jar') &&
+                    new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                        zip.getEntry('io/netty/handler/codec/ByteToMessageDecoder.class') != null
+                    }
+            }
+            if (decoderProviders.size() != 1) {
+                throw new GradleException("Expected one host Netty decoder provider, found ${decoderProviders*.name}")
+            }
+        }
+    }
+}
+
 dependencies {
     implementation "com.twelvemonkeys.imageio:imageio-webp:3.13.1"
     // ModernUI Fork supplies TinyFD and its natives at runtime on 26.3.
