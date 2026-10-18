@@ -39,7 +39,7 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
   private PcmDecoder decoder;
   private long epoch, position;
   private volatile boolean closed;
-  private boolean ready = true;
+  private boolean ready = true, atEnd;
   private volatile boolean downmixed;
 
   public PresentedDecoder(Factory factory, PresentationPlan plan) throws IOException {
@@ -90,6 +90,7 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
       synchronized (state) {
         check();
         if (!ready) throw new IOException("Seek in progress");
+        if (atEnd) return -1;
         version = epoch;
         initial = position;
       }
@@ -182,23 +183,26 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
     while (input.framePosition() < target) {
       if (closed) throw new IOException("Decoder closed");
       int n = input.readFrames(scratch, 0, (int) Math.min(4096, target - input.framePosition()));
-      if (n < 0) throw new EOFException("Seek beyond media PCM");
+      if (n < 0) throw new EndOfMedia();
       if (n == 0) throw new IOException("Decoder made no progress during seek");
     }
   }
+
+  private static final class EndOfMedia extends IOException {}
 
   /**
    * Maps presentation frames to media time; the factory selects a qualified index or exact
    * fallback.
    */
   public boolean seekFrame(long target) throws IOException {
-    if (target < 0 || target > plan.totalFrames()) return false;
+    if (target < 0) return false;
     long version;
     Attempt previous;
     synchronized (state) {
       check();
       version = ++epoch;
       ready = false;
+      atEnd = false;
       previous = owned;
       owned = null;
       decoder = null;
@@ -219,13 +223,21 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
       break;
     }
     // Opening is outside reader lock: a slow old request cannot prevent newer seek/close.
-    if (wanted >= 0) {
+    boolean ended = target >= plan.totalFrames();
+    if (!ended && wanted >= 0) {
       PcmDecoder next = reopen(version, wanted);
-      skip(next, wanted);
+      try {
+        skip(next, wanted);
+      } catch (EndOfMedia end) {
+        if (plan.totalFrames() != Long.MAX_VALUE)
+          throw new EOFException("Media ended before declared presentation edit");
+        ended = true;
+      }
     }
     synchronized (state) {
       checkEpoch(version);
       position = target;
+      atEnd = ended;
       ready = true;
     }
     return true;

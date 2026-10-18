@@ -26,6 +26,24 @@ final class JavaDecoderFactoryTest {
           "tone.au");
 
   @Test
+  void indexedOggPastTailIsNaturalEofAndRestartable() throws Exception {
+    Path file = Files.createTempFile("java-audio-eof-", ".bin");
+    try {
+      Files.write(file, fixture("tone.opus"));
+      try (var decoder = JavaDecoderFactory.open(file.toString(), Map.of(), false, true, true)) {
+        assertTrue(decoder.supportsFastSeek());
+        assertTrue(decoder.seekToFrame(10L * decoder.getSampleRate()));
+        assertEquals(10L * decoder.getSampleRate(), decoder.getPositionFrames());
+        assertNull(decoder.readChunk(4096));
+        assertTrue(decoder.seekToFrame(0));
+        assertNotNull(decoder.readChunk(4096));
+      }
+    } finally {
+      Files.deleteIfExists(file);
+    }
+  }
+
+  @Test
   void localAndHeaderProtectedUnknownExtensionHttpProduceIdenticalWholeFrames() throws Exception {
     for (String name : TONES) {
       byte[] encoded = fixture(name);

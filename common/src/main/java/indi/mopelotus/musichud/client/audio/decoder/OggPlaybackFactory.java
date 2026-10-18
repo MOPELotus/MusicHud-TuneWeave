@@ -90,7 +90,7 @@ final class OggPlaybackFactory implements PresentedDecoder.Factory {
           }
           controller = opened;
         }
-        var result = opened.seek(frame);
+        var result = opened.seek(Math.min(frame, Math.max(0, opened.totalFrames() - 1)));
         synchronized (this) {
           check();
         }

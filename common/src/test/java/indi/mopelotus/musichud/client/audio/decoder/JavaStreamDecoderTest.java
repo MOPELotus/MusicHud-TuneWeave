@@ -68,6 +68,22 @@ class JavaStreamDecoderTest {
   }
 
   @Test
+  void exactAndPastTailSeeksCommitNaturalEofAndCanRestart() throws Exception {
+    for (long declared : new long[] {48000, Long.MAX_VALUE}) {
+      try (var decoder =
+          new JavaStreamDecoder(new PresentedDecoder(factory(), plan(declared)), false, false)) {
+        for (long target : new long[] {48000, 480000}) {
+          assertTrue(decoder.seekToFrame(target));
+          assertEquals(target, decoder.getPositionFrames());
+          assertNull(decoder.readChunk(4096));
+          assertTrue(decoder.seekToFrame(0));
+          assertArrayEquals(new byte[4], decoder.readChunk(4));
+        }
+      }
+    }
+  }
+
+  @Test
   void seekUsesDeliveredFramesAndCloseOwnsTheWholeResource() throws Exception {
     AtomicInteger closed = new AtomicInteger();
     var presented = new PresentedDecoder(factory(), plan(48000));
@@ -177,7 +193,7 @@ class JavaStreamDecoderTest {
                               throw new IOException(e);
                             }
                             return -1; // A reader can observe EOF after its input was concurrently
-                                       // closed.
+                            // closed.
                           }
 
                           public void close() {}
@@ -215,18 +231,27 @@ class JavaStreamDecoderTest {
       }
     }
   }
-  @Test void unknownDurationWithInitialPrimingRemainsAnUnboundedStream() throws Exception {
-    var track = new indi.mopelotus.musichud.audio.codec.PacketSource.Track(
-        new indi.mopelotus.musichud.audio.codec.PacketSource.Format("mp4a",new byte[0]),null,List.of(),
-        new indi.mopelotus.musichud.audio.codec.PacketSource.Time(1024,48000),
-        indi.mopelotus.musichud.audio.codec.PacketSource.Time.ZERO);
-    var plan=PresentationPlan.from(track,48000,false);
-    assertEquals(Long.MAX_VALUE,plan.totalFrames());
-    try(var decoder=new PresentedDecoder(factory(),plan)) {
-      byte[] bytes=new byte[4096*4];long frames=0;
-      for(;;){int count=decoder.readFrames(bytes,0,4096);if(count<0)break;frames+=count;}
-      assertEquals(48000-1024,frames);
+
+  @Test
+  void unknownDurationWithInitialPrimingRemainsAnUnboundedStream() throws Exception {
+    var track =
+        new indi.mopelotus.musichud.audio.codec.PacketSource.Track(
+            new indi.mopelotus.musichud.audio.codec.PacketSource.Format("mp4a", new byte[0]),
+            null,
+            List.of(),
+            new indi.mopelotus.musichud.audio.codec.PacketSource.Time(1024, 48000),
+            indi.mopelotus.musichud.audio.codec.PacketSource.Time.ZERO);
+    var plan = PresentationPlan.from(track, 48000, false);
+    assertEquals(Long.MAX_VALUE, plan.totalFrames());
+    try (var decoder = new PresentedDecoder(factory(), plan)) {
+      byte[] bytes = new byte[4096 * 4];
+      long frames = 0;
+      for (; ; ) {
+        int count = decoder.readFrames(bytes, 0, 4096);
+        if (count < 0) break;
+        frames += count;
+      }
+      assertEquals(48000 - 1024, frames);
     }
   }
-
 }
