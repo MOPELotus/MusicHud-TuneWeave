@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.update;
 
+import indi.mopelotus.musichud.utils.ReleaseVersion;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;

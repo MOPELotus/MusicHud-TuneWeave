@@ -196,6 +196,13 @@ final class ApiSettingsUi {
 
             apiVersionLinearLayout.addView(apiVersionLabel, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1));
             apiVersionLinearLayout.addView(checkVersionButton);
+            Button checkUpdateButton = new Button(context);
+            checkUpdateButton.setText(I18n.get(MusicHud.MOD_ID + ".update.service.check"));
+            checkUpdateButton.setTextColor(Theme.PRIMARY_COLOR);
+            checkUpdateButton.setTextSize(14);
+            backgroundFactory.applyBackgroundTo(checkUpdateButton);
+            checkUpdateButton.setOnClickListener(v -> indi.mopelotus.musichud.client.update.ClientUpdateUi.manualServiceCheck());
+            apiVersionLinearLayout.addView(checkUpdateButton);
             apiCategory.addView(apiVersionLinearLayout);
 
             LinearLayout apiLogLayout = new LinearLayout(context);

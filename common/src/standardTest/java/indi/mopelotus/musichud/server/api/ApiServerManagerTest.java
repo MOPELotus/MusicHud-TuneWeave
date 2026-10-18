@@ -539,7 +539,37 @@ class ApiServerManagerTest {
         assertEquals(1, fixture.activeHooks);
     }
 
-    private static final class Fixture {
+    @Test
+    void lateHealthCleanupPreservesBinarySelectedWithoutRestart() throws IOException {
+        Fixture fixture = new Fixture(directory);
+        Path previous = Path.of(fixture.configuredPath);
+        ApiBinaryUpdateService updater = ApiBinaryUpdateService.getInstance();
+        updater.recordManagedInstallation(directory, "v1", "1.0.0", previous.getFileName().toString());
+        fixture.manager.restartApiServer();
+        fixture.launchHealthy();
+        Path replacement = Files.writeString(directory.resolve("tuneweave-new"), "new");
+        replacement.toFile().setExecutable(true);
+        updater.recordManagedInstallation(directory, "v2", "2.0.0", replacement.getFileName().toString());
+        fixture.configuredPath = replacement.toString();
+        fixture.healthy = false;
+        fixture.cleanupCallback = active -> updater.cleanupObsoleteManagedBinaries(directory, active);
+        fixture.manager.restartApiServer();
+        for (int count = 0; fixture.processes.size() < 2 && count < 20; count++) fixture.executor.runNext();
+        assertEquals(2, fixture.processes.size());
+        long generation = fixture.manager.managedProcessSnapshot().generation();
+        fixture.probe = () -> {
+            // This is the delayed health callback. The user changes only the saved binary selection.
+            fixture.configuredPath = previous.toString();
+            return true;
+        };
+        fixture.executor.runAll();
+        assertEquals(generation, fixture.manager.managedProcessSnapshot().generation());
+        assertEquals(RUNNING, fixture.manager.getBinaryApiServerStatus());
+        assertTrue(Files.exists(previous), "A late old launch must not delete the current configured binary");
+        assertFalse(fixture.cleaned.contains(replacement), "Cleanup must recheck selection at its actual entry");
+    }
+
+    static final class Fixture {
         final ManualExecutor executor = new ManualExecutor();
         final List<StubProcess> processes = new ArrayList<>();
         final List<Path> cleaned = new ArrayList<>();
@@ -547,6 +577,8 @@ class ApiServerManagerTest {
         final List<Runnable> jvmHooks = new ArrayList<>();
         final List<ApiServerManager.BinaryApiServerStatus> statuses = new ArrayList<>();
         final ApiServerManager manager;
+        final ServerConfig config;
+        java.util.function.Consumer<Path> cleanupCallback = path -> {};
         boolean healthy;
         BooleanSupplier probe = () -> healthy;
         Runnable onLaunch;
@@ -559,15 +591,23 @@ class ApiServerManagerTest {
         int activeJvmHooks;
         int launchCalls;
         String configuredPath;
+        boolean relativeSelection;
+        int port = 3000;
 
         Fixture(Path directory) throws IOException {
             Path binary = Files.writeString(directory.resolve("tuneweave"), "test executable placeholder");
             assertTrue(binary.toFile().setExecutable(true));
             configuredPath = binary.toString();
-            ServerConfig config = (ServerConfig) Proxy.newProxyInstance(ServerConfig.class.getClassLoader(),
+            config = (ServerConfig) Proxy.newProxyInstance(ServerConfig.class.getClassLoader(),
                     new Class<?>[]{ServerConfig.class}, (proxy, method, args) -> switch (method.getName()) {
                         case "getServerApiBinaryExecutablePath" -> configuredPath;
-                        case "getPort" -> 3000;
+                        case "setServerApiBinaryExecutablePath" -> {
+                            Path selected = Path.of((String) args[0]).toAbsolutePath().normalize();
+                            configuredPath = relativeSelection ? Path.of("").toAbsolutePath().normalize().relativize(selected).toString() : (String) args[0];
+                            yield null;
+                        }
+                        case "save" -> null;
+                        case "getPort" -> port;
                         case "getStartupBinaryApiServerWhenLaunch" -> false;
                         default -> throw new UnsupportedOperationException(method.getName());
                     });
@@ -587,6 +627,7 @@ class ApiServerManagerTest {
             }, executable -> {
                 if (cleanupFails) throw new IllegalStateException("controlled cleanup failure");
                 cleaned.add(executable);
+                cleanupCallback.accept(executable);
             }, (listener, jvmListener) -> {
                 hooks.add(listener);
                 jvmHooks.add(jvmListener);
@@ -626,7 +667,7 @@ class ApiServerManagerTest {
         }
     }
 
-    private static final class ManualExecutor implements Executor {
+    static final class ManualExecutor implements Executor {
         final Queue<Runnable> tasks = new ArrayDeque<>();
         boolean reject;
         @Override public void execute(Runnable command) {
@@ -644,7 +685,7 @@ class ApiServerManagerTest {
         }
     }
 
-    private static final class StubProcess extends Process {
+    static final class StubProcess extends Process {
         final CompletableFuture<Process> exitFuture = new CompletableFuture<>();
         final List<Long> waits = new ArrayList<>();
         boolean alive = true;
