@@ -41,7 +41,7 @@ public final class AudioDecoderFactory {
       return JavaDecoderFactory.open(
           normalizedIdentifier, headers, false, floatSupported, multichannelSupported);
     } catch (IOException e) {
-      throw new RuntimeException("Failed to open audio decoder for: " + normalizedIdentifier, e);
+      throw new RuntimeException("Failed to open audio decoder", e);
     }
   }
 
@@ -72,8 +72,7 @@ public final class AudioDecoderFactory {
     } catch (IllegalArgumentException error) {
       throw new IllegalArgumentException("Invalid public audio resource", error);
     } catch (IOException error) {
-      throw new RuntimeException(
-          "Failed to open public audio decoder for: " + normalizedIdentifier, error);
+      throw new RuntimeException("Failed to open public audio decoder", error);
     }
   }
 
@@ -98,7 +97,7 @@ public final class AudioDecoderFactory {
           decoder.getFormat(),
           probeBytesRead);
     } catch (RuntimeException e) {
-      LOGGER.debug("Failed to probe decoder for {}", normalizedIdentifier, e);
+      LOGGER.debug("Failed to probe audio decoder");
       throw new IOException("Failed to probe audio decoder", e);
     }
   }

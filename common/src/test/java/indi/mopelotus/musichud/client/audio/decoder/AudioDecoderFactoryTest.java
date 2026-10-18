@@ -14,6 +14,30 @@ import org.junit.jupiter.api.Test;
 
 final class AudioDecoderFactoryTest {
   @Test
+  void failedSignedResourcesDoNotEmbedTheirQueryInDecoderDiagnostics() throws Exception {
+    var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/missing",
+        exchange -> {
+          exchange.sendResponseHeaders(404, -1);
+          exchange.close();
+        });
+    server.start();
+    try {
+      String secret = "private-signature-audio-query";
+      String uri = "http://127.0.0.1:" + server.getAddress().getPort() + "/missing?token=" + secret;
+      Throwable failure =
+          assertThrows(
+              RuntimeException.class, () -> AudioDecoderFactory.open(uri, FormatType.AUTO));
+      var trace = new java.io.StringWriter();
+      failure.printStackTrace(new java.io.PrintWriter(trace));
+      assertFalse(trace.toString().contains(secret));
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  @Test
   void probeReportsOpenedBytesWithOneHttpRequest() throws Exception {
     byte[] wav = fixture();
     AtomicInteger requests = new AtomicInteger();
