@@ -140,7 +140,10 @@ public class MainFragment extends Fragment {
             startCardSwitch(detail);
         }
         startProgressUpdater(snapshot);
-        if (lyricsScrollView != null) lyricsScrollView.switchLyrics(detail, snapshot.lyrics());
+        if (lyricsScrollView != null) {
+            if (LyricsPanelPolicy.hasLyrics(snapshot.lyrics())) lyricsScrollView.switchLyrics(detail, snapshot.lyrics());
+            else lyricsScrollView.clearLyrics();
+        }
         updateLyricsPanelVisibility();
     }
 
@@ -494,12 +497,15 @@ public class MainFragment extends Fragment {
             lyricsSidebar.setTranslationX(lyricsPanelWidth);
 
             lyricsScrollView = new StaggeredLyricScrollView(context);
+            lyricsScrollView.setMainLyricSize(Theme.SIDEBAR_MAIN_LYRIC_SIZE);
+            lyricsScrollView.setSubLyricSize(Theme.SIDEBAR_SUB_LYRIC_SIZE);
             lyricsSidebar.addView(lyricsScrollView, new LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
 
             MusicDetail currentMusic = playingInfo.getCurrentlyPlayingMusicDetail();
             java.util.Collection<LyricLine> currentLyrics = playingInfo.snapshot().lyrics();
             if (currentMusic != null && currentLyrics != null && !currentMusic.equals(MusicDetail.NONE)) {
-                lyricsScrollView.switchLyrics(currentMusic, currentLyrics);
+                if (LyricsPanelPolicy.hasLyrics(currentLyrics)) lyricsScrollView.switchLyrics(currentMusic, currentLyrics);
+                else lyricsScrollView.clearLyrics();
             }
 
             routerContainer.setOnPageChangeListener(new RouterContainer.OnPageChangeListener() {
@@ -586,8 +592,7 @@ public class MainFragment extends Fragment {
             return false;
         }
         java.util.Collection<LyricLine> lines = nowPlayingInfo.snapshot().lyrics();
-        return lines != null && !lines.isEmpty()
-                && lines.stream().anyMatch(l -> l.getType() == LyricLine.Type.NORMAL);
+        return LyricsPanelPolicy.hasLyrics(lines);
     }
 
     private void updateLyricsPanelVisibility() {
