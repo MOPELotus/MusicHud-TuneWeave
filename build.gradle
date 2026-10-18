@@ -5,7 +5,7 @@ buildscript {
 plugins {
     id 'net.fabricmc.fabric-loom' version '1.17.12' apply false
     id 'net.neoforged.moddev' version '2.0.141' apply false
-    id 'com.gradleup.shadow' version '9.2.2' apply false
+    id 'com.gradleup.shadow' version '9.6.1' apply false
     id 'io.papermc.paperweight.userdev' version '2.0.0-beta.21' apply false
 }
 
@@ -47,6 +47,26 @@ subprojects {
                         if (zip.entries().any { it.name.startsWith('org/jaudiotagger/test/') ||
                                 it.name in ['org/jaudiotagger/Test.class', 'org/jaudiotagger/Test2.class'] }) {
                             throw new GradleException('Dependency example tools remain in client artifact')
+                        }
+                        for (path in ['indi/mopelotus/musichud/metadata/AudioMetadataReader.class',
+                                      'META-INF/licenses/jaudiotagger/NOTICE.txt',
+                                      'META-INF/licenses/jaudiotagger/COPYING.LESSER.txt']) {
+                            if (zip.getEntry(path) == null) throw new GradleException("Missing read-only metadata component/license ${path}")
+                        }
+                        if (zip.entries().any { it.name.startsWith('org/jaudiotagger/') ||
+                                it.name == 'indi/mopelotus/musichud/metadata/shaded/jaudiotagger/audio/AudioFileIO.class' ||
+                                (it.name.startsWith('indi/mopelotus/musichud/metadata/shaded/jaudiotagger/') && it.name.endsWith('Writer.class')) ||
+                                it.name.startsWith('com/android/tools/') }) {
+                            throw new GradleException('Client artifact contains metadata writers or a build-only compiler')
+                        }
+                        [
+                            'indi/mopelotus/musichud/metadata/shaded/jaudiotagger/audio/dff/BaseChunk.class': 'Truncated DFF chunk size',
+                            'indi/mopelotus/musichud/metadata/shaded/jaudiotagger/audio/dff/DffFileReader.class': 'Missing or truncated DFF PROP chunk'
+                        ].each { path, marker ->
+                            def entry = zip.getEntry(path)
+                            if (entry == null || !new String(zip.getInputStream(entry).bytes, java.nio.charset.StandardCharsets.ISO_8859_1).contains(marker)) {
+                                throw new GradleException("Unpatched DFF reader in client artifact: ${path}")
+                            }
                         }
                         if (zip.entries().toList().any { it.name.startsWith('assets/music_hud/') || it.name == 'music_hud.mixins.json' }) {
                             throw new GradleException("Legacy identity resources remain in ${artifact.name}")

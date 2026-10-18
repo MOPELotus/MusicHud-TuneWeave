@@ -1,0 +1,126 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import java.security.MessageDigest
+import java.util.zip.ZipFile
+
+plugins {
+    id 'java-library'
+    id 'com.gradleup.shadow'
+}
+
+base { archivesName = "$rootProject.archives_name-metadata" }
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(25) }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+}
+tasks.withType(JavaCompile).configureEach { options.release = 21 }
+
+repositories {
+    mavenCentral()
+    exclusiveContent {
+        forRepository { google() }
+        filter { includeModule 'com.android.tools', 'r8' }
+    }
+}
+
+dependencies {
+    implementation 'net.jthink:jaudiotagger:3.0.1'
+    // Build-only compiler; the shadow task never packages this configuration.
+    shadowR8 'com.android.tools:r8:9.5.26'
+    testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+abstract class VerifyMetadataBuildInputs extends DefaultTask {
+    @Classpath abstract ConfigurableFileCollection getLibrary()
+
+    private static String sha256(byte[] bytes) {
+        MessageDigest.getInstance('SHA-256').digest(bytes).encodeHex().toString()
+    }
+
+    static void verifyCompiler(Set<File> files) {
+        if (files.size() != 1) throw new GradleException('Expected exactly one pinned metadata R8 compiler')
+        def tool = files.first()
+        if (tool.name != 'r8-9.5.26.jar' || sha256(tool.bytes) !=
+                '3502f087388ce95bbf5254555927f09385dc2636873964d0bd53f3eaf4fb49ad') {
+            throw new GradleException('Metadata R8 compiler/version does not match its pinned SHA-256')
+        }
+    }
+
+    @TaskAction void verify() {
+        if (library.files.size() != 1) throw new GradleException('Expected exactly one reviewed metadata parser dependency')
+        def tagger = library.singleFile
+        if (tagger.name != 'jaudiotagger-3.0.1.jar' || sha256(tagger.bytes) !=
+                '68aa0fe601b05df683a843acf6f8d4793ab476f47da1ac3dab57e0b1886b0aee') {
+            throw new GradleException('Review the two DFF overrides and rerun metadata regressions before upgrading jaudiotagger')
+        }
+    }
+}
+
+def verifyMetadataBuildInputs = tasks.register('verifyMetadataBuildInputs', VerifyMetadataBuildInputs) {
+    library.from configurations.runtimeClasspath
+}
+tasks.named('compileJava') { dependsOn verifyMetadataBuildInputs }
+
+shadowJar {
+    dependsOn verifyMetadataBuildInputs
+    // R8 classpath is already a task input; verify the actual tool immediately before use.
+    doFirst { VerifyMetadataBuildInputs.verifyCompiler(r8Classpath.files) }
+    // Project's two reviewed DFF classes must precede their original dependency entries.
+    relocate 'org.jaudiotagger', 'indi.mopelotus.musichud.metadata.shaded.jaudiotagger'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    minimize { r8 {
+        // Official defaults disable optimization and obfuscation. Only this small module is shrunk.
+        keepRules.add('-keep class indi.mopelotus.musichud.metadata.shaded.jaudiotagger.tag.id3.framebody.** { *; }')
+        keepRules.add('-keep class indi.mopelotus.musichud.metadata.shaded.jaudiotagger.audio.asf.io.** { *; }')
+        keepRules.add('-keepclassmembers class indi.mopelotus.musichud.metadata.shaded.jaudiotagger.** { public <init>(...); }')
+        keepRules.add('-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*,Exceptions')
+    } }
+}
+
+def component = tasks.named('shadowJar', ShadowJar).flatMap { it.archiveFile }
+def verifyMetadataJar = tasks.register('verifyMetadataJar') {
+    dependsOn tasks.named('shadowJar')
+    inputs.file component
+    doLast {
+        new ZipFile(component.get().asFile).withCloseable { zip ->
+            def required = [
+                'indi/mopelotus/musichud/metadata/AudioMetadataReader.class',
+                'META-INF/licenses/jaudiotagger/NOTICE.txt',
+                'META-INF/licenses/jaudiotagger/COPYING.LESSER.txt'
+            ]
+            required.each { path ->
+                if (zip.getEntry(path) == null) throw new GradleException("Missing metadata component entry ${path}")
+            }
+            if (zip.entries().any { it.name.startsWith('org/jaudiotagger/') ||
+                    it.name == 'indi/mopelotus/musichud/metadata/shaded/jaudiotagger/audio/AudioFileIO.class' ||
+                    (it.name.startsWith('indi/mopelotus/musichud/metadata/shaded/jaudiotagger/') && it.name.endsWith('Writer.class')) ||
+                    it.name.startsWith('com/android/tools/') }) {
+                throw new GradleException('Metadata component contains a writer or build-only compiler')
+            }
+            [
+                'indi/mopelotus/musichud/metadata/shaded/jaudiotagger/audio/dff/BaseChunk.class': 'Truncated DFF chunk size',
+                'indi/mopelotus/musichud/metadata/shaded/jaudiotagger/audio/dff/DffFileReader.class': 'Missing or truncated DFF PROP chunk'
+            ].each { path, marker ->
+                def entry = zip.getEntry(path)
+                if (entry == null || !new String(zip.getInputStream(entry).bytes, java.nio.charset.StandardCharsets.ISO_8859_1).contains(marker)) {
+                    throw new GradleException("Original DFF class took precedence over the reviewed override: ${path}")
+                }
+            }
+        }
+    }
+}
+
+test {
+    useJUnitPlatform()
+    dependsOn verifyMetadataJar
+    inputs.file component
+    doFirst {
+        systemProperty 'musichud.metadata.component', component.get().asFile.absolutePath
+        systemProperty 'musichud.metadata.original', configurations.runtimeClasspath.singleFile.absolutePath
+    }
+}
+tasks.named('check') { dependsOn verifyMetadataJar }

@@ -105,7 +105,7 @@ dependencies {
     api "icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version"
     compileOnly "icyllis.modernui:ModernUI-NeoForge:$rootProject.modernui_mc_version"
 
-    implementation "net.jthink:jaudiotagger:3.0.1"
+    implementation project(path: ':metadata', configuration: 'shadowRuntimeElements')
     implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
     implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
     implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
@@ -167,3 +167,6 @@ publishing {
         }
     }
 }
+
+// Metadata's isolated component and malformed-media checks are part of the client suite.
+tasks.named('test') { dependsOn ':metadata:test' }
