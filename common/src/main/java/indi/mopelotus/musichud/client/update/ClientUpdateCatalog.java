@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.update;
 
+import indi.mopelotus.musichud.utils.ReleaseVersion;
+
 import com.google.gson.*;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -19,8 +21,12 @@ public final class ClientUpdateCatalog {
         }
     }
     public record Offer(String tag, String version, String distribution, String loader, List<String> minecraft,
-                        String file, String sha256, long size, String notes) {
-        public Offer { minecraft = List.copyOf(minecraft); }
+                        String file, String sha256, long size, String notes, List<String> serviceProfiles) {
+        public Offer { minecraft = List.copyOf(minecraft); serviceProfiles = List.copyOf(serviceProfiles); }
+        public Offer(String tag, String version, String distribution, String loader, List<String> minecraft,
+                     String file, String sha256, long size, String notes) {
+            this(tag, version, distribution, loader, minecraft, file, sha256, size, notes, List.of());
+        }
         public URI downloadUri() { return assetUri(tag, file); }
         public URI releasePageUri() { return ClientUpdateCatalog.releasePageUri(tag); }
     }
@@ -72,14 +78,29 @@ public final class ClientUpdateCatalog {
                 if (minecraft.contains(value)) throw new IllegalArgumentException("Duplicate game version");
                 minecraft.add(value);
             }
+            List<String> serviceProfiles = profiles(row);
             if (!loader.equals(installed.loader()) || !minecraft.contains(installed.minecraft())
                     || !allowPrerelease && !parsed.pre().isEmpty() || parsed.compareTo(ReleaseVersion.parse(installed.version())) <= 0) continue;
             Offer offer = new Offer(tag, version, distribution, loader, minecraft, file, hash, size,
-                    notes == null ? "" : notes.substring(0, Math.min(notes.length(), 12_000)));
+                    notes == null ? "" : notes.substring(0, Math.min(notes.length(), 12_000)), serviceProfiles);
             if (best != null) throw new IllegalArgumentException("Ambiguous updates for this client");
             best = offer;
         }
         return Optional.ofNullable(best);
+    }
+    private static List<String> profiles(JsonObject row) {
+        if (!row.has("service_profiles")) return List.of();
+        var value = row.get("service_profiles");
+        if (!value.isJsonArray() || value.getAsJsonArray().isEmpty() || value.getAsJsonArray().size() > 16)
+            throw new IllegalArgumentException("Invalid service profiles");
+        var result = new ArrayList<String>();
+        for (var element : value.getAsJsonArray()) {
+            if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) throw new IllegalArgumentException("Invalid service profile type");
+            String name = element.getAsString();
+            if (!name.matches("[a-z0-9][a-z0-9._-]{0,63}") || result.contains(name)) throw new IllegalArgumentException("Invalid service profile");
+            result.add(name);
+        }
+        return result;
     }
     private static long integer(JsonObject object, String field) {
         var value = object.get(field);
