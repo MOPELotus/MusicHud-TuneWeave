@@ -95,7 +95,8 @@ dependencies {
     implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
     implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
     implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
-    implementation "com.google.zxing:core:3.5.4"
+    // Independent scanner verifies the bundled QR encoder; never shipped.
+    testImplementation "com.google.zxing:core:3.5.4"
     implementation "com.github.weisj:jsvg:2.2.0"
 }
 
