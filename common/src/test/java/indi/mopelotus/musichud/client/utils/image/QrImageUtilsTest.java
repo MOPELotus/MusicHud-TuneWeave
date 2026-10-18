@@ -21,7 +21,7 @@ class QrImageUtilsTest {
     @Test void generatedQrImagesScanToTheExactOriginalPayload() throws Exception {
         for (String content : new String[]{"01234567890123456789", "ABCDEF 1234",
                 "https://example.com/scan?key=abc&session=123",
-                "https://example.com/scan?key=测试音乐🎵&session=123", "long-session-".repeat(100)}) {
+                "https://example.com/scan?key=测试音乐🎵&session=123", "long-session-".repeat(100), "x".repeat(2952), "7".repeat(7089), "A".repeat(4296)}) {
             String normalized = prepare(null, content);
             assertTrue(normalized.startsWith("data:image/png;base64,"));
             var image = ImageIO.read(new ByteArrayInputStream(
@@ -29,6 +29,13 @@ class QrImageUtilsTest {
             try {
                 assertEquals(640, image.getWidth());
                 assertEquals(640, image.getHeight());
+                // The outer quiet zone must stay white even at the largest QR version.
+                for (int i = 0; i < 640; i++) {
+                    assertEquals(0xFFFFFFFF, image.getRGB(i, 0));
+                    assertEquals(0xFFFFFFFF, image.getRGB(0, i));
+                    assertEquals(0xFFFFFFFF, image.getRGB(i, 639));
+                    assertEquals(0xFFFFFFFF, image.getRGB(639, i));
+                }
                 int[] pixels = image.getRGB(0, 0, 640, 640, null, 0, 640);
                 var bitmap = new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(640, 640, pixels)));
                 assertEquals(content, new QRCodeReader().decode(bitmap).getText());
@@ -39,6 +46,8 @@ class QrImageUtilsTest {
     @Test void invalidOrUnencodablePayloadsFailClearly() {
         assertThrows(IllegalArgumentException.class, () -> prepare(null, null));
         assertThrows(IllegalArgumentException.class, () -> prepare(null, " "));
+        assertThrows(IllegalArgumentException.class, () -> prepare(null, ""));
+        assertThrows(IllegalArgumentException.class, () -> prepare(null, "x".repeat(2953)));
         assertThrows(IllegalArgumentException.class, () -> prepare(null, "x".repeat(10000)));
     }
 
@@ -47,7 +56,9 @@ class QrImageUtilsTest {
         if (artifact == null) return QrImageUtils.prepare(image, content);
         try (var loader = new URLClassLoader(new URL[]{Path.of(artifact).toUri().toURL()},
                 ClassLoader.getPlatformClassLoader())) {
+            assertNotNull(loader.getResource("META-INF/licenses/nayuki-qrcode/LICENSE.txt"));
             assertThrows(ClassNotFoundException.class, () -> loader.loadClass("com.google.zxing.qrcode.QRCodeWriter"));
+            assertThrows(ClassNotFoundException.class, () -> loader.loadClass("indi.mopelotus.musichud.shaded.zxing.qrcode.QRCodeWriter"));
             assertThrows(ClassNotFoundException.class, () -> loader.loadClass("indi.mopelotus.musichud.shaded.zxing.MultiFormatWriter"));
             assertThrows(ClassNotFoundException.class, () -> loader.loadClass("indi.mopelotus.musichud.shaded.zxing.qrcode.QRCodeReader"));
             Class<?> caller = loader.loadClass("indi.mopelotus.musichud.client.utils.image.QrImageUtils");
