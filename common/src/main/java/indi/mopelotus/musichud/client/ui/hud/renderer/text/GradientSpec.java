@@ -138,6 +138,11 @@ public final class GradientSpec {
         return sample(t, 1f);
     }
 
+    /** Color glyphs retain their texture RGB while following the same opacity as ordinary text. */
+    public int sampleColorGlyph(float t, float alpha) {
+        return (sample(t, alpha) & 0xFF000000) | 0x00FFFFFF;
+    }
+
     private static int lerpColor(int from, int to, float u) {
         int a = Math.round(((from >>> 24) & 0xFF) + u * (((to >>> 24) & 0xFF) - ((from >>> 24) & 0xFF)));
         int r = Math.round(((from >> 16) & 0xFF) + u * (((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)));

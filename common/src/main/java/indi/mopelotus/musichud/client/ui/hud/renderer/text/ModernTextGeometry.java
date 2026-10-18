@@ -372,9 +372,8 @@ public final class ModernTextGeometry {
                 int colorLeft;
                 int colorRight;
                 if (isColorEmoji) {
-                    int a = Math.clamp((int) (alpha * 255f), 0, 255);
-                    colorLeft = (a << 24) | 0xFFFFFF;
-                    colorRight = colorLeft;
+                    colorLeft = gradient.sampleColorGlyph(localX / totalAdvance, alpha);
+                    colorRight = gradient.sampleColorGlyph((localX + w) / totalAdvance, alpha);
                 } else {
                     colorLeft = gradient.sample(localX / totalAdvance, alpha);
                     colorRight = gradient.sample((localX + w) / totalAdvance, alpha);
