@@ -237,9 +237,10 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                     if (generation != playbackGeneration.get() || playing != playingFuture || disposed) return;
                     if (serverStartTime == null && pcm.peek(pcm.token()) != null) serverStartTime = ZonedDateTime.now();
                     long position = serverStartTime == null ? 0 : Math.max(0, Duration.between(serverStartTime, ZonedDateTime.now()).toMillis());
-                    float gain = clientConfig.getMuted() ? 0 : mixGain * (float) clientConfig.getSoundVolume() / 100
-                            * (clientConfig.getMixWithVanillaSoundVolume()
-                            ? Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC) : 1);
+                    float gain = PlaybackGain.calculate((float)clientConfig.getSoundVolume(),
+                            clientConfig.getMixWithVanillaSoundVolume(), clientConfig.getMuted(),
+                            Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MASTER),
+                            Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC), mixGain);
                     if (Float.compare(lastGain, gain) != 0) {
                         lastGain = gain;
                         PlayingStatusRenderer.getInstance().updateStatus(null);
