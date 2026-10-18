@@ -5,7 +5,7 @@ uniform sampler2D Sampler1;
 
 layout(std140) uniform MHAlbumPosition {
     mat4 u_Translation;
-    vec3 u_Layout; // (halfWidth, halfHeight, cornerRadius)
+    vec4 u_Style; // (halfWidth, halfHeight, cornerRadius)
 };
 layout(std140) uniform MHDynamicStatus {
     vec4 u_Dynamic1; // (timestamp, playedProgress, switchProgress)
@@ -35,8 +35,8 @@ vec2 calculateCoverUV(vec2 position, vec2 halfSize) {
 }
 
 void main() {
-    vec2 halfSize = u_Layout.xy;
-    float radius = u_Layout.z;
+    vec2 halfSize = u_Style.xy;
+    float radius = u_Style.z;
     float fadeProgress = u_Dynamic1[2];
 
     vec2 d = abs(f_Position) - halfSize + radius;
@@ -51,5 +51,5 @@ void main() {
     float t = smoothstep(0.0, 1.0, fadeProgress);
     vec4 finalImage = mix(currentImage, nextImage, t);
 
-    fragColor = vec4(finalImage.rgb, finalImage.a * mask);
+    fragColor = vec4(finalImage.rgb, finalImage.a * mask * u_Style.a);
 }

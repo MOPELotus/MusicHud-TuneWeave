@@ -18,6 +18,11 @@ import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fStack;
 
 import java.util.HashMap;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import indi.mopelotus.musichud.client.ui.hud.renderer.text.*;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -25,6 +30,8 @@ public class HudRenderContext {
     private static final RenderStateUtil UNIFORM_WRITER = new RenderStateUtil();
     @Getter
     private static HudRenderContext current;
+
+    private final Deque<ScreenRectangle> scissorStack = new ArrayDeque<>();
 
     private final Map<StorageKey, DynamicUniformStorage<HudUniformSnapshot>> storageMap = new HashMap<>();
     private final Map<StorageKey, HudUniformSnapshot> pendingUniforms = new HashMap<>();
@@ -45,6 +52,8 @@ public class HudRenderContext {
         pendingUniforms.clear();
         uniformSlices.clear();
         graphics = null;
+        scissorStack.clear();
+        ModernTextGeometry.endFrame();
     }
 
     public void prepareUniforms() {
@@ -109,6 +118,14 @@ public class HudRenderContext {
                 targetWidth, targetHeight, sourceWidth, sourceHeight);
     }
 
+    public void blit(RenderPipeline pipeline, Identifier texture,
+                     int x, int y, int sourceX, int sourceY,
+                     int width, int height, int sourceWidth, int sourceHeight,
+                     int textureWidth, int textureHeight, int tint) {
+        graphics.blit(pipeline, texture, x, y, sourceX, sourceY,
+                width, height, sourceWidth, sourceHeight, textureWidth, textureHeight, tint);
+    }
+
     public int guiWidth() {
         return graphics.guiWidth();
     }
@@ -118,15 +135,39 @@ public class HudRenderContext {
     }
 
     public void pushScissor(int fromX, int fromY, int toX, int toY) {
+        ScreenRectangle rectangle = new ScreenRectangle(fromX, fromY, Math.max(0, toX - fromX), Math.max(0, toY - fromY));
+        ScreenRectangle parent = scissorStack.peek();
+        if (parent != null) {
+            ScreenRectangle intersection = parent.intersection(rectangle);
+            rectangle = intersection == null ? ScreenRectangle.empty() : intersection;
+        }
+        scissorStack.push(rectangle);
         graphics.enableScissor(fromX, fromY, toX, toY);
     }
 
     public void popScissor() {
+        if (!scissorStack.isEmpty()) scissorStack.pop();
         graphics.disableScissor();
     }
 
     public void drawString(Font font, String text, int x, int y, int color, boolean dropShadow) {
-        graphics.text(font, text, x, y, color, dropShadow);
+        if (dropShadow) graphics.text(font, text, x, y, color, true);
+        else drawGradientString(font, text, x, y, GradientSpec.flat(color), 1f);
+    }
+
+    public void drawGradientString(Font font, String text, int x, int y, GradientSpec gradient, float alpha) {
+        if (font == null || text == null || text.isEmpty() || gradient == null || !(alpha > 0f)) return;
+        List<GradientTextRenderState> states;
+        try {
+            states = GradientTextRenderer.build(font, text, x, y, gradient, alpha,
+                    scissorStack.peek(), currentPose());
+        } catch (RuntimeException | LinkageError error) {
+            indi.mopelotus.musichud.MusicHud.getLogger(HudRenderContext.class)
+                    .debug("Gradient text geometry failed", error);
+            graphics.text(font, text, x, y, gradient.sample(0.5f, alpha), false);
+            return;
+        }
+        for (GradientTextRenderState state : states) UNIFORM_WRITER.submitGlyphRenderState(graphics, state);
     }
 
     public void fill(int fromX, int fromY, int toX, int toY, int color) {

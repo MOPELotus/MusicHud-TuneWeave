@@ -78,6 +78,10 @@ final class RenderTestEnvironment {
                     public void drawString(Font font, String text, int x, int y, int color, boolean shadow) {
                         if (++draws == failAtDraw) { clipDepthAtFailure = clips.size(); throw failure; }
                     }
+                    public void drawGradientString(Font font, String text, int x, int y,
+                            indi.mopelotus.musichud.client.ui.hud.renderer.text.GradientSpec gradient, float alpha) {
+                        drawString(font, text, x, y, 0, false);
+                    }
                     // Compile-time shell only. The classloader always supplies the actual compiled nested class.
                     public static class Transforming {
                         private Transforming(%s graphics) { throw new AssertionError("Production transform not loaded"); }
@@ -85,6 +89,12 @@ final class RenderTestEnvironment {
                 }
                 """.formatted(graphics, graphicsName, graphicsName, push, translate, matrixType,
                 legacy ? ", 0" : "", matrix, pop, matrix, matrixType, push, translate, graphicsName));
+        sources.put(RENDER + "text.GradientSpec", """
+                public class GradientSpec {
+                    public static GradientSpec flat(int color) { return new GradientSpec(); }
+                    public static GradientSpec window(int before, int after, float center, float width) { return new GradientSpec(); }
+                }
+                """);
         sources.put("net.minecraft.client.gui.Font", """
                 public class Font {
                     public final int lineHeight = 10;
@@ -132,6 +142,7 @@ final class RenderTestEnvironment {
                 """);
         sources.put(ROOT + "client.ui.hud.metadata.Layout", """
                 public class Layout {
+                    public float getEffectiveAlpha() { return 1; }
                     public float getWidth() { return 50; }
                     public float getHeight() { return 20; }
                     public AbsolutePosition calcAbsolutePosition(indi.mopelotus.musichud.client.ui.hud.renderer.HudRenderContext context) {
