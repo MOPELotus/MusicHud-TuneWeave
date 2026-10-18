@@ -118,7 +118,8 @@ public class ConnectionManager implements IConnectionManager {
         connectGeneration.incrementAndGet();
         indi.mopelotus.musichud.network.PayloadFragments.resetClient();
         var registry = ServerPlayerRegistry.getInstance();
-        if (mode == ConnectionMode.ISOLATED) {
+        if (ClientConnectionRouting.usesLocalMembership(
+                Minecraft.getInstance().getCurrentServer() == null, mode, MusicHud.getConnectStatus())) {
             // Replace atomically before leaving the old wrapper; do not temporarily retire the last member.
             registry.join(VanillaPlayerProxy.ofPlayer(Minecraft.getInstance().player));
         }
