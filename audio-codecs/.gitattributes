@@ -1,0 +1,8 @@
+# Preserve pinned upstream bytes and finite patch hashes on every platform.
+vendor/** -text -whitespace
+src/thirdParty/** -text -whitespace
+src/test/resources/codecs/*.s16 binary
+src/test/resources/codecs/*.s32 binary
+src/test/resources/codecs/*.packets binary
+src/test/resources/codecs/*.mp3 binary
+src/test/resources/codecs/*.wv binary

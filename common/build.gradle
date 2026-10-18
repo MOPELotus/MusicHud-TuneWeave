@@ -173,5 +173,5 @@ publishing {
     }
 }
 
-// Metadata's isolated component and malformed-media checks are part of the client suite.
-tasks.named('test') { dependsOn ':metadata:test' }
+// Isolated metadata and codec qualification are part of the client suite.
+tasks.named('test') { dependsOn ':metadata:test', ':audio-codecs:test' }

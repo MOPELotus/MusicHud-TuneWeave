@@ -1,0 +1,151 @@
+plugins {
+    id 'java-library'
+    id 'com.gradleup.shadow'
+}
+
+base { archivesName = "$rootProject.archives_name-audio-codecs" }
+
+repositories { mavenCentral(); google() }
+
+def vendorManifestFile = file('vendor/manifest.json')
+def vendorManifest = new groovy.json.JsonSlurper().parse(vendorManifestFile)
+def patchedUpstreamFiles = vendorManifest.vendors.collectMany { vendor ->
+    vendor.patches.collect { patch -> file("${vendor.source_root}/${patch.source}").absolutePath }
+} as Set
+
+sourceSets { codecCore {
+    java {
+        setSrcDirs(['src/thirdParty/java'])
+        vendorManifest.vendors.each { vendor -> srcDir vendor.source_root }
+        exclude { details -> patchedUpstreamFiles.contains(details.file.absolutePath) }
+    }
+    resources {
+        vendorManifest.vendors.findAll { it.resource_root }.each { vendor -> srcDir vendor.resource_root }
+    }
+} }
+
+def codecCoreJar = tasks.register('codecCoreJar', Jar) {
+    archiveClassifier = 'upstream'
+    from sourceSets.codecCore.output
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    implementation files(codecCoreJar)
+    shadowR8 'com.android.tools:r8:9.5.26'
+    testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Pinned original sources and the small, reviewed patches are independently guarded.
+// Updating an upstream version requires deliberately refreshing its manifest and patches.
+def verifyVendoredSources = tasks.register('verifyVendoredSources') {
+    group = 'verification'
+    description = 'Checks pinned codec sources, resources, licenses and finite patches.'
+    inputs.files(fileTree('vendor'), fileTree('src/thirdParty/java'))
+    doLast {
+        def hash = { File source ->
+            java.security.MessageDigest.getInstance('SHA-256').digest(source.bytes).encodeHex().toString()
+        }
+        def verify = { String path, String expected ->
+            def source = file(path)
+            if (!source.isFile() || hash(source) != expected) {
+                throw new GradleException("Codec source guard failed: ${path}")
+            }
+        }
+        def declaredPatched = vendorManifest.vendors.collectMany { it.patches.collect { patch -> patch.source } } as Set
+        def actualPatched = fileTree('src/thirdParty/java').matching { include '**/*.java' }.files.collect {
+            file('src/thirdParty/java').toPath().relativize(it.toPath()).toString().replace(File.separator, '/')
+        } as Set
+        if (declaredPatched != actualPatched) throw new GradleException('Unreviewed codec patch source set')
+        vendorManifest.vendors.each { vendor ->
+            verify(vendor.license, vendor.license_sha256)
+            def declared = vendor.sources.collect { it.path } as Set
+            def actual = fileTree(vendor.source_root).matching { include '**/*.java' }.files.collect {
+                file(vendor.source_root).toPath().relativize(it.toPath()).toString().replace('\\', '/')
+            } as Set
+            if (declared != actual) throw new GradleException("Unreviewed codec source set: ${vendor.name}")
+            vendor.sources.each { source -> verify("${vendor.source_root}/${source.path}", source.sha256) }
+            if (vendor.resource_root) {
+                def declaredResources = vendor.resources.collect { it.path } as Set
+                def actualResources = fileTree(vendor.resource_root).files.collect {
+                    file(vendor.resource_root).toPath().relativize(it.toPath()).toString().replace(File.separator, '/')
+                } as Set
+                if (declaredResources != actualResources) throw new GradleException("Unreviewed codec resources: ${vendor.name}")
+            }
+            (vendor.resources ?: []).each { resource -> verify("${vendor.resource_root}/${resource.path}", resource.sha256) }
+            vendor.patches.each { patch ->
+                verify("${vendor.source_root}/${patch.source}", patch.upstream_sha256)
+                verify("src/thirdParty/java/${patch.source}", patch.compiled_sha256)
+                verify(patch.patch, patch.patch_sha256)
+            }
+        }
+    }
+}
+tasks.named('compileJava') { dependsOn verifyVendoredSources }
+tasks.named('compileCodecCoreJava') { dependsOn verifyVendoredSources }
+
+// This module is not a common/runtime dependency yet. A future playback bridge
+// must explicitly select shadowRuntimeElements; plain third-party packages must
+// never be copied into a client artifact.
+jar { archiveClassifier = 'unshaded' }
+shadowJar {
+    // Only the public wrapper source set is an entrypoint. Vendor encoder code is not.
+    sourceSetsClassesDirs.setFrom(sourceSets.main.output.classesDirs)
+    archiveClassifier = ''
+    doFirst {
+        def tools = r8Classpath.files
+        if (tools.size() != 1 || tools.first().name != 'r8-9.5.26.jar' ||
+                java.security.MessageDigest.getInstance('SHA-256').digest(tools.first().bytes).encodeHex().toString() !=
+                '3502f087388ce95bbf5254555927f09385dc2636873964d0bd53f3eaf4fb49ad') {
+            throw new GradleException('Audio codec R8 compiler does not match its reviewed version and SHA-256')
+        }
+    }
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    def privatePrefix = 'indi.mopelotus.musichud.audio.codec.shaded'
+    ['javazoom.jl', 'com.jcraft', 'org.concentus', 'net.sourceforge.jaad', 'com.beatofthedrum'].each { original ->
+        relocate original, "${privatePrefix}.${original}"
+    }
+    minimize {
+        r8 {
+            keepRules.add('-keep public class indi.mopelotus.musichud.audio.codec.* { public *; }')
+            keepRules.add('-keep public interface indi.mopelotus.musichud.audio.codec.* { public *; }')
+            // JavaLayerUtils resolves serialized upstream tables relative to its class.
+            keepRules.add('-keep class indi.mopelotus.musichud.audio.codec.shaded.javazoom.jl.decoder.JavaLayerUtils { *; }')
+            keepRules.add('-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*,Exceptions')
+        }
+    }
+    vendorManifest.vendors.each { vendor ->
+        from(vendor.license) { into "META-INF/licenses/audio-codecs/${vendor.name}"; rename { 'LICENSE' } }
+    }
+    from('vendor/NOTICE') { into 'META-INF/licenses/audio-codecs' }
+}
+
+test {
+    dependsOn tasks.named('shadowJar')
+    useJUnitPlatform()
+    maxHeapSize = '256m'
+    systemProperty 'audioCodecJar', tasks.named('shadowJar').get().archiveFile.get().asFile.absolutePath
+}
+tasks.named('check') { dependsOn verifyVendoredSources }
+
+processResources {
+    from(rootProject.file('license')) { into 'META-INF/licenses/audio-codecs/project'; rename { 'LICENSE' } }
+}
+tasks.named('sourcesJar') {
+    from sourceSets.codecCore.allSource
+    from('vendor') { into 'META-INF/audio-codecs-source' }
+}

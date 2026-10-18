@@ -25,6 +25,7 @@ include 'processor'
 include 'core'
 include 'common'
 include 'metadata'
+include 'audio-codecs'
 
 if (profiles.contains('all') || profiles.contains('fabric')) {
     include 'fabric'
