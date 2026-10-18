@@ -44,7 +44,7 @@ public class LyricLine implements Comparable<LyricLine> {
     private boolean phraseParsed = false;
 
     private static HighlightSpan applySpan(SpannableString spannableString, int start, int end, int charStartInPhrase) {
-        HighlightSpan span = new HighlightSpan(charStartInPhrase, Character.codePointCount(spannableString, start, end), start, end);
+        HighlightSpan span = new HighlightSpan(charStartInPhrase, Character.codePointCount(spannableString, start, end));
         spannableString.setSpan(
                 span,
                 start, end,
@@ -187,8 +187,6 @@ public class LyricLine implements Comparable<LyricLine> {
         // Per-char (code point) animation state
         private final float[] charYOffsets;
         private final float[] charScales;
-        private final int sourceStart;
-        private final int sourceEnd;
         // Shape whole grapheme clusters in span context. The first original code point
         // owns each cluster's animation state, preserving the platform timing indices.
         // Drawing order follows bidi visual order; paint/shader remains caller-owned.
@@ -200,9 +198,7 @@ public class LyricLine implements Comparable<LyricLine> {
         private icyllis.modernui.graphics.text.FontPaint cachedPaint;
         private CharSequence cachedText;
 
-        private HighlightSpan(int charStartInPhrase, int charCount, int sourceStart, int sourceEnd) {
-            this.sourceStart = sourceStart;
-            this.sourceEnd = sourceEnd;
+        private HighlightSpan(int charStartInPhrase, int charCount) {
             this.charStartInPhrase = charStartInPhrase;
             this.charYOffsets = new float[charCount];
             this.charScales = new float[charCount];
@@ -230,22 +226,39 @@ public class LyricLine implements Comparable<LyricLine> {
 
         private void ensureShaped(@NonNull TextPaint paint, CharSequence text,
                                   int start, int end) {
-            if (clusterGlyphs != null && cachedText == text && start >= cacheStart && end <= cacheEnd
+            Objects.checkFromToIndex(start, end, text.length());
+            // Spanned subsequences copy this span and rebase its bounds. Always ask the
+            // current owner, including when its first measurement covers only part of us.
+            int ownerStart = start;
+            int ownerEnd = end;
+            if (text instanceof Spanned spanned) {
+                int attachedStart = spanned.getSpanStart(this);
+                int attachedEnd = spanned.getSpanEnd(this);
+                if (attachedStart >= 0 && attachedStart <= start && attachedEnd >= end
+                        && attachedEnd <= text.length()) {
+                    ownerStart = attachedStart;
+                    ownerEnd = attachedEnd;
+                }
+            }
+            if (Character.codePointCount(text, ownerStart, ownerEnd) > charYOffsets.length) {
+                throw new IllegalArgumentException("Lyric span exceeds its animation state");
+            }
+            if (clusterGlyphs != null && cachedText == text && ownerStart == cacheStart && ownerEnd == cacheEnd
                     && cachedPaint.equals(paint.getInternalPaint())) {
                 return;
             }
             cachedPaint = paint.createInternalPaint();
             cachedText = text;
-            cacheStart = sourceStart;
-            cacheEnd = sourceEnd;
-            clusters = LyricGraphemes.visualOrder(text, sourceStart, sourceEnd);
+            cacheStart = ownerStart;
+            cacheEnd = ownerEnd;
+            clusters = LyricGraphemes.visualOrder(text, ownerStart, ownerEnd);
             clusterGlyphs = new ShapedText[clusters.size()];
             clusterWidths = new int[clusters.size()];
             for (int j = 0; j < clusters.size(); j++) {
                 LyricGraphemes.Cluster cluster = clusters.get(j);
                 ShapedText shaped = TextShaper.shapeTextRun(
                         text, cluster.start(), cluster.end() - cluster.start(),
-                        sourceStart, sourceEnd - sourceStart, cluster.rtl(), paint);
+                        ownerStart, ownerEnd - ownerStart, cluster.rtl(), paint);
                 clusterGlyphs[j] = shaped;
                 clusterWidths[j] = Math.round(shaped.getAdvance());
             }
