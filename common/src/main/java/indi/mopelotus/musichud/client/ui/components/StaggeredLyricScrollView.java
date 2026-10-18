@@ -201,6 +201,7 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
         stopUpdateLoop();
         removeCallbacks(autoRecenterRunnable);
         pendingHighlightLine.set(null);
+        pendingResyncToCurrent = false;
         replaceRows(List.of());
         container.setTranslationX(0);
     }
@@ -283,12 +284,12 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
         lyricLines.clear();
         lyricLineViewList.clear();
         currentLyrics = lyrics;
+        rows.clear();
 
-        if (lyrics == null) return;
+        if (lyrics == null || lyrics.isEmpty()) return;
         Context context = getContext();
         container.addView(new FrameLayout(context), new LayoutParams(0, dp(64)));
 
-        rows.clear();
         for (LyricLine line : lyrics) {
             LyricLineView row = new LyricLineView(context, line, mainLyricSize, subLyricSize);
             container.addView(row);
@@ -325,7 +326,7 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
     }
 
     public void resyncToCurrentLyric() {
-        if (!isAttachedToWindow() || followingSuspended) return;
+        if (!isAttachedToWindow() || followingSuspended || lyricLineViewList.isEmpty()) return;
         if (!isContentLaidOut()) {
             // Rows were rebuilt while the view was GONE / not yet measured; child tops are
             // still 0, so defer until the next real layout pass instead of computing a wrong jump.
