@@ -141,10 +141,12 @@ dependencies {
 
     implementation project(path: ':metadata', configuration: 'shadowRuntimeElements')
     shadowBundle(project(path: ':metadata', configuration: 'shadowRuntimeElements')) { transitive = false }
+    implementation(project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')) { transitive = false }
+    shadowBundle(project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')) { transitive = false }
+    implementation(project(path: ':audio-containers', configuration: 'shadowRuntimeElements')) { transitive = false }
+    shadowBundle(project(path: ':audio-containers', configuration: 'shadowRuntimeElements')) { transitive = false }
     implementation 'io.github.overplex:libresample4j:0.1.4'
     shadowBundle 'io.github.overplex:libresample4j:0.1.4'
-    implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
-    shadowBundle "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
 
     compileOnly "org.projectlombok:lombok:$rootProject.lombok_version"
     compileOnly project(':processor')
@@ -198,9 +200,6 @@ shadowJar {
     exclude 'META-INF/services/javax.imageio.spi.*'
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
-    // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
-    relocate 'com.fasterxml.jackson', 'indi.mopelotus.musichud.shaded.jackson'
-    mergeServiceFiles { setIncludes(['META-INF/services/com.fasterxml.jackson.*']) }
     exclude 'org/slf4j/**'
 }
 
@@ -237,7 +236,7 @@ tasks.named('test', Test) {
     systemProperty 'musichud.test.minecraftVersion', rootProject.minecraft_version
 }
 
-apply from: rootProject.file('gradle/verify-shaded-jackson.gradle')
+apply from: rootProject.file('gradle/verify-java-audio-dependencies.gradle')
 
 apply from: rootProject.file('gradle/verify-shaded-webp.gradle')
 apply from: rootProject.file('gradle/verify-shaded-svg.gradle')

@@ -114,7 +114,6 @@ dependencies {
     implementation project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')
     implementation project(path: ':audio-containers', configuration: 'shadowRuntimeElements')
     implementation 'io.github.overplex:libresample4j:0.1.4'
-    implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
     implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
     implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
     // Independent scanner verifies the bundled QR encoder; never shipped.
