@@ -1,0 +1,12 @@
+SPDX-License-Identifier: CC0-1.0
+
+The synthetic PCM samples, AAC fixture files, encode_fixture.cpp,
+synthesize.py, generate.py and bundle_to_adts.py created for this fixture
+set are dedicated to the public domain under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No third-party music, speech recording or downloaded test audio was used.
+The encoder itself is third-party software and is not covered by this
+fixture dedication. Its original Fraunhofer FDK license is retained as
+FDK-NOTICE.txt and inside the unchanged source archive. The encoder is a
+generation-time tool and is not a player runtime dependency.

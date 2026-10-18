@@ -55,8 +55,8 @@ public final class ClientPayloadAdmission {
                 // Retired handshakes may only reach the controller's identity-checked remote cleanup.
                 if (handshake) return expectedMode != ConnectionMode.EXTERNAL || status.get() == ConnectStatus.NOT_CONNECTED;
                 return remote ? expectedMode == ConnectionMode.EXTERNAL && status.get() == ConnectStatus.CONNECTED
-                        : expectedMode == ConnectionMode.ISOLATED
-                            || integrated.getAsBoolean() && expectedMode == ConnectionMode.EXTERNAL && status.get() == ConnectStatus.CONNECTED;
+                        : ClientConnectionRouting.usesLocalMembership(
+                                integrated.getAsBoolean(), expectedMode, status.get());
             }
             public void runIfCurrent(Runnable action) {
                 synchronized (lock) { if (isCurrent()) action.run(); }

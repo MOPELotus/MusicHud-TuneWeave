@@ -1,0 +1,58 @@
+--- a/net/sourceforge/jaad/aac/DecoderConfig.java
++++ b/net/sourceforge/jaad/aac/DecoderConfig.java
+@@ -1,7 +1,7 @@
+ package net.sourceforge.jaad.aac;
+ 
+ import net.sourceforge.jaad.aac.filterbank.FilterBank;
+-import net.sourceforge.jaad.aac.ps.PSImpl;
++import net.sourceforge.jaad.aac.ps.PSOrig;
+ import net.sourceforge.jaad.aac.sbr.PS;
+ import net.sourceforge.jaad.aac.sbr.SBR;
+ import net.sourceforge.jaad.aac.syntax.BitStream;
+@@ -18,6 +18,11 @@
+  * @author in-somnia
+  */
+ public class DecoderConfig {
++    private int noiseRandomState = 0x1F2E3D4C;
++    public int nextNoiseRandom() {
++        noiseRandomState = noiseRandomState * 1664525 + 1013904223;
++        return noiseRandomState;
++    }
+ 
+     private Profile profile = Profile.AAC_MAIN, extProfile = Profile.UNKNOWN;
+     private SampleRate sampleFrequency = SF_NONE;
+@@ -41,7 +46,7 @@
+ 
+     public PS openPS(SBR sbr) {
+         psPresent = true;
+-        return new PSImpl(sbr.numTimeSlotsRate);
++        return new PSOrig(sbr.numTimeSlotsRate);
+     }
+ 
+     // extension: error resilience
+@@ -120,6 +125,16 @@
+ 
+     public SampleRate getSampleFrequency() {
+         return sampleFrequency;
++    }
++
++    /** Read-only observation: an output-frequency extension is actually configured, not merely named. */
++    public boolean hasOutputFrequencyExtension() {
++        return outputFrequency != null;
++    }
++
++    /** Read before the first AU to capture explicit PS, including sync-extension signaling. */
++    public boolean hasParametricStereoSignaling() {
++        return psPresent;
+     }
+ 
+     public SampleRate getOutputFrequency() {
+@@ -199,7 +214,7 @@
+         profile = readProfile(in);
+ 
+         sampleFrequency = SampleRate.decode(in);
+-        outputFrequency = sampleFrequency;
++        outputFrequency = null;
+ 
+         channelConfiguration = ChannelConfiguration.forInt(in.readBits(4));
+ 

@@ -1,0 +1,85 @@
+--- a/net/sourceforge/jaad/aac/sbr/SBR.java
++++ b/net/sourceforge/jaad/aac/sbr/SBR.java
+@@ -37,8 +37,41 @@
+ 
+     boolean valid = false;
+ 
++    public record RecoveryInfo(boolean sbrPresent, boolean sbrHeaderThisAu,
++            boolean sbrIndependentThisAu, boolean sbrReady, boolean psPresent,
++            boolean psHeaderThisAu, boolean psIndependentThisAu, boolean psReady) {}
++
++    private boolean recoveryHeaderThisAu;
++    private boolean recoveryAcceptedHeader;
++    private boolean recoverySbrIndependent;
++    private boolean recoverySbrReady;
++
++    public RecoveryInfo getRecoveryInfo() {
++        boolean present = valid && recoveryAcceptedHeader;
++        net.sourceforge.jaad.aac.ps.PSOrig.RecoveryInfo ps = null;
++        if (this instanceof SBR1 mono && mono.isPSUsed()
++                && mono.ps instanceof net.sourceforge.jaad.aac.ps.PSOrig orig)
++            ps = orig.getRecoveryInfo();
++        return new RecoveryInfo(present, present && recoveryHeaderThisAu,
++                present && recoverySbrIndependent, present && recoverySbrReady,
++                present && ps != null && ps.effectiveHeader(),
++                present && ps != null && ps.headerThisAu(),
++                present && ps != null && ps.independentThisAu(),
++                present && ps != null && ps.ready());
++    }
++
++    private static boolean independent(Channel channel) {
++        return channel.L_E > 0 && channel.L_Q > 0
++                && channel.bs_df_env[0] == 0 && channel.bs_df_noise[0] == 0;
++    }
++
++
+     public void invalidate() {
+         valid = false;
++        recoveryHeaderThisAu = false;
++        recoverySbrIndependent = false;
++        if (this instanceof SBR1 mono && mono.ps instanceof net.sourceforge.jaad.aac.ps.PSOrig orig)
++            orig.beginRecoveryAu();
+     }
+ 
+     public boolean isValid() {
+@@ -158,6 +191,8 @@
+         } else
+             this.bs_sbr_crc_bits = -1;
+ 
++        recoveryHeaderThisAu = false;
++        recoverySbrIndependent = false;
+         reset = readHeader(ld);
+ 
+         if (reset) {
+@@ -166,6 +201,9 @@
+             // if an error occurred with the new header values revert to the old ones
+             if (rt > 0) {
+                 calc_sbr_tables(swapHeaders());
++                recoveryHeaderThisAu = false;
++            } else {
++                recoveryAcceptedHeader = true;
+             }
+         }
+ 
+@@ -173,6 +211,13 @@
+             int result = sbr_data(ld);
+ 
+             valid = (result == 0);
++            if (valid && recoveryAcceptedHeader) {
++                if (this instanceof SBR1 mono)
++                    recoverySbrIndependent = independent(mono.ch0);
++                else if (this instanceof SBR2 stereo)
++                    recoverySbrIndependent = independent(stereo.ch0) && independent(stereo.ch1);
++                recoverySbrReady |= recoverySbrIndependent;
++            }
+         } else
+             valid = true;
+     }
+@@ -205,6 +250,7 @@
+     private boolean readHeader(BitStream ld) {
+         boolean bs_header_flag = ld.readBool();
+ 
++        recoveryHeaderThisAu = bs_header_flag;
+         if (bs_header_flag) {
+             Header hdr = swapHeaders();
+             hdr.decode(ld);

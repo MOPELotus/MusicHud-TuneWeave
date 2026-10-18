@@ -1,0 +1,47 @@
+{
+  "name": "wma",
+  "upstream": "https://github.com/devoxin/lavaplayer",
+  "revision": "2a5e4a279e3643d380c78207cc139c03cbbf6aa6",
+  "source_root": "vendor/upstream/wma/src",
+  "license": "vendor/upstream/wma/LICENSE",
+  "version": "WMA v1/v2 FFmpeg-derived Java port",
+  "sources": [
+    {
+      "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaBitReader.java",
+      "sha256": "d5767703ebde6c251e25b4ccf9afa6397fe1864ed2e013da169e15abfb78ddaa"
+    },
+    {
+      "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaData.java",
+      "sha256": "73555a71f2c28838253d26d45f99bca2f2743bc2a57b1052ba400397155d9a11"
+    },
+    {
+      "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaDecoder.java",
+      "sha256": "3d8c92f8fb855cb315bb1400b3c20bb204af5de981257f581b3a5389b619e7d1"
+    },
+    {
+      "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaImdct.java",
+      "sha256": "a56d698650206151ffe7cd58854f55aa6cbcfa14b596dcee4983fc2e17b98e46"
+    },
+    {
+      "path": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaVlc.java",
+      "sha256": "14f25615d0551833a1d6a41f6ba81e99086ed18731e9a4df374600fd51d20635"
+    }
+  ],
+  "patches": [
+    {
+      "source": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaBitReader.java",
+      "upstream_sha256": "d5767703ebde6c251e25b4ccf9afa6397fe1864ed2e013da169e15abfb78ddaa",
+      "compiled_sha256": "b69f97233f7810c150257eba187ca3997989b440f80e6122862ef3643e247860",
+      "patch": "vendor/patches/wma/WmaBitReader.patch",
+      "patch_sha256": "945e16f9d724116427676f656d1f6f25d5df1a5e17dcb34bc726804050a7a0a7"
+    },
+    {
+      "source": "com/sedmelluq/discord/lavaplayer/natives/wma/WmaDecoder.java",
+      "upstream_sha256": "3d8c92f8fb855cb315bb1400b3c20bb204af5de981257f581b3a5389b619e7d1",
+      "compiled_sha256": "416864f8736a949fd505d6e49b064e45c7923fc533cea311ddb9ae0714d6ad13",
+      "patch": "vendor/patches/wma/WmaDecoder.patch",
+      "patch_sha256": "ceb1205590e7c052dbb16761cccda638d50ed5e0c4c34b755a9ca3ccf33d0f7b"
+    }
+  ],
+  "license_sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+}

@@ -1,0 +1,155 @@
+{
+  "purpose": "Synthetic sine generated solely for packaged backend smoke; no third-party media. Not distributed inside the mod.",
+  "generator": "ffmpeg version 6.1.1-3ubuntu5+esm15 Copyright (c) 2000-2023 the FFmpeg developers",
+  "samples": [
+    {
+      "file": "tone.mp3",
+      "bytes": 2541,
+      "sha256": "7f45e51b0eacf51c9022189743f8e9e21d624e4370ed7663fc70e80e610b5675",
+      "command": [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=997:sample_rate=48000:duration=0.12",
+        "-ac",
+        "2",
+        "-c:a",
+        "libmp3lame",
+        "-map_metadata",
+        "-1",
+        "tone.mp3"
+      ]
+    },
+    {
+      "file": "tone.flac",
+      "bytes": 10072,
+      "sha256": "77d1a29c180df3c33be5122bec9e30bb0628aa8c53d8765b79218531e75edc96",
+      "command": [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=997:sample_rate=48000:duration=0.12",
+        "-ac",
+        "2",
+        "-c:a",
+        "flac",
+        "-map_metadata",
+        "-1",
+        "tone.flac"
+      ]
+    },
+    {
+      "file": "tone.wav",
+      "bytes": 23118,
+      "sha256": "621d5075e4d8a6719df8bab2363b6e4f66fb7ef6b3d48d64bbffa6422a5e864c",
+      "command": [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=997:sample_rate=48000:duration=0.12",
+        "-ac",
+        "2",
+        "-c:a",
+        "pcm_s16le",
+        "-map_metadata",
+        "-1",
+        "tone.wav"
+      ]
+    },
+    {
+      "file": "tone.m4a",
+      "bytes": 3143,
+      "sha256": "7e84a141ac9df45dbea4271081e18160835f2ee4d76f39476667996e4414da6e",
+      "command": [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=997:sample_rate=48000:duration=0.12",
+        "-ac",
+        "2",
+        "-c:a",
+        "aac",
+        "-map_metadata",
+        "-1",
+        "tone.m4a"
+      ]
+    },
+    {
+      "file": "tone.opus",
+      "bytes": 2552,
+      "sha256": "c33355637667bd26e6f5d1d5bd63bbe9cb8e892977e70e1348fdf5813e2ed54d",
+      "command": [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=997:sample_rate=48000:duration=0.12",
+        "-ac",
+        "2",
+        "-c:a",
+        "libopus",
+        "-map_metadata",
+        "-1",
+        "tone.opus"
+      ]
+    },
+    {
+      "file": "tone.alac.m4a",
+      "bytes": 3558,
+      "sha256": "53942f1202c14380492268d8c3d15d4cf0e132bed20a6fd43f12d02f22d4ef69",
+      "command": [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=997:sample_rate=48000:duration=0.12",
+        "-ac",
+        "2",
+        "-c:a",
+        "alac",
+        "-map_metadata",
+        "-1",
+        "tone.alac.m4a"
+      ]
+    },
+    {
+      "file": "chain-rate-change.ogg",
+      "bytes": 6563,
+      "sha256": "f847f7f12cd7004bc0ee6fd34a27a86dc2b9a5b92c4a1b7659cb94208b415a77",
+      "source": "Byte concatenation of existing synthetic 48 kHz stereo tone.opus and CC0 44.1 kHz mono common/src/test/resources/javaaudio/tone-second.ogg; exercises logical-link normalization and the packaged relocated resampler.",
+      "operation": [
+        "concatenate",
+        "tone.opus",
+        "../../common/src/test/resources/javaaudio/tone-second.ogg"
+      ]
+    }
+  ]
+}

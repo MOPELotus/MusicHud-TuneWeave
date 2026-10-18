@@ -1,0 +1,88 @@
+import java.util.zip.ZipInputStream
+
+// CONSTANT_Class entries prove runtime type references without flagging diagnostic strings.
+def referencesUnrelocatedResampler = { byte[] bytes ->
+    def input = new DataInputStream(new ByteArrayInputStream(bytes))
+    input.readInt()
+    input.readUnsignedShort()
+    input.readUnsignedShort()
+    int count = input.readUnsignedShort()
+    String[] utf8 = new String[count]
+    def classes = []
+    for (int index = 1; index < count; index++) {
+        int tag = input.readUnsignedByte()
+        switch (tag) {
+            case 1: utf8[index] = input.readUTF(); break
+            case 3: case 4: input.readInt(); break
+            case 5: case 6: input.readLong(); index++; break
+            case 7: classes.add(input.readUnsignedShort()); break
+            case 8: case 16: case 19: case 20: input.readUnsignedShort(); break
+            case 9: case 10: case 11: case 12: case 17: case 18: input.readInt(); break
+            case 15: input.readUnsignedByte(); input.readUnsignedShort(); break
+            default: throw new GradleException("Invalid class constant tag ${tag}")
+        }
+    }
+    classes.any {
+        String type = utf8[it]
+        boolean array = type?.startsWith('[')
+        while (type?.startsWith('[')) type = type.substring(1)
+        if (array && type?.startsWith('L')) type = type.substring(1)
+        type?.startsWith('com/laszlosystems/libresample4j/')
+    }
+}
+
+// Inspect final archives, including nested JARs. Merely dropping dependency
+// declarations does not prove stale output or a transitive copy is absent.
+def javaAudioArchive = tasks.named(tasks.findByName('remapJar') == null ? 'jar' : 'remapJar')
+tasks.register('verifyJavaAudioDependencies') {
+    group = 'verification'
+    description = 'Rejects the removed Lavaplayer dependency tree in the distributed JAR.'
+    dependsOn javaAudioArchive
+    inputs.file(javaAudioArchive.flatMap { it.archiveFile })
+    doLast {
+        File artifact = javaAudioArchive.get().archiveFile.get().asFile
+        def removedClasses = [
+            'com/sedmelluq/discord/lavaplayer/', 'com/sedmelluq/lava/',
+            'com/fasterxml/jackson/', 'indi/mopelotus/musichud/shaded/jackson/',
+            'org/apache/http/', 'org/apache/commons/logging/', 'org/json/',
+            'org/jetbrains/annotations/', 'org/intellij/lang/annotations/'
+        ]
+        def removedReferences = removedClasses.take(7) // Annotation references are compile-time metadata.
+        Closure inspect
+        inspect = { byte[] bytes, String container, int depth ->
+            if (depth > 8) throw new GradleException("Excessive JAR nesting in ${container}")
+            new ZipInputStream(new ByteArrayInputStream(bytes)).withCloseable { zip ->
+                for (def entry = zip.nextEntry; entry != null; entry = zip.nextEntry) {
+                    if (entry.directory) continue
+                    String name = entry.name.replaceFirst('^META-INF/versions/[0-9]+/', '')
+                    byte[] content = zip.readAllBytes()
+                    if (name.endsWith('.class')) {
+                        if (name.startsWith('com/laszlosystems/libresample4j/') || referencesUnrelocatedResampler(content)) {
+                            throw new GradleException("Unrelocated resampler type remains: ${container}!/${entry.name}")
+                        }
+                        if (removedClasses.any { name.startsWith(it) }) {
+                            throw new GradleException("Removed dependency remains: ${container}!/${entry.name}")
+                        }
+                        String constants = new String(content, java.nio.charset.StandardCharsets.ISO_8859_1)
+                        if (removedReferences.any { constants.contains(it) || constants.contains(it.replace('/', '.')) }) {
+                            throw new GradleException("Removed dependency is referenced: ${container}!/${entry.name}")
+                        }
+                    }
+                    if (name.startsWith('META-INF/services/')) {
+                        String service = name + '\n' + new String(content, java.nio.charset.StandardCharsets.UTF_8)
+                        if (removedClasses.any { service.contains(it) || service.contains(it.replace('/', '.')) }) {
+                            throw new GradleException("Removed dependency service remains: ${container}!/${entry.name}")
+                        }
+                    }
+                    if (name.startsWith('natives/') && name ==~ /.*\.(so|dll|dylib|jnilib)(\.xz)?$/) {
+                        throw new GradleException("Old audio native payload remains: ${container}!/${entry.name}")
+                    }
+                    if (name.endsWith('.jar')) inspect(content, container + '!/' + entry.name, depth + 1)
+                }
+            }
+        }
+        inspect(artifact.bytes, artifact.name, 0)
+        logger.lifecycle("Verified removed Lavaplayer dependency tree is absent: ${artifact.name}")
+    }
+}
+tasks.named('check') { dependsOn tasks.named('verifyJavaAudioDependencies') }

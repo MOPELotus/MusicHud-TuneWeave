@@ -1,0 +1,32 @@
+--- upstream/Mapping0.java
++++ patched/Mapping0.java
+@@ -24,6 +24,7 @@
+  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+  */
+ 
++/* Modified 2026-10-18 for TuneWeave research: correct multichannel coupling index bit width. */
+ package com.jcraft.jorbis;
+ 
+ import com.jcraft.jogg.*;
+@@ -99,8 +100,8 @@
+       opb.write(1, 1);
+       opb.write(info.coupling_steps-1, 8);
+       for(int i=0; i<info.coupling_steps; i++){
+-        opb.write(info.coupling_mag[i], Util.ilog2(vi.channels));
+-        opb.write(info.coupling_ang[i], Util.ilog2(vi.channels));
++        opb.write(info.coupling_mag[i], Util.ilog(vi.channels-1));
++        opb.write(info.coupling_ang[i], Util.ilog(vi.channels-1));
+       }
+     }
+     else{
+@@ -136,8 +137,8 @@
+       info.coupling_steps=opb.read(8)+1;
+ 
+       for(int i=0; i<info.coupling_steps; i++){
+-        int testM=info.coupling_mag[i]=opb.read(Util.ilog2(vi.channels));
+-        int testA=info.coupling_ang[i]=opb.read(Util.ilog2(vi.channels));
++        int testM=info.coupling_mag[i]=opb.read(Util.ilog(vi.channels-1));
++        int testA=info.coupling_ang[i]=opb.read(Util.ilog(vi.channels-1));
+ 
+         if(testM<0||testA<0||testM==testA||testM>=vi.channels
+             ||testA>=vi.channels){

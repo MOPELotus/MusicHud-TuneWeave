@@ -554,5 +554,7 @@
   "musichud_tuneweave.update.cfFailed": "Update check failed. Please try again later.",
   "musichud_tuneweave.update.cfUnavailable": "Update checks are unavailable in this development environment. Use an installed mod JAR.",
   "musichud_tuneweave.text.externalApiSetup": "This edition only connects to an existing TuneWeave service. Install and start it outside the mod, then enter its service URL (usually http://127.0.0.1:7832).",
-  "musichud_tuneweave.text.invalidServiceUrl": "Invalid service URL. Enter an HTTP(S) address without user credentials, query parameters, or fragments."
+  "musichud_tuneweave.text.invalidServiceUrl": "Invalid service URL. Enter an HTTP(S) address without user credentials, query parameters, or fragments.",
+  "musichud_tuneweave.update.serviceTitle": "Install the companion music service",
+  "musichud_tuneweave.update.serviceNotice": "MusicHud TuneWeave needs the companion TuneWeave service to connect to music platforms. Select “Go to download” to open the download screen and start downloading automatically. Once it finishes, follow the prompts to start the service.\n\nIf you already have a working TuneWeave service, select “OK”, then enter its address in Settings."
 }

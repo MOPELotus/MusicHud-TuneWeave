@@ -5,6 +5,13 @@ public interface AudioDecoder extends AutoCloseable {
 
     byte[] readChunk(long maxSize);
 
+    /** Qualified bounded/indexed seeking; asynchronous approximate backends keep the default. */
+    default boolean supportsFastSeek() { return false; }
+
+    default boolean seekToFrame(long frame) { return false; }
+
+    default long getPositionFrames() { return -1L; }
+
     default boolean seekToMillis(long positionMillis) {
         return false;
     }

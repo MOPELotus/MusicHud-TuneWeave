@@ -1,12 +1,52 @@
 package indi.mopelotus.musichud.client.services;
 
 import indi.mopelotus.musichud.network.IPlayerClient;
+import indi.mopelotus.musichud.MusicHud.ConnectStatus;
+import indi.mopelotus.musichud.interfaces.IConnectionManager.ConnectionMode;
 import indi.mopelotus.musichud.server.ServerPlayerRegistry;
 import org.junit.jupiter.api.Test;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ClientConnectionLifecycleTest {
+    @Test void integratedExternalRespawnKeepsMembershipBeforeRetiringOldPlayer() {
+        try (Fixture f = new Fixture()) {
+            f.mode = ConnectionMode.EXTERNAL;
+            f.join(); f.drain();
+            Peer old = f.player; Object listener = f.connection;
+            assertSame(old, f.registry.sessionToken(old.id));
+            f.player = new Peer(old.id);
+            f.tick();
+            assertSame(f.player, f.registry.sessionToken(old.id));
+            assertEquals(1, f.joins, "Respawn must not rerun the accepted handshake");
+            assertEquals(1, f.rebinds);
+            f.registry.leave(old);
+            assertSame(f.player, f.registry.sessionToken(old.id));
+            f.lifecycle.quit(old, listener, peer -> fail("Retired player detached new owner on the same listener"), () -> fail("Stale cleanup"));
+            assertSame(f.player, f.registry.sessionToken(old.id));
+            f.quit(); f.connection = null; f.drain();
+            assertNull(f.registry.sessionToken(old.id));
+            assertEquals(1, f.resets);
+        }
+    }
+
+    @Test void dedicatedExternalRespawnDoesNotCreateLocalMembership() {
+        try (Fixture f = new Fixture()) {
+            f.mode = ConnectionMode.EXTERNAL;
+            f.integrated = false;
+            f.join(); f.drain();
+            Peer old = f.player;
+            assertNull(f.registry.sessionToken(old.id));
+            f.player = new Peer(old.id);
+            f.tick();
+            assertNull(f.registry.sessionToken(old.id));
+            assertEquals(1, f.joins);
+            assertEquals(1, f.rebinds);
+            f.registry.leave(old);
+            assertNull(f.registry.sessionToken(old.id));
+        }
+    }
+
     @Test void proxyPlayReplacementKeepsConnectionPolicyAndFinalQuitCleansCurrentBinding() {
         try (Fixture f = new Fixture()) {
             f.join(); f.drain();
@@ -187,7 +227,11 @@ class ClientConnectionLifecycleTest {
         final ServerPlayerRegistry registry = ServerPlayerRegistry.getInstance();
         final ClientConnectionLifecycle lifecycle = new ClientConnectionLifecycle(lock, () -> connection, () -> transport, () -> player, tasks::add);
         int joins, resets, rebinds;
-        void join() { lifecycle.join(player, () -> { assertTrue(Thread.holdsLock(lock)); joins++; registry.join(player); }, this::replace); }
+        boolean integrated = true;
+        ConnectionMode mode = ConnectionMode.ISOLATED;
+        ConnectStatus status = ConnectStatus.CONNECTED;
+        boolean localMembership() { return ClientConnectionRouting.usesLocalMembership(integrated, mode, status); }
+        void join() { lifecycle.join(player, () -> { assertTrue(Thread.holdsLock(lock)); joins++; if (localMembership()) registry.join(player); }, this::replace); }
         void quit() { lifecycle.quit(player, connection, old -> registry.leave((Peer) old), () -> { assertTrue(Thread.holdsLock(lock)); resets++; }); }
         void tick() { lifecycle.tick(this::replace); }
         void checkTransport(boolean connected) {
@@ -196,8 +240,12 @@ class ClientConnectionLifecycleTest {
         }
         void replace(Object old) {
             assertTrue(Thread.holdsLock(lock));
-            registry.join(player); registry.leave((Peer) old);
-            assertSame(player, registry.sessionToken(player.id), "Late old-player leave must preserve the atomic replacement");
+            if (localMembership()) {
+                registry.join(player);
+                assertSame(player, registry.sessionToken(player.id), "New owner must be registered before the old leave");
+            }
+            registry.leave((Peer) old);
+            if (localMembership()) assertSame(player, registry.sessionToken(player.id), "Late old-player leave must preserve the atomic replacement");
             rebinds++;
         }
         void drain() { var copy = List.copyOf(tasks); tasks.clear(); copy.forEach(Runnable::run); }

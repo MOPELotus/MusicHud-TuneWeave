@@ -1,0 +1,11 @@
+--- port-source/study/ape/ApeDecoder.java
++++ src/main/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeDecoder.java
+@@ -3,7 +3,7 @@
+  * libdemac by Dave Chapman. Java translation 2026. LGPL-2.1-or-later.
+  * See upstream/COPYING.LGPLv2.1. Modern >=3950 paths only, research prototype.
+  */
+-package study.ape;
++package indi.mopelotus.musichud.audio.codec.internal.ape;
+ import java.io.*;
+ import java.nio.*;
+ import java.nio.channels.FileChannel;

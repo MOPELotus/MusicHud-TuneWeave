@@ -106,7 +106,9 @@ dependencies {
     compileOnly "io.github.mopelotus.modernui:ModernUI-NeoForge:$rootProject.modernui_fork_version@jar"
 
     implementation project(path: ':metadata', configuration: 'shadowRuntimeElements')
-    implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
+    implementation project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')
+    implementation project(path: ':audio-containers', configuration: 'shadowRuntimeElements')
+    implementation 'io.github.overplex:libresample4j:0.1.4'
     implementation "com.github.hypfvieh:dbus-java-core:$rootProject.dbus_version"
     implementation "com.github.hypfvieh:dbus-java-transport-native-unixsocket:$rootProject.dbus_version"
     // Independent scanner verifies the bundled QR encoder; never shipped.
@@ -168,5 +170,5 @@ publishing {
     }
 }
 
-// Metadata's isolated component and malformed-media checks are part of the client suite.
-tasks.named('test') { dependsOn ':metadata:test' }
+// Independent metadata and codec qualification are part of the client suite.
+tasks.named('test') { dependsOn ':metadata:test', ':audio-codecs:test', ':audio-containers:test' }

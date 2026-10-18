@@ -1,0 +1,25 @@
+--- a/net/sourceforge/jaad/aac/syntax/SyntacticElements.java
++++ b/net/sourceforge/jaad/aac/syntax/SyntacticElements.java
+@@ -227,6 +227,22 @@
+     private void decodeExtData(BitStream in) {
+     }
+ 
++    public List<net.sourceforge.jaad.aac.Decoder.ElementRecovery> getRecoveryElements() {
++        List<net.sourceforge.jaad.aac.Decoder.ElementRecovery> result = new ArrayList<>();
++        for (ChannelElement e : audioElements) {
++            var tag = e.getElementInstanceTag();
++            var sbr = e.getSBR();
++            var r = sbr == null ? null : sbr.getRecoveryInfo();
++            result.add(new net.sourceforge.jaad.aac.Decoder.ElementRecovery(
++                    tag.getType().name(), tag.getId(), r != null && r.sbrPresent(),
++                    r != null && r.sbrHeaderThisAu(), r != null && r.sbrIndependentThisAu(),
++                    r != null && r.sbrReady(), r != null && r.psPresent(),
++                    r != null && r.psHeaderThisAu(), r != null && r.psIndependentThisAu(),
++                    r != null && r.psReady()));
++        }
++        return List.copyOf(result);
++    }
++
+     public List<float[]> process() {
+ 
+         channels.clear();

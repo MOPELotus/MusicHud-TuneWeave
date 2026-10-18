@@ -1,0 +1,85 @@
+--- a/com/sedmelluq/discord/lavaplayer/natives/wma/WmaDecoder.java
++++ b/com/sedmelluq/discord/lavaplayer/natives/wma/WmaDecoder.java
+@@ -100,6 +100,7 @@
+     private int lastBitOffset;
+ 
+     public WmaDecoder(int sampleRate, int channels, int bitRate, int blockAlign, int version, int flags2) {
++        if (sampleRate < 8000 || sampleRate > 50000 || channels < 1 || channels > 2 || bitRate <= 0 || blockAlign < 1 || blockAlign > 65535 || (version != 1 && version != 2)) throw new IllegalArgumentException("Unsupported WMA configuration");
+         this.version = version;
+         this.channels = channels;
+         this.sampleRate = sampleRate;
+@@ -363,6 +364,7 @@
+      * values per channel. Returns 0 when the packet was only buffered (reservoir).
+      */
+     public int decode(byte[] buf, int offset, int length) {
++        if(length < 1 || length > MAX_CODED_SUPERFRAME_SIZE) throw new IllegalArgumentException("WMA block bound");
+         gb.reset(buf, offset, length);
+ 
+         int nbFrames;
+@@ -373,6 +375,7 @@
+                 // entire packet is reservoir spill for the next superframe
+                 int q = lastSuperframeLen;
+                 int len = length - 1;
++                if (q < 0 || q > MAX_CODED_SUPERFRAME_SIZE - len) throw new IllegalArgumentException("WMA reservoir overflow");
+                 while (len > 0) {
+                     lastSuperframe[q++] = (byte) gb.getBits(8);
+                     len--;
+@@ -391,6 +394,7 @@
+             if (lastSuperframeLen > 0) {
+                 int q = lastSuperframeLen;
+                 int len = bitOffset;
++                if(q < 0 || q > MAX_CODED_SUPERFRAME_SIZE - ((len + 7) >> 3)) throw new IllegalArgumentException("WMA reservoir overflow");
+                 while (len > 7) {
+                     lastSuperframe[q++] = (byte) gb.getBits(8);
+                     len -= 8;
+@@ -434,11 +438,20 @@
+         return framesOut;
+     }
+ 
++    /** Drain the final overlap exactly once; adapter owns end-of-stream state. */
++    public int drainOverlap() {
++        for (int ch = 0; ch < channels; ch++) {
++            System.arraycopy(frameOut[ch], 0, samples[ch], 0, frameLen);
++            java.util.Arrays.fill(frameOut[ch], 0f);
++        }
++        return frameLen;
++    }
++
+     private void decodeFrameInto(WmaBitReader bits, int frameIndex) {
+         blockPos = 0;
+-        while (decodeBlock(bits) == 0) {
+-            // continue
+-        }
++        int status;
++        while ((status = decodeBlock(bits)) == 0) { /* continue */ }
++        if(status < 0) throw new IllegalArgumentException("Malformed WMA block");
+         int sampleOffset = frameIndex * frameLen;
+         for (int ch = 0; ch < channels; ch++) {
+             System.arraycopy(frameOut[ch], 0, samples[ch], sampleOffset, frameLen);
+@@ -668,7 +681,8 @@
+         for (int ch = 0; ch < channels; ch++) {
+             int n4 = blockLen / 2;
+             if (channelCoded[ch]) {
+-                imdct.imdct(bsize, coefs[ch], output, 1.0f / 32768.0f);
++                // Match FFmpeg RLE polarity and its full inverse-MDCT sign convention.
++                imdct.imdct(bsize, coefs[ch], output, -1.0f / 32768.0f);
+             } else if (!(msStereo && ch == 1)) {
+                 java.util.Arrays.fill(output, 0, blockLen * 2, 0f);
+             }
+@@ -815,14 +829,14 @@
+                 offset += runs[code];
+                 int sign = bits.getBits1();
+                 float v = levels[code];
+-                ptr[offset & coefMask] = sign != 0 ? -v : v;
++                ptr[offset & coefMask] = sign != 0 ? v : -v;
+             } else if (code == 1) {
+                 break;
+             } else {
+                 int level = bits.getBits(coefNbBits);
+                 offset += bits.getBits(frameLenBits);
+                 int sign = bits.getBits1();
+-                ptr[offset & coefMask] = sign != 0 ? -level : level;
++                ptr[offset & coefMask] = sign != 0 ? level : -level;
+             }
+             offset++;
+         }

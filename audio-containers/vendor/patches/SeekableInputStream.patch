@@ -1,0 +1,11 @@
+--- a/com/sedmelluq/discord/lavaplayer/tools/io/SeekableInputStream.java
++++ b/indi/mopelotus/musichud/audio/container/io/SeekableInputStream.java
+@@ -1,6 +1,6 @@
+-package com.sedmelluq.discord.lavaplayer.tools.io;
++package indi.mopelotus.musichud.audio.container.io;
+ 
+-import com.sedmelluq.discord.lavaplayer.track.info.AudioTrackInfoProvider;
++import indi.mopelotus.musichud.audio.container.info.AudioTrackInfoProvider;
+ 
+ import java.io.EOFException;
+ import java.io.IOException;

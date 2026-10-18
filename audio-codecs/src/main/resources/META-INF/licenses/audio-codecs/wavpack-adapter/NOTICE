@@ -1,0 +1,23 @@
+MusicHud-TuneWeave audio codec module
+
+The original authors' decoder sources, copyrights and license texts are retained
+under vendor/upstream and META-INF/licenses/audio-codecs in the shaded artifact.
+Source identities and local patches are recorded in vendor/manifest.json.
+
+JLayer: JavaLayer authors, LGPL; unchanged decoder core.
+JOrbis/Jogg: JCraft and original authors, GNU Library GPL; three local patches
+correct multichannel indexing and bound untrusted setup allocations.
+Concentus: Logan Stromberg and the Opus authors, BSD terms; unchanged sources.
+ALAC: Peter McQuillan / David Hammerton, BSD terms; unchanged DSP.
+WavPack Tiny Decoder: David Bryant / Peter McQuillan, BSD terms; unchanged DSP.
+AAC: JAAD / Vavi authors, retained upstream public-domain dedication; eight
+finite compatibility/correctness patches, with originals and complete diff.
+
+The separate WavPack integer precision adapter follows the scalar supplemental
+bit/CRC arithmetic of FFmpeg 9.0.2, LGPL-2.1-or-later. Its corresponding notice
+and license are retained alongside the adapter source. This module does not
+embed FFmpeg native code or JNI binaries.
+
+Local adapters and integration are part of MusicHud-TuneWeave under its existing
+LGPL license. The project source distribution includes corresponding third-party
+sources, finite patches and upstream attribution; preserve these on redistribution.

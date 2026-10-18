@@ -1,0 +1,58 @@
+package net.sourceforge.jaad.aac.transport;
+
+import net.sourceforge.jaad.aac.syntax.BitStream;
+import net.sourceforge.jaad.aac.syntax.PCE;
+
+
+public final class ADIFHeader {
+
+    private static final long ADIF_ID = 0x41444946; // 'ADIF'
+    private long id;
+    private boolean copyrightIDPresent;
+    private boolean originalCopy, home, bitstreamType;
+    private int bitrate;
+    private int pceCount;
+    private int[] adifBufferFullness;
+    private final byte[] copyrightID;
+    private PCE[] pces;
+
+    public static boolean isPresent(BitStream in) {
+        return in.peekBits(32) == ADIF_ID;
+    }
+
+    private ADIFHeader() {
+        copyrightID = new byte[9];
+    }
+
+    public static ADIFHeader readHeader(BitStream in) {
+        ADIFHeader h = new ADIFHeader();
+        h.decode(in);
+        return h;
+    }
+
+    private void decode(BitStream in) {
+        id = in.readBits(32); // 'ADIF'
+        copyrightIDPresent = in.readBool();
+        if (copyrightIDPresent) {
+            for (int i = 0; i < 9; i++) {
+                copyrightID[i] = (byte) in.readBits(8);
+            }
+        }
+        originalCopy = in.readBool();
+        home = in.readBool();
+        bitstreamType = in.readBool();
+        bitrate = in.readBits(23);
+        pceCount = in.readBits(4) + 1;
+        pces = new PCE[pceCount];
+        adifBufferFullness = new int[pceCount];
+        for (int i = 0; i < pceCount; i++) {
+            if (bitstreamType) adifBufferFullness[i] = -1;
+            else adifBufferFullness[i] = in.readBits(20);
+            pces[i] = PCE.read(in);
+        }
+    }
+
+    public PCE getFirstPCE() {
+        return pces[0];
+    }
+}

@@ -1,0 +1,67 @@
+--- a/com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaFileTrack.java
++++ b/indi/mopelotus/musichud/audio/container/matroska/format/MatroskaFileTrack.java
+@@ -1,4 +1,4 @@
+-package com.sedmelluq.discord.lavaplayer.container.matroska.format;
++package indi.mopelotus.musichud.audio.container.matroska.format;
+ 
+ import java.io.IOException;
+ 
+@@ -34,6 +34,9 @@
+      * Information specific to audio tracks (null for non-audio tracks).
+      */
+     public final AudioDetails audio;
++
++    /** Codec delay/preroll/default frame duration in nanoseconds, unrounded. */
++    public final long codecDelayNs, seekPreRollNs, defaultDurationNs;
+ 
+     /**
+      * @param index        Track index/number.
+@@ -45,6 +48,10 @@
+      * @param audio        Information specific to audio tracks (null for non-audio tracks).
+      */
+     public MatroskaFileTrack(int index, Type type, long trackUid, String name, String codecId, byte[] codecPrivate, AudioDetails audio) {
++        this(index,type,trackUid,name,codecId,codecPrivate,audio,0,0,0);
++    }
++    public MatroskaFileTrack(int index, Type type, long trackUid, String name, String codecId, byte[] codecPrivate, AudioDetails audio,long delay,long preroll,long frameDuration) {
++        this.codecDelayNs=delay;this.seekPreRollNs=preroll;this.defaultDurationNs=frameDuration;
+         this.index = index;
+         this.type = type;
+         this.trackUid = trackUid;
+@@ -148,6 +155,12 @@
+                 builder.codecId = reader.asString(child);
+             } else if (child.is(MatroskaElementType.CodecPrivate)) {
+                 builder.codecPrivate = reader.asBytes(child);
++            } else if (child.is(MatroskaElementType.CodecDelay)) {
++                builder.delay=reader.asLong(child);
++            } else if (child.is(MatroskaElementType.SeekPreRoll)) {
++                builder.preroll=reader.asLong(child);
++            } else if (child.is(MatroskaElementType.DefaultDuration)) {
++                builder.frameDuration=reader.asLong(child);
+             } else if (child.is(MatroskaElementType.Audio)) {
+                 builder.audio = parseAudioElement(child, reader);
+             }
+@@ -156,6 +169,7 @@
+             reader.skip(child);
+         }
+ 
++        if(builder.delay<0 || builder.preroll<0 || builder.frameDuration<0)throw new IOException("Invalid Matroska duration metadata");
+         return builder.build();
+     }
+ 
+@@ -182,6 +196,7 @@
+ 
+     private static class Builder {
+         private int index;
++        private long delay,preroll,frameDuration;
+         private Type type;
+         private long trackUid;
+         private String name;
+@@ -190,7 +205,7 @@
+         private AudioDetails audio;
+ 
+         private MatroskaFileTrack build() {
+-            return new MatroskaFileTrack(index, type, trackUid, name, codecId, codecPrivate, audio);
++            return new MatroskaFileTrack(index, type, trackUid, name, codecId, codecPrivate, audio,delay,preroll,frameDuration);
+         }
+     }
+ 
