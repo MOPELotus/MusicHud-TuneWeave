@@ -1,0 +1,128 @@
+plugins {
+    id 'java-library'
+    id 'com.gradleup.shadow'
+}
+base { archivesName = "$rootProject.archives_name-audio-containers" }
+repositories { mavenCentral(); google() }
+java { withSourcesJar(); sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
+tasks.withType(JavaCompile).configureEach { options.release = 21; options.encoding = 'UTF-8' }
+
+configurations { containerLibraries; r8Libraries }
+configurations.implementation.extendsFrom configurations.containerLibraries
+sourceSets.main.java.srcDir 'src/thirdParty/java'
+dependencies {
+    api project(':audio-codecs')
+    r8Libraries project(path: ':audio-codecs', configuration: 'apiElements')
+    r8Libraries 'org.slf4j:slf4j-api:2.0.17'
+    containerLibraries('org.mp4parser:isoparser:1.9.56') { exclude group: 'org.slf4j'; exclude group: 'junit'; exclude group: 'org.hamcrest' }
+    containerLibraries 'org.aspectj:aspectjrt:1.9.7'
+    compileOnly 'org.slf4j:slf4j-api:2.0.17'
+    shadowR8 'com.android.tools:r8:9.5.26'
+    testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
+    testImplementation 'org.slf4j:slf4j-api:2.0.17'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// The delivered component refers to the shared contract but never embeds a second copy.
+// Publish the matching shaded codec variant, rather than leaking its unshaded runtime graph.
+configurations.named('shadowRuntimeElements') {
+    dependencies.add(project.dependencies.project(path: ':audio-codecs', configuration: 'shadowRuntimeElements'))
+}
+
+def vendorManifest = new groovy.json.JsonSlurper().parse(file('vendor/manifest.json'))
+def verifyVendoredSources = tasks.register('verifyVendoredSources') {
+    group = 'verification'
+    inputs.files(fileTree('vendor'), fileTree('src/thirdParty/java'), configurations.containerLibraries)
+    doLast {
+        def verify = { String path, String expected ->
+            def source = file(path)
+            if (!source.isFile() || java.security.MessageDigest.getInstance('SHA-256').digest(source.bytes).encodeHex().toString() != expected)
+                throw new GradleException("Container source guard failed: ${path}")
+        }
+        def patches = vendorManifest.vendors.collectMany { it.patches }
+        def declared = patches.collect { it.compiled_source } as Set
+        def actual = fileTree('src/thirdParty/java').matching { include '**/*.java' }.files.collect {
+            file('src/thirdParty/java').toPath().relativize(it.toPath()).toString().replace(File.separator, '/')
+        } as Set
+        if (declared != actual) throw new GradleException('Unreviewed container patch source set')
+        vendorManifest.notices.each { verify(it.path, it.sha256) }
+        def actualLibraries = configurations.containerLibraries.files.collectEntries {
+            [(it.name): java.security.MessageDigest.getInstance('SHA-256').digest(it.bytes).encodeHex().toString()]
+        }
+        if (actualLibraries != vendorManifest.libraries.collectEntries { [(it.name): it.sha256] })
+            throw new GradleException('Container dependency set differs from reviewed artifact hashes')
+        vendorManifest.vendors.each { vendor ->
+            verify(vendor.license, vendor.license_sha256)
+            def originals = fileTree(vendor.source_root).matching { include '**/*.java' }.files.collect {
+                file(vendor.source_root).toPath().relativize(it.toPath()).toString().replace(File.separator, '/')
+            } as Set
+            if (originals != vendor.sources.collect { it.path } as Set) throw new GradleException('Unreviewed container upstream source set')
+            vendor.sources.each { verify("${vendor.source_root}/${it.path}", it.sha256) }
+            vendor.patches.each {
+                verify("${vendor.source_root}/${it.source}", it.upstream_sha256)
+                verify("src/thirdParty/java/${it.compiled_source}", it.compiled_sha256)
+                verify(it.patch, it.patch_sha256)
+            }
+        }
+    }
+}
+tasks.named('compileJava') { dependsOn verifyVendoredSources }
+jar { archiveClassifier = 'unshaded' }
+shadowJar {
+    configurations = [project.configurations.containerLibraries]
+    inputs.files(project.configurations.r8Libraries)
+    sourceSetsClassesDirs.setFrom(sourceSets.main.output.classesDirs)
+    archiveClassifier = ''
+    // The explicit audio box factory never consults the reflection mapping or build list.
+    exclude 'isoparser2-default.properties', 'builddef.lst'
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    doFirst {
+        def tools = r8Classpath.files
+        if (tools.size() != 1 || tools.first().name != 'r8-9.5.26.jar' || java.security.MessageDigest.getInstance('SHA-256').digest(tools.first().bytes).encodeHex().toString() != '3502f087388ce95bbf5254555927f09385dc2636873964d0bd53f3eaf4fb49ad')
+            throw new GradleException('Container R8 compiler differs from reviewed version and SHA-256')
+    }
+    ['org.mp4parser', 'org.aspectj'].each { relocate it, "indi.mopelotus.musichud.audio.container.shaded.${it}" }
+    minimize { r8 {
+        args.addAll(provider { project.configurations.r8Libraries.files.collectMany { ['--lib', it.absolutePath] } })
+        keepRules.add('-keep public class indi.mopelotus.musichud.audio.container.* { public *; }')
+        keepRules.add('-keep public class indi.mopelotus.musichud.audio.container.io.* { public *; }')
+        keepRules.add('-keep public interface indi.mopelotus.musichud.audio.container.info.* { public *; }')
+        keepRules.add('-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*,Exceptions')
+    } }
+    from('vendor/upstream/lavaplayer/LICENSE') { into 'META-INF/licenses/audio-containers/lavaplayer'; rename { 'LICENSE' } }
+    from(['vendor/mp4parser-LICENSE.txt', 'vendor/mp4parser-NOTICE.txt', 'vendor/aspectj-LICENSE.txt', 'vendor/NOTICE']) { into 'META-INF/licenses/audio-containers' }
+}
+processResources { from(rootProject.file('license')) { into 'META-INF/licenses/audio-containers/project'; rename { 'LICENSE' } } }
+tasks.named('sourcesJar') { from('vendor') { into 'META-INF/audio-containers-source' } }
+def verifyContainerJar = tasks.register('verifyContainerJar') {
+    dependsOn tasks.named('shadowJar')
+    inputs.file(tasks.named('shadowJar').flatMap { it.archiveFile })
+    doLast {
+        new java.util.zip.ZipFile(tasks.named('shadowJar').get().archiveFile.get().asFile).withCloseable { zip ->
+            for (String name : ['indi/mopelotus/musichud/audio/container/Mp4PacketSource.class',
+                                'indi/mopelotus/musichud/audio/container/MatroskaPacketSource.class',
+                                'META-INF/licenses/audio-containers/lavaplayer/LICENSE',
+                                'META-INF/licenses/audio-containers/mp4parser-LICENSE.txt',
+                                'META-INF/licenses/audio-containers/mp4parser-NOTICE.txt',
+                                'META-INF/licenses/audio-containers/aspectj-LICENSE.txt',
+                                'META-INF/licenses/audio-containers/NOTICE'])
+                if (zip.getEntry(name) == null) throw new GradleException("Missing container entry ${name}")
+            if (zip.entries().any { it.name.startsWith('com/sedmelluq/') || it.name.startsWith('org/mp4parser/') ||
+                    it.name.startsWith('org/aspectj/') || it.name.startsWith('org/slf4j/') || it.name.startsWith('com/android/tools/') ||
+                    it.name.startsWith('indi/mopelotus/musichud/audio/codec/') })
+                throw new GradleException('Container artifact contains duplicate contracts, host libraries, original vendor namespaces or a build compiler')
+        }
+    }
+}
+test {
+    useJUnitPlatform()
+    maxHeapSize = '128m'
+    dependsOn verifyContainerJar, project(':audio-codecs').tasks.named('jar')
+    doFirst {
+        systemProperty 'containerJar', tasks.named('shadowJar').get().archiveFile.get().asFile.absolutePath
+        systemProperty 'containerLibraries', project.configurations.r8Libraries.files.collect { it.absolutePath }.join(File.pathSeparator)
+    }
+}
+
+tasks.named('check') { dependsOn verifyVendoredSources, verifyContainerJar }

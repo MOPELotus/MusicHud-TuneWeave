@@ -1,0 +1,6 @@
+# Source guards attest exact upstream, patch and compiled-vendor bytes on every OS.
+vendor/** -text -whitespace
+src/thirdParty/** -text
+src/test/resources/containers/*.m4a binary
+src/test/resources/containers/*.mp4 binary
+src/test/resources/containers/*.webm binary

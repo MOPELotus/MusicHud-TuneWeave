@@ -1,0 +1,122 @@
+--- a/com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaFileReader.java
++++ b/indi/mopelotus/musichud/audio/container/matroska/format/MatroskaFileReader.java
+@@ -1,6 +1,6 @@
+-package com.sedmelluq.discord.lavaplayer.container.matroska.format;
+-
+-import com.sedmelluq.discord.lavaplayer.tools.io.SeekableInputStream;
++package indi.mopelotus.musichud.audio.container.matroska.format;
++
++import indi.mopelotus.musichud.audio.container.io.SeekableInputStream;
+ 
+ import java.io.DataInput;
+ import java.io.DataInputStream;
+@@ -23,7 +23,7 @@
+     public MatroskaFileReader(SeekableInputStream inputStream) {
+         this.inputStream = inputStream;
+         this.dataInput = new DataInputStream(inputStream);
+-        this.levels = new MutableMatroskaElement[8];
++        this.levels = new MutableMatroskaElement[32];
+         this.mutableBlock = new MutableMatroskaBlock();
+     }
+ 
+@@ -44,11 +44,26 @@
+             throw new IllegalStateException("Current position is beyond this element");
+         }
+ 
+-        long id = MatroskaEbmlReader.readEbmlInteger(dataInput, null);
+-        long dataSize = MatroskaEbmlReader.readEbmlInteger(dataInput, null);
++        long id;MatroskaEbmlReader.Size encodedSize;
++        try { id=MatroskaEbmlReader.readEbmlInteger(dataInput,null);encodedSize=MatroskaEbmlReader.readSize(dataInput); }
++        catch(IllegalStateException e){throw new IOException("Invalid EBML header",e);}
++        long dataSize = encodedSize.value();
+         long dataPosition = inputStream.getPosition();
+ 
++        var type = MatroskaElementType.find(id);
++        if(parent != null && parent.isUnknownSize() && parent.is(MatroskaElementType.Cluster)
++           && (type==MatroskaElementType.Cluster || type==MatroskaElementType.Info || type==MatroskaElementType.Tracks || type==MatroskaElementType.Cues || type==MatroskaElementType.Tags || type==MatroskaElementType.SeekHead)) {
++            inputStream.seek(position);return null;
++        }
++        long limit=parent==null?inputStream.getContentLength():parent.getDataPosition()+parent.getDataSize();
++        if(dataPosition>limit)throw new java.io.EOFException("Element header exceeds parent");
++        if(encodedSize.unknown()) {
++            if(type!=MatroskaElementType.Segment&&type!=MatroskaElementType.Cluster)throw new IOException("Unknown size only allowed for Segment/Cluster");
++            dataSize=limit-dataPosition;
++        }
++        if(dataSize<0||dataSize>limit-dataPosition)throw new java.io.EOFException("Element payload exceeds parent/file");
+         int level = parent == null ? 0 : parent.getLevel() + 1;
++        if(level>=levels.length)throw new IOException("Matroska nesting exceeds bound");
+         MutableMatroskaElement element = levels[level];
+ 
+         if (element == null) {
+@@ -59,7 +74,8 @@
+         element.setType(MatroskaElementType.find(id));
+         element.setPosition(position);
+         element.setHeaderSize((int) (dataPosition - position));
+-        element.setDataSize((int) dataSize);
++        element.setDataSize(dataSize);
++        element.setUnknownSize(encodedSize.unknown());
+         return element;
+     }
+ 
+@@ -87,7 +103,7 @@
+      */
+     public int asInteger(MatroskaElement element) throws IOException {
+         if (element.is(MatroskaElementType.DataType.UNSIGNED_INTEGER)) {
+-            long value = MatroskaEbmlReader.readFixedSizeEbmlInteger(dataInput, element.dataSize, null);
++            long value = MatroskaEbmlReader.readFixedSizeEbmlInteger(dataInput, integerSize(element), null);
+ 
+             if (value < 0 || value > Integer.MAX_VALUE) {
+                 throw new ArithmeticException("Cannot convert unsigned value to integer.");
+@@ -95,7 +111,7 @@
+                 return (int) value;
+             }
+         } else if (element.is(MatroskaElementType.DataType.SIGNED_INTEGER)) {
+-            return Math.toIntExact(MatroskaEbmlReader.readFixedSizeEbmlInteger(dataInput, element.dataSize, MatroskaEbmlReader.Type.SIGNED));
++            return Math.toIntExact(MatroskaEbmlReader.readFixedSizeEbmlInteger(dataInput, integerSize(element), MatroskaEbmlReader.Type.SIGNED));
+         } else {
+             throw new IllegalArgumentException("Not an integer element.");
+         }
+@@ -108,9 +124,9 @@
+      */
+     public long asLong(MatroskaElement element) throws IOException {
+         if (element.is(MatroskaElementType.DataType.UNSIGNED_INTEGER)) {
+-            return MatroskaEbmlReader.readFixedSizeEbmlInteger(dataInput, element.dataSize, null);
++            return MatroskaEbmlReader.readFixedSizeEbmlInteger(dataInput, integerSize(element), null);
+         } else if (element.is(MatroskaElementType.DataType.SIGNED_INTEGER)) {
+-            return MatroskaEbmlReader.readFixedSizeEbmlInteger(dataInput, element.dataSize, MatroskaEbmlReader.Type.SIGNED);
++            return MatroskaEbmlReader.readFixedSizeEbmlInteger(dataInput, integerSize(element), MatroskaEbmlReader.Type.SIGNED);
+         } else {
+             throw new IllegalArgumentException("Not an integer element.");
+         }
+@@ -154,6 +170,11 @@
+         }
+     }
+ 
++    private int integerSize(MatroskaElement e) throws IOException {
++        if(e.dataSize<1||e.dataSize>8)throw new IOException("Invalid EBML integer width");
++        return (int)e.dataSize;
++    }
++
+     public String asString(MatroskaElement element) throws IOException {
+         return asString(element, null);
+     }
+@@ -180,7 +201,9 @@
+      * @throws IOException On read error
+      */
+     public byte[] asBytes(MatroskaElement element) throws IOException {
+-        byte[] bytes = new byte[element.dataSize];
++        long budget=Math.max(65536,Math.min(8L*1024*1024,Runtime.getRuntime().maxMemory()/16));
++        if(element.dataSize<0 || element.dataSize>budget || element.getRemaining(getPosition())!=element.dataSize)throw new IOException("Matroska payload exceeds allocation bound or is not at payload start");
++        byte[] bytes = new byte[(int)element.dataSize];
+         dataInput.readFully(bytes);
+         return bytes;
+     }
+@@ -216,6 +239,8 @@
+         inputStream.seek(position);
+     }
+ 
++    public void close() throws IOException { inputStream.close(); }
++
+     public DataInput getDataInput() {
+         return dataInput;
+     }

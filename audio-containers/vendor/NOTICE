@@ -1,0 +1,11 @@
+MusicHud-TuneWeave audio container component
+
+Contains selected Matroska, SeekableInputStream and AudioTrackInfoProvider source files
+from lavalink-devs/lavaplayer 2.2.7, Copyright 2016-2020 The Lavaplayer Authors,
+Apache License 2.0. Original sources, finite safety/timing/pull-cursor patches and
+package relocation are retained under vendor/. This component does not include
+Lavaplayer playback, native codecs, provider integrations or Apache HTTP.
+
+MP4 parsing uses mp4parser 1.9.56 (Apache License 2.0); its license and upstream
+NOTICE accompany this component. AspectJ runtime 1.9.7 is retained for upstream
+aspect-woven parser compatibility; its EPL license accompanies the dependency.
