@@ -24,6 +24,52 @@ public class Decoder {
     private final DecoderConfig config;
     private final SyntacticElements syntacticElements;
     public int frames = 0;
+
+    /** Parser observations only. No filterbank or signal state is exposed. */
+    public record ElementRecovery(String type, int tag, boolean sbrPresent,
+            boolean sbrHeaderThisAu, boolean sbrIndependentThisAu, boolean sbrReady,
+            boolean psPresent, boolean psHeaderThisAu, boolean psIndependentThisAu,
+            boolean psReady) {}
+
+    public record RecoveryInfo(boolean successfulAu, int auIndex, int observedRate, int observedChannels,
+            int coreRate, int declaredCoreChannels, int initialOutputRate,
+            List<ElementRecovery> elements, boolean allSbrReady, boolean allPsReady,
+            boolean topologyChanged, boolean configurationChanged) {
+        public RecoveryInfo { elements = List.copyOf(elements); }
+    }
+
+    private final int initialOutputRate;
+    private final int declaredCoreChannels;
+    private RecoveryInfo recoveryInfo;
+    private List<String> previousTopology = List.of();
+    private String previousConfiguration;
+
+    private String configurationKey() {
+        return config.getProfile().getIndex() + ":" + config.getSampleFrequency().getFrequency()
+                + ":" + config.getChannelConfiguration().name() + ":" + config.getFrameLength();
+    }
+
+    public RecoveryInfo getRecoveryInfo() { return recoveryInfo; }
+
+    private RecoveryInfo invalidRecovery() {
+        return new RecoveryInfo(false, frames, 0, 0, config.getSampleFrequency().getFrequency(),
+                declaredCoreChannels, initialOutputRate, List.of(), false, false, false, false);
+    }
+
+    private void publishRecovery(SampleBuffer buffer, List<ElementRecovery> elements) {
+        List<String> topology = elements.stream().map(e -> e.type() + ":" + e.tag()).toList();
+        boolean changed = !previousTopology.isEmpty() && !previousTopology.equals(topology);
+        previousTopology = topology;
+        String configuration = configurationKey();
+        boolean configurationChanged = !configuration.equals(previousConfiguration);
+        previousConfiguration = configuration;
+        recoveryInfo = new RecoveryInfo(true, frames, buffer.getSampleRate(), buffer.getChannels(),
+                config.getSampleFrequency().getFrequency(), declaredCoreChannels,
+                initialOutputRate, elements,
+                !elements.isEmpty() && elements.stream().allMatch(ElementRecovery::sbrReady),
+                !elements.isEmpty() && elements.stream().allMatch(ElementRecovery::psReady), changed, configurationChanged);
+    }
+
     private ADIFHeader adifHeader;
 
     /**
@@ -70,6 +116,10 @@ public class Decoder {
 //        config = DecoderConfig.parseMP4DecoderSpecificInfo(decoderSpecificInfo);
 
         this.config = config;
+        this.initialOutputRate = config.getOutputFrequency().getFrequency();
+        this.declaredCoreChannels = config.getChannelConfiguration().getChannelCount();
+        this.recoveryInfo = invalidRecovery();
+        this.previousConfiguration = configurationKey();
 
         syntacticElements = new SyntacticElements(config);
 
@@ -92,6 +142,7 @@ public class Decoder {
      */
     public void decodeFrame(byte[] frame, SampleBuffer buffer) throws AACException {
 
+        recoveryInfo = invalidRecovery();
         BitStream in = BitStream.open(frame);
 
         try {
@@ -120,10 +171,13 @@ public class Decoder {
 
         // 1: bitstream parsing and noiseless coding
         syntacticElements.decode(in);
+        // Capture before PS processing mutates its decoded envelope bookkeeping.
+        List<ElementRecovery> observations = syntacticElements.getRecoveryElements();
         // 2: spectral processing
         List<float[]> channels = syntacticElements.process();
         // 3: send to output buffer
         buffer.accept(channels, config.getSampleLength(), config.getOutputFrequency().getFrequency());
+        publishRecovery(buffer, observations);
     }
 
     public AudioFormat getAudioFormat() {

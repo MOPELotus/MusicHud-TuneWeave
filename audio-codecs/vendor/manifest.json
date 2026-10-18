@@ -981,16 +981,16 @@
         {
           "source": "net/sourceforge/jaad/aac/Decoder.java",
           "upstream_sha256": "7435d48738783b5f640219deb6b52daa65bf41c75828d16732588094778ee04f",
-          "compiled_sha256": "c64f429aa059928bf96fb2f822b1475df196293969d5b784351e854104575034",
-          "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "fdc84085f9564e0f3902d0d2367d5eb66b43e94ee6d8986e12b0c11de6e66b38"
+          "compiled_sha256": "9708728736aa45e66ee49d8cdfeb253a067a98ed36170d601ffe7f7ecc7d192b",
+          "patch": "vendor/patches/aac/Decoder-recovery.patch",
+          "patch_sha256": "aa9cf64ff3119b36f5c721ec02f51dd2cb43930b16c87790490aa12389d90832"
         },
         {
           "source": "net/sourceforge/jaad/aac/DecoderConfig.java",
           "upstream_sha256": "e8981491a33ee5d1ca8412e4e35daca171096301959a810db4ea4322b5a93bb8",
-          "compiled_sha256": "d67c3972f45dd1aa7e465daa6ce2b7c5e52303e7cbfe6fb379b52fd18af895e1",
-          "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "fdc84085f9564e0f3902d0d2367d5eb66b43e94ee6d8986e12b0c11de6e66b38"
+          "compiled_sha256": "164a78150b3e87245e66953b4d4e6f84eb21ff24071db35b4ae88b2c4c59318a",
+          "patch": "vendor/patches/aac/DecoderConfig-recovery.patch",
+          "patch_sha256": "abc604684e46120c50470298a8b207abe72aa1e6f77498da8c3c5b538285da91"
         },
         {
           "source": "net/sourceforge/jaad/adts/ADTSDemultiplexer.java",
@@ -1033,6 +1033,27 @@
           "compiled_sha256": "107a7d1f78ac7f4be09477cd4f6ee15abdfb7411e2a936e3dcfa46570ab82013",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
           "patch_sha256": "fdc84085f9564e0f3902d0d2367d5eb66b43e94ee6d8986e12b0c11de6e66b38"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/syntax/SyntacticElements.java",
+          "patch": "vendor/patches/aac/SyntacticElements.java.patch",
+          "upstream_sha256": "20bb2dfa4d261faa8ac8ad3de4514f4cd5c53520b110a401712cdad16dbaaac4",
+          "compiled_sha256": "b85571405432b356f3bd91549686bad0808ccef759357e0834b2802871a83ad4",
+          "patch_sha256": "5e4fac231d2abd03bdd6b7f4d5e2709537e0b4e27f71a0d2f72585212e0380ec"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/sbr/SBR.java",
+          "patch": "vendor/patches/aac/SBR.java.patch",
+          "upstream_sha256": "1777911df082d89d13c515ab12486c2cfad7d0efa6986094c7d2d32c9b148a3f",
+          "compiled_sha256": "18c8f4bada3474b7fdca791a3d64bfcdd99facc3cf8d426a31a3c9396e9fe4fc",
+          "patch_sha256": "dca66fe84550ee5f16eb0d702748ec0f44aad140fa5afc9f6c7ba3d7dfc5a619"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/ps/PSOrig.java",
+          "patch": "vendor/patches/aac/PSOrig.java.patch",
+          "upstream_sha256": "2e291d2b95341516d254cee47847fefb4336c5a3074062802c20764f8e715179",
+          "compiled_sha256": "94af2c8485e13aef21539050e1eaa844ae3e526da6ed3aee03a874f067aaf214",
+          "patch_sha256": "b3c4dbc321646bc90ec5c8f6a6c646b63febdbf8bb2f4c0cf030fe2e11dfb06c"
         }
       ],
       "sources": [

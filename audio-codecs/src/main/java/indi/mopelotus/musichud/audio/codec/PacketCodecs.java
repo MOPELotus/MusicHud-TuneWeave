@@ -81,37 +81,146 @@ public final class PacketCodecs {
     };
   }
 
+  /**
+   * Common LC, dual-rate HE and HEv2 decoding, retaining existing PCM behavior while exposing
+   * read-only AAC observations. Single-rate SBR is explicitly unsupported by this decoder core.
+   */
   public static PacketDecoder aac(PacketSource.Format initial) throws IOException {
-    requireCodec(initial, "mp4a");
-    final Decoder core;
-    try {
-      core = Decoder.create(initial.codecPrivate());
-    } catch (RuntimeException e) {
-      throw new IOException("Invalid AAC configuration", e);
+    return new Aac(initial, null);
+  }
+
+  /**
+   * Decodes a fresh AAC recovery epoch using output/features verified from this same source. Before
+   * recovery is ready, successful access units advance codec state but return no PCM and do not
+   * freeze the output format. Read recovery() after each decode; readiness does not replace
+   * measured filter preroll or authoritative container timing.
+   */
+  public static AacPacketDecoder aacWithRecovery(
+      PacketSource.Format initial, AacPacketDecoder.Expectation expected) throws IOException {
+    return new Aac(initial, Objects.requireNonNull(expected, "expected"));
+  }
+
+  private static final class Aac extends Base implements AacPacketDecoder {
+    private final Decoder core;
+    private final Expectation expected;
+    private final SampleBuffer output = new SampleBuffer();
+    private boolean requireSbr, requirePs, seenSbr, seenPs;
+    private long accessUnit;
+    private Recovery recovery = invalid(0);
+
+    Aac(PacketSource.Format initial, Expectation expected) throws IOException {
+      super(initial, null);
+      requireCodec(initial, "mp4a");
+      this.expected = expected;
+      try {
+        core = Decoder.create(initial.codecPrivate());
+      } catch (RuntimeException e) {
+        throw new IOException("Invalid AAC configuration", e);
+      }
+      var extension = core.getConfig().getExtObjectType();
+      boolean signaledSbr =
+          core.getConfig().hasOutputFrequencyExtension()
+              && (extension == net.sourceforge.jaad.aac.Profile.AAC_SBR
+                  || extension == net.sourceforge.jaad.aac.Profile.AAC_PS);
+      if (signaledSbr
+          && core.getConfig().getOutputFrequency().getFrequency()
+              == core.getConfig().getSampleFrequency().getFrequency()) {
+        // This existing core limitation is separate from recovery observation; no DSP fallback.
+        throw new IOException("Unsupported AAC mode: single-rate SBR");
+      }
+
+      requirePs =
+          core.getConfig().hasParametricStereoSignaling()
+              || extension == net.sourceforge.jaad.aac.Profile.AAC_PS
+              || expected != null && expected.ps();
+      requireSbr = requirePs || signaledSbr || expected != null && expected.sbr();
     }
-    return new Base(initial, null) {
-      private final SampleBuffer output = new SampleBuffer();
 
-      protected byte[] decodeBytes(PacketSource.Packet packet) throws IOException {
-        ByteBuffer encoded = packet.encoded();
-        if (encoded.remaining() > 1024 * 1024) throw new IOException("AAC packet exceeds bound");
-        byte[] b = new byte[encoded.remaining()];
-        encoded.get(b);
-        output.setBigEndian(false);
-        core.decodeFrame(b, output);
-        if (output.getData().length == 0) return null;
-        if (output.getBitsPerSample() != 16) throw new IOException("Unexpected AAC precision");
-        PcmFormat next =
-            pcm(output.getSampleRate(), output.getChannels(), PcmFormat.Encoding.S16LE);
-        if (decodedFormat == null) decodedFormat = next;
-        else if (!decodedFormat.equals(next)) throw new IOException("AAC output format changed");
-        return output.getData();
-      }
+    public Recovery recovery() {
+      return recovery;
+    }
 
-      protected void release() {
-        output.setData(new byte[0], 1, 1, 16, 0);
+    private static Recovery invalid(long au) {
+      return new Recovery(
+          au, false, 0, 0, false, false, false, false, false, false, false, false, false, false,
+          false);
+    }
+
+    protected byte[] decodeBytes(PacketSource.Packet packet) throws IOException {
+      recovery = invalid(++accessUnit);
+      ByteBuffer encoded = packet.encoded();
+      if (encoded.remaining() > 1024 * 1024) throw new IOException("AAC packet exceeds bound");
+      byte[] b = new byte[encoded.remaining()];
+      encoded.get(b);
+      output.setBigEndian(false);
+      core.decodeFrame(b, output);
+      var info = core.getRecoveryInfo();
+      var elements = info.elements();
+      seenSbr |= elements.stream().anyMatch(Decoder.ElementRecovery::sbrPresent);
+      seenPs |= elements.stream().anyMatch(Decoder.ElementRecovery::psPresent);
+      requirePs |= seenPs;
+      requireSbr |=
+          requirePs
+              || seenSbr
+              || info.initialOutputRate() > info.coreRate()
+              || info.observedRate() > info.coreRate()
+              || expected != null && expected.sampleRate() > info.coreRate();
+      // JAAD duplicates mono without PS, so an output/core channel difference is not PS proof.
+      int declared = core.getConfig().getChannelConfiguration().getChannelCount();
+      int activeChannels = 0;
+      for (var element : elements) {
+        activeChannels +=
+            switch (element.type()) {
+              case "CPE" -> 2;
+              case "SCE", "LFE" -> 1;
+              default -> 0;
+            };
       }
-    };
+      boolean topology = !elements.isEmpty() && declared > 0 && declared == activeChannels;
+      boolean band = topology && (!requireSbr || info.allSbrReady());
+      boolean stereo = topology && (!requirePs || info.allPsReady());
+      boolean formatMatches =
+          expected == null
+              || info.observedRate() == expected.sampleRate()
+                  && info.observedChannels() == expected.channels();
+      recovery =
+          new Recovery(
+              accessUnit,
+              info.successfulAu(),
+              info.observedRate(),
+              info.observedChannels(),
+              seenSbr,
+              seenPs,
+              band && (expected == null || info.observedRate() == expected.sampleRate()),
+              stereo && (expected == null || info.observedChannels() == expected.channels()),
+              !elements.isEmpty()
+                  && seenSbr
+                  && elements.stream().allMatch(Decoder.ElementRecovery::sbrHeaderThisAu),
+              !elements.isEmpty()
+                  && seenPs
+                  && elements.stream().allMatch(Decoder.ElementRecovery::psHeaderThisAu),
+              !elements.isEmpty()
+                  && seenSbr
+                  && elements.stream().allMatch(Decoder.ElementRecovery::sbrIndependentThisAu),
+              !elements.isEmpty()
+                  && seenPs
+                  && elements.stream().allMatch(Decoder.ElementRecovery::psIndependentThisAu),
+              band && stereo && formatMatches,
+              info.topologyChanged(),
+              info.configurationChanged());
+      if (expected != null && !recovery.ready()) return null;
+      if (output.getData().length == 0) return null;
+      if (output.getBitsPerSample() != 16) throw new IOException("Unexpected AAC precision");
+      PcmFormat next = pcm(output.getSampleRate(), output.getChannels(), PcmFormat.Encoding.S16LE);
+      if (decodedFormat == null) decodedFormat = next;
+      else if (!decodedFormat.equals(next)) throw new IOException("AAC output format changed");
+      return output.getData();
+    }
+
+    protected void release() {
+      recovery = invalid(accessUnit);
+      output.setData(new byte[0], 1, 1, 16, 0);
+    }
   }
 
   private static PcmFormat pcm(int rate, int channels, PcmFormat.Encoding e) {

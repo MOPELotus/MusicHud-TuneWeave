@@ -127,6 +127,16 @@ public class DecoderConfig {
         return sampleFrequency;
     }
 
+    /** Read-only observation: an output-frequency extension is actually configured, not merely named. */
+    public boolean hasOutputFrequencyExtension() {
+        return outputFrequency != null;
+    }
+
+    /** Read before the first AU to capture explicit PS, including sync-extension signaling. */
+    public boolean hasParametricStereoSignaling() {
+        return psPresent;
+    }
+
     public SampleRate getOutputFrequency() {
         return outputFrequency != null ? outputFrequency : sampleFrequency;
     }

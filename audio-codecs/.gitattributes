@@ -19,3 +19,6 @@ src/test/resources/codecs/*.wv binary
 *.aiff binary
 *.aifc binary
 *.au binary
+
+# Preserve the generation tool's original license notice bytes.
+src/test/fixtures/aac-recovery/FDK-NOTICE.txt -text -whitespace

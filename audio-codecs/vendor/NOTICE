@@ -10,8 +10,9 @@ correct multichannel indexing and bound untrusted setup allocations.
 Concentus: Logan Stromberg and the Opus authors, BSD terms; unchanged sources.
 ALAC: Peter McQuillan / David Hammerton, BSD terms; finite20-bit packing and sign-extension patch.
 WavPack Tiny Decoder: David Bryant / Peter McQuillan, BSD terms; finite float intermediate-preservation hook, unchanged prediction/entropy algorithms.
-AAC: JAAD / Vavi authors, retained upstream public-domain dedication; eight
-finite compatibility/correctness patches, with originals and complete diff.
+AAC: JAAD / Vavi authors, retained upstream public-domain dedication; finite compatibility/correctness patches and four read-only access-unit recovery
+observers plus two configuration-state getters, with originals and complete diffs. Recovery observation does not copy
+DSP/filter state or alter decoding arithmetic.
 
 The separate WavPack integer precision adapter follows the scalar supplemental
 bit/CRC arithmetic of FFmpeg 9.0.2, LGPL-2.1-or-later. Its corresponding notice
