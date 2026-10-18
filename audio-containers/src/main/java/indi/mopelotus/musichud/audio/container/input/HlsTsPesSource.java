@@ -30,7 +30,13 @@ public final class HlsTsPesSource implements AutoCloseable {
   private volatile boolean closed;
 
   public HlsTsPesSource(HlsPlaybackInput input) {
+    this(input, null);
+  }
+
+  /** Takes ownership of input and reuses a first segment already fetched by container detection. */
+  public HlsTsPesSource(HlsPlaybackInput input, HlsPlaybackInput.SegmentData prefetchedFirst) {
     this.input = Objects.requireNonNull(input);
+    this.pending = prefetchedFirst;
   }
 
   public Packet next() throws IOException {

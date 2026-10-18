@@ -93,7 +93,11 @@ class ShadedContainerTest {
       }
       loader.loadClass(prefix + "hls.HlsSession").getConstructor().newInstance();
       loader.loadClass(prefix + "input.HlsPlaybackInput");
-      loader.loadClass(prefix + "input.HlsTsPesSource");
+      var hlsTs = loader.loadClass(prefix + "input.HlsTsPesSource");
+      assertNotNull(
+          hlsTs.getConstructor(
+              loader.loadClass(prefix + "input.HlsPlaybackInput"),
+              loader.loadClass(prefix + "input.HlsPlaybackInput$SegmentData")));
     }
   }
 
