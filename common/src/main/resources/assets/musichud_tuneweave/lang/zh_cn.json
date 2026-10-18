@@ -554,5 +554,7 @@
   "musichud_tuneweave.update.cfFailed": "更新检查失败，请稍后重试。",
   "musichud_tuneweave.update.cfUnavailable": "当前开发环境无法检查更新，请使用正式安装的模组 JAR。",
   "musichud_tuneweave.text.externalApiSetup": "本版本仅连接已有 TuneWeave 服务。请在模组外自行安装并启动服务，然后填写服务地址（通常为 http://127.0.0.1:7832）。",
-  "musichud_tuneweave.text.invalidServiceUrl": "服务地址无效，请输入不含账号密码、查询参数或片段的 HTTP(S) 地址。"
+  "musichud_tuneweave.text.invalidServiceUrl": "服务地址无效，请输入不含账号密码、查询参数或片段的 HTTP(S) 地址。",
+  "musichud_tuneweave.update.serviceTitle": "安装配套音乐服务",
+  "musichud_tuneweave.update.serviceNotice": "MusicHud TuneWeave 需要配套的 TuneWeave 服务来连接音乐平台。点击“去下载”将打开下载界面并自动开始下载，完成后按提示启动服务即可。\n\n如果你已有可用的 TuneWeave 服务，可点击“知道了”，然后在设置中填写服务地址。"
 }

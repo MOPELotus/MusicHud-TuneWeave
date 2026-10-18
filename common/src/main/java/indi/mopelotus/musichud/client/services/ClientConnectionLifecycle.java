@@ -50,6 +50,8 @@ public final class ClientConnectionLifecycle {
     public void quit(Object origin, Object originConnection, Consumer<Object> detach, Runnable cleanup) {
         synchronized (lock) {
             if (origin == null || boundConnection == null || originConnection != boundConnection) return;
+            // Respawn may retain this listener; a retired player no longer owns its quit callback.
+            if (origin != boundPlayer && origin != activePlayer && origin != player.get()) return;
             Object physical = boundConnection;
             Object previousPlayer = activePlayer == null ? boundPlayer : activePlayer;
             boundConnection = boundTransport = boundPlayer = activeTransport = activePlayer = null;

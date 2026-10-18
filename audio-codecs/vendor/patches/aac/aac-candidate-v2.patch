@@ -1,0 +1,236 @@
+--- a/src/main/java/net/sourceforge/jaad/aac/DecoderConfig.java
++++ b/src/main/java/net/sourceforge/jaad/aac/DecoderConfig.java
+@@ -1,7 +1,7 @@
+ package net.sourceforge.jaad.aac;
+ 
+ import net.sourceforge.jaad.aac.filterbank.FilterBank;
+-import net.sourceforge.jaad.aac.ps.PSImpl;
++import net.sourceforge.jaad.aac.ps.PSOrig;
+ import net.sourceforge.jaad.aac.sbr.PS;
+ import net.sourceforge.jaad.aac.sbr.SBR;
+ import net.sourceforge.jaad.aac.syntax.BitStream;
+@@ -18,6 +18,11 @@
+  * @author in-somnia
+  */
+ public class DecoderConfig {
++    private int noiseRandomState = 0x1F2E3D4C;
++    public int nextNoiseRandom() {
++        noiseRandomState = noiseRandomState * 1664525 + 1013904223;
++        return noiseRandomState;
++    }
+ 
+     private Profile profile = Profile.AAC_MAIN, extProfile = Profile.UNKNOWN;
+     private SampleRate sampleFrequency = SF_NONE;
+@@ -41,7 +46,7 @@
+ 
+     public PS openPS(SBR sbr) {
+         psPresent = true;
+-        return new PSImpl(sbr.numTimeSlotsRate);
++        return new PSOrig(sbr.numTimeSlotsRate);
+     }
+ 
+     // extension: error resilience
+@@ -199,7 +204,7 @@
+         profile = readProfile(in);
+ 
+         sampleFrequency = SampleRate.decode(in);
+-        outputFrequency = sampleFrequency;
++        outputFrequency = null;
+ 
+         channelConfiguration = ChannelConfiguration.forInt(in.readBits(4));
+ 
+--- a/src/main/java/net/sourceforge/jaad/adts/ADTSDemultiplexer.java
++++ b/src/main/java/net/sourceforge/jaad/adts/ADTSDemultiplexer.java
+@@ -26,10 +26,7 @@
+ 
+     // need to find ADTS header 20 times // TODO is this not corner cut???
+     boolean validateADTS() throws IOException {
+-        for (int i = 0; i < 20; i++) {
+-            if (!findNextFrame()) return false;
+-        }
+-        return true;
++        return findNextFrame();
+     }
+ 
+     public byte[] readNextFrame() throws IOException {
+--- a/src/main/java/net/sourceforge/jaad/aac/syntax/ICStream.java
++++ b/src/main/java/net/sourceforge/jaad/aac/syntax/ICStream.java
+@@ -24,7 +24,7 @@
+ 
+     private static final int SF_DELTA = 60;
+     private static final int SF_OFFSET = 200;
+-    private static int randomState = 0x1F2E3D4C;
++    private final DecoderConfig randomConfig;
+     private final int frameLength;
+     // always needed
+     private final ICSInfo info;
+@@ -48,6 +48,7 @@
+     private final float[] overlap;
+ 
+     public ICStream(DecoderConfig config) {
++        this.randomConfig = config;
+         this.frameLength = config.getFrameLength();
+         info = new ICSInfo(config);
+         sfbCB = new int[MAX_SECTIONS];
+@@ -228,8 +229,7 @@
+                         float energy = 0;
+ 
+                         for (int k = 0; k < width; k++) {
+-                            randomState *= 1664525 + 1013904223;
+-                            iqData[off + k] = randomState;
++                            iqData[off + k] = randomConfig.nextNoiseRandom();
+                             energy += iqData[off + k] * iqData[off + k];
+                         }
+ 
+--- a/src/main/java/net/sourceforge/jaad/aac/Decoder.java
++++ b/src/main/java/net/sourceforge/jaad/aac/Decoder.java
+@@ -98,8 +98,9 @@
+             logger.log(Level.TRACE, () -> "frame %d @%d".formatted(frames, 8 * frame.length));
+             decode(in, buffer);
+             logger.log(Level.TRACE, () -> "left %d".formatted(in.getBitsLeft()));
+-        } catch (EOSException e) {
+-            logger.log(Level.WARNING, "unexpected end of frame", e);
++        } catch (RuntimeException e) {
++            buffer.setData(new byte[0], 0, 0, 0, 0);
++            throw e;
+         } finally {
+             ++frames;
+         }
+--- a/src/main/java/net/sourceforge/jaad/aac/ps/Filter.java
++++ b/src/main/java/net/sourceforge/jaad/aac/ps/Filter.java
+@@ -13,7 +13,7 @@
+     }
+ 
+     static float sqrt(float x) {
+-        return (float) Math.sqrt(Math.toRadians(x));
++        return (float) Math.sqrt(x);
+     }
+ 
+     float SIN_75 = sind(75);
+--- a/src/main/java/net/sourceforge/jaad/aac/ps/Filterbank.java
++++ b/src/main/java/net/sourceforge/jaad/aac/ps/Filterbank.java
+@@ -28,7 +28,7 @@
+             // add new samples
+             for (int n = 0; n < this.len; n++) {
+                 this.work[12 + n][0] = X[n + 6 /*delay*/][band][0];
+-                this.work[12 + n][0] = X[n + 6 /*delay*/][band][0];
++                this.work[12 + n][1] = X[n + 6 /*delay*/][band][1];
+             }
+ 
+             // store samples
+--- a/src/main/java/net/sourceforge/jaad/aac/sbr/SBR2.java
++++ b/src/main/java/net/sourceforge/jaad/aac/sbr/SBR2.java
+@@ -49,12 +49,12 @@
+             if ((result = ch0.sbr_grid(ld)) > 0)
+                 return result;
+ 
++            // Copy the current grid before parsing the right channel delta flags.
++            ch1.couple(ch0, N_Q);
+             ch0.sbr_dtdf(ld);
+             ch1.sbr_dtdf(ld);
+             ch0.invf_mode(ld);
+-
+-            // need to copy some data from left to right
+-            ch1.couple(ch0, N_Q);
++            System.arraycopy(ch0.bs_invf_mode, 0, ch1.bs_invf_mode, 0, N_Q);
+ 
+             ch0.sbr_envelope(ld, false);
+             ch0.sbr_noise(ld, false);
+--- a/src/main/java/net/sourceforge/jaad/aac/sbr/HFGeneration.java
++++ b/src/main/java/net/sourceforge/jaad/aac/sbr/HFGeneration.java
+@@ -1,4 +1,6 @@
+ package net.sourceforge.jaad.aac.sbr;
++
++import net.sourceforge.jaad.aac.AACException;
+ 
+ class HFGeneration {
+ 
+@@ -245,37 +247,57 @@
+     }
+ 
+     private static void patch_construction(SBR sbr) {
++        // ISO normally limits this to five. The published Coding Technologies
++        // decoder-check stream needs six; never silently drop its final patch.
++        final int maxPatches = 6;
++        final int target = sbr.kx + sbr.M;
++        if (sbr.k0 < 1 || sbr.k0 > sbr.kx || sbr.kx > 32
++                || sbr.M < 1 || sbr.M > SBR.MAX_M || target > 64
++                || sbr.N_master < 1 || sbr.N_master >= sbr.f_master.length
++                || sbr.f_master[0] != sbr.k0
++                || sbr.f_master[sbr.N_master] != target)
++            throw new AACException("Invalid SBR patch frequency range");
++        for (int i = 1; i <= sbr.N_master; i++) {
++            if (sbr.f_master[i] <= sbr.f_master[i - 1])
++                throw new AACException("Invalid SBR master frequency table");
++        }
+         int msb = sbr.k0;
+         int usb = sbr.kx;
+         //(uint8_t)(2.048e6/sbr.sample_rate + 0.5);
+-        int goalSb = goalSbTab[sbr.sample_rate.getIndex()];
++        int rateIndex = sbr.sample_rate.getIndex();
++        if (rateIndex < 0 || rateIndex >= goalSbTab.length)
++            throw new AACException("Unsupported SBR patch sample rate");
++        int goalSb = goalSbTab[rateIndex];
+ 
+         sbr.noPatches = 0;
+ 
+         int k = 0;
+         if (goalSb < (sbr.kx + sbr.M)) {
+-            for (int i = 0; sbr.f_master[i] < goalSb; i++) {
++            for (int i = 0; i < sbr.N_master && sbr.f_master[i] < goalSb; i++) {
+                 k = i + 1;
+             }
+         } else {
+             k = sbr.N_master;
+         }
+ 
+-        if (sbr.N_master == 0) {
+-            sbr.noPatches = 0;
+-            sbr.patchNoSubbands[0] = 0;
+-            sbr.patchStartSubband[0] = 0;
+-
+-            return;
+-        }
+-
+         int sb;
++        int lastK = -1, lastMsb = -1;
++        int attempts = 0;
+         do {
++            // k changes to N_master at most once. Productive steps advance usb;
++            // empty steps reset msb. Reject a repeated state and bound all work.
++            if ((k == lastK && msb == lastMsb) || ++attempts > 2 * (maxPatches + 1))
++                throw new AACException("SBR patch construction did not converge");
++            lastK = k;
++            lastMsb = msb;
++            if (sbr.noPatches >= maxPatches)
++                throw new AACException("Too many SBR patches");
+             int j = k + 1;
+             int odd;
+ 
+             do {
+-                j--;
++                if (--j < 0)
++                    throw new AACException("Invalid SBR patch source range");
+ 
+                 sb = sbr.f_master[j];
+                 odd = (sb - 2 + sbr.k0) % 2;
+@@ -285,6 +307,11 @@
+             sbr.patchNoSubbands[sbr.noPatches] = Math.max(sb - usb, 0);
+             sbr.patchStartSubband[sbr.noPatches] = sbr.k0 - odd
+                     - sbr.patchNoSubbands[sbr.noPatches];
++
++            if (sbr.patchStartSubband[sbr.noPatches] < 0
++                    || sbr.patchStartSubband[sbr.noPatches]
++                    + sbr.patchNoSubbands[sbr.noPatches] > sbr.kx)
++                throw new AACException("Invalid SBR patch source range");
+ 
+             if (sbr.patchNoSubbands[sbr.noPatches] > 0) {
+                 usb = sb;
+@@ -303,6 +330,6 @@
+             sbr.noPatches--;
+         }
+ 
+-        sbr.noPatches = Math.min(sbr.noPatches, 5);
++        // Keep every constructed patch; over-limit input was rejected above.
+     }
+ }

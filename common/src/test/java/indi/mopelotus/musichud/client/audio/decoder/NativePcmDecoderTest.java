@@ -49,9 +49,9 @@ class NativePcmDecoderTest {
             byte[] raw = samples(bits);
             Path file = directory.resolve("pcm-" + channels + "-" + bits + ".wav");
             Files.write(file, wave(channels, bits, raw, true));
-            assertEquals("WavPcmDecoder", AudioDecoderFactory.probe(file.toString(), FormatType.WAV).backend());
+            assertEquals("java/wav", AudioDecoderFactory.probe(file.toString(), FormatType.WAV).backend());
             try (AudioDecoder decoder = AudioDecoderFactory.open(file.toString(), FormatType.WAV, Map.of(), floating)) {
-                assertInstanceOf(WavPcmDecoder.class, decoder);
+                assertInstanceOf(ManagedAudioDecoder.class, decoder);
                 assertEquals(OpenAlFormatSelector.select(channels, floating && bits > 16), decoder.getFormat());
                 ByteArrayOutputStream result = new ByteArrayOutputStream();
                 byte[] chunk;

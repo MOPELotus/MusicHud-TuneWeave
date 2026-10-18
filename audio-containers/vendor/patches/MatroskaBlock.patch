@@ -1,0 +1,8 @@
+--- a/com/sedmelluq/discord/lavaplayer/container/matroska/format/MatroskaBlock.java
++++ b/indi/mopelotus/musichud/audio/container/matroska/format/MatroskaBlock.java
+@@ -1,4 +1,4 @@
+-package com.sedmelluq.discord.lavaplayer.container.matroska.format;
++package indi.mopelotus.musichud.audio.container.matroska.format;
+ 
+ import java.io.IOException;
+ import java.nio.ByteBuffer;

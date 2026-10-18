@@ -21,7 +21,7 @@ final class PcmOutput {
 
     PcmOutput(int channels, int bits, int sampleRate, boolean floatSupported, long mask, boolean multichannelSupported) {
         if (channels < 1 || channels > 8 || bits < 4 || bits > 32
-                || sampleRate < 8000 || sampleRate > 384000) throw new IllegalArgumentException("Unsupported PCM format");
+                || sampleRate < 7350 || sampleRate > 384000) throw new IllegalArgumentException("Unsupported PCM format");
         try { PcmChannelLayout.validate(channels, mask, true); }
         catch (java.io.IOException error) { throw new IllegalArgumentException(error.getMessage()); }
         this.channels = channels; this.bits = bits; this.sampleRate = sampleRate;

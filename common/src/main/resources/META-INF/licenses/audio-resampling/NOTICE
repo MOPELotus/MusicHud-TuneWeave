@@ -1,0 +1,9 @@
+libresample4j 0.1.4
+Maven: io.github.overplex:libresample4j:0.1.4
+Upstream: https://github.com/overplex/libresample4j
+Sources: https://repo.maven.apache.org/maven2/io/github/overplex/libresample4j/0.1.4/libresample4j-0.1.4-sources.jar
+License: GNU Lesser General Public License, version 2.1
+The original resampling kernel is unmodified. Distribution package names may be relocated.
+Copyright and attribution remain in the source archive.
+Binary SHA-256: 3d660066b26767d7131c826f78a4a973454663e96b2906e11133cdc870532698
+Source SHA-256: 29255c9fd8227cbbdd3717381202a892695bae91f22a82cc9144299792450954

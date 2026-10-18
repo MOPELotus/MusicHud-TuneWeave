@@ -1,0 +1,55 @@
+package indi.mopelotus.musichud.audio.container.matroska;
+
+import indi.mopelotus.musichud.audio.container.matroska.format.MatroskaFileTrack;
+
+import java.nio.ByteBuffer;
+
+/**
+ * Consumer for the file frames of a specific matroska file track
+ */
+public interface MatroskaTrackConsumer extends AutoCloseable {
+    /**
+     * @return The associated matroska file track
+     */
+    MatroskaFileTrack getTrack();
+
+    /**
+     * Initialise the consumer, called before first consume()
+     */
+    void initialise();
+
+    /**
+     * Indicates that the next frame is not a direct continuation of the previous one
+     *
+     * @param requestedTimecode Timecode in milliseconds to which the seek was requested to
+     * @param providedTimecode  Timecode in milliseconds to which the seek was actually performed to
+     */
+    void seekPerformed(long requestedTimecode, long providedTimecode);
+
+    /**
+     * Indicates that no more input will come, all remaining buffers should be flushed
+     *
+     * @throws InterruptedException When interrupted externally (or for seek/stop).
+     */
+    void flush() throws InterruptedException;
+
+    /**
+     * Consume one frame from the track
+     *
+     * @param data The data of the frame
+     * @throws InterruptedException When interrupted externally (or for seek/stop).
+     */
+    void consume(ByteBuffer data) throws InterruptedException;
+
+    /** Exact block timing. A lace may contain variable codec durations; do not divide blindly. */
+    record PacketTiming(long blockTimestampNs, long presentationTimestampNs, long blockDurationNs,
+                        long discardPaddingNs, int laceIndex, int laceCount) {}
+    default void consumeFrame(ByteBuffer data, PacketTiming timing) throws InterruptedException { consume(data); }
+
+
+    /**
+     * Already flushed, no more input coming. Free all resources.
+     */
+    @Override
+    void close() throws Exception;
+}

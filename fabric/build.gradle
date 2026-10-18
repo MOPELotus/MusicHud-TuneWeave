@@ -103,8 +103,12 @@ dependencies {
     }
     implementation project(path: ':metadata', configuration: 'shadowRuntimeElements')
     shadowBundle(project(path: ':metadata', configuration: 'shadowRuntimeElements')) { transitive = false }
-    implementation "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
-    shadowBundle "dev.arbjerg:lavaplayer:$rootProject.lavaplayer_version"
+    implementation(project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')) { transitive = false }
+    shadowBundle(project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')) { transitive = false }
+    implementation(project(path: ':audio-containers', configuration: 'shadowRuntimeElements')) { transitive = false }
+    shadowBundle(project(path: ':audio-containers', configuration: 'shadowRuntimeElements')) { transitive = false }
+    implementation 'io.github.overplex:libresample4j:0.1.4'
+    shadowBundle 'io.github.overplex:libresample4j:0.1.4'
 
 //    implementation "io.github.selemba1000:JavaMediaTransportControls:$rootProject.jmtc_version"
 //    shadowBundle "io.github.selemba1000:JavaMediaTransportControls:$rootProject.jmtc_version"
@@ -158,15 +162,13 @@ shadowJar {
         exclude { !it.moduleGroup.startsWith("com.twelvemonkeys.") }
     }
     sourceSetsClassesDirs.from(project(":common").sourceSets.main.output.classesDirs)
+    relocate 'com.laszlosystems.libresample4j', 'indi.mopelotus.musichud.shaded.resample'
     relocate 'com.github.weisj.jsvg', 'indi.mopelotus.musichud.shaded.jsvg'
     relocate 'com.twelvemonkeys', 'indi.mopelotus.musichud.shaded.twelvemonkeys'
     // The private WebP reader is instantiated explicitly, without global ImageIO registration.
     exclude 'META-INF/services/javax.imageio.spi.*'
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
-    // Lavaplayer owns this Jackson copy; Minecraft may provide a different version.
-    relocate 'com.fasterxml.jackson', 'indi.mopelotus.musichud.shaded.jackson'
-    mergeServiceFiles { setIncludes(['META-INF/services/com.fasterxml.jackson.*']) }
     exclude 'org/slf4j/**'
 }
 
@@ -176,12 +178,12 @@ remapJar {
 }
 
 jar {
-    // Use the relocated decoder caller from shadowJar, not the original source-set output.
+    // Shadow owns every project class so relocated callers cannot lose to raw source output.
+    // NeoForge compiles common sources into this project's main classes directory as well.
     eachFile { details ->
-        if (details.path in ['indi/mopelotus/musichud/client/utils/image/WebpImages.class',
-                            'indi/mopelotus/musichud/client/utils/image/SvgImages.class',
-                            'indi/mopelotus/musichud/client/utils/image/QrImageUtils.class'] &&
-                sourceSets.main.output.classesDirs.files.any { details.file.toPath().startsWith(it.toPath()) }) {
+        if (details.path.endsWith('.class') && sourceSets.main.output.classesDirs.files.any {
+            details.file.toPath().toAbsolutePath().normalize().startsWith(it.toPath().toAbsolutePath().normalize())
+        }) {
             details.exclude()
         }
     }
@@ -225,7 +227,7 @@ tasks.named('test', Test) {
     systemProperty 'musichud.test.minecraftVersion', rootProject.minecraft_version
 }
 
-apply from: rootProject.file('gradle/verify-shaded-jackson.gradle')
+apply from: rootProject.file('gradle/verify-java-audio-dependencies.gradle')
 
 apply from: rootProject.file('gradle/verify-shaded-webp.gradle')
 apply from: rootProject.file('gradle/verify-shaded-svg.gradle')

@@ -1,0 +1,16 @@
+--- a/libSBRenc/src/sbr_encoder.cpp
++++ b/libSBRenc/src/sbr_encoder.cpp
+@@ -1725,10 +1725,9 @@
+       hSbrElement->sbrBitstreamData.NrSendHeaderData =
+           fixMax(hSbrElement->sbrBitstreamData.NrSendHeaderData, 1);
+     } else {
+-      /* assure header period at least once per second */
+-      hSbrElement->sbrBitstreamData.NrSendHeaderData = fixMin(
+-          fixMax(headerPeriod, 1), (hSbrElement->sbrConfigData.sampleFreq /
+-                                    hSbrElement->sbrConfigData.frameSize));
++      /* Fixture generation only: permit a requested delayed repeated header.
++         This changes header scheduling, not the SBR/PS syntax or DSP. */
++      hSbrElement->sbrBitstreamData.NrSendHeaderData = fixMax(headerPeriod, 1);
+     }
+   } else {
+     hSbrElement->sbrBitstreamData.NrSendHeaderData = 0;

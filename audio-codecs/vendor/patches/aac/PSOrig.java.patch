@@ -1,0 +1,54 @@
+--- a/net/sourceforge/jaad/aac/ps/PSOrig.java
++++ b/net/sourceforge/jaad/aac/ps/PSOrig.java
+@@ -81,6 +81,17 @@
+     /** a header has been read */
+     boolean header_read;
+ 
++    public record RecoveryInfo(boolean effectiveHeader, boolean headerThisAu,
++            boolean independentThisAu, boolean ready) {}
++    private RecoveryInfo recoveryInfo = new RecoveryInfo(false, false, false, false);
++    private boolean recoveryPhaseParametersThisAu;
++
++    public RecoveryInfo getRecoveryInfo() { return recoveryInfo; }
++    public void beginRecoveryAu() {
++        recoveryInfo = new RecoveryInfo(recoveryInfo.effectiveHeader(), false, false, recoveryInfo.ready());
++    }
++
++
+     // hybrid filterbank parameters
+     final Filterbank hyb;
+     FBType fbt = FBType.T20;
+@@ -174,8 +185,12 @@
+     @Override
+     public void decode(BitStream ld) {
+ 
++        boolean previousReady = recoveryInfo.ready();
++        recoveryInfo = new RecoveryInfo(false, false, false, false);
++        recoveryPhaseParametersThisAu = false;
+         // check for new PS header
+-        if (ld.readBool()) {
++        boolean recoveryHeaderThisAu = ld.readBool();
++        if (recoveryHeaderThisAu) {
+             header_read = true;
+ 
+             fbt = FBType.T20;
+@@ -263,6 +278,11 @@
+         }
+ 
+         ps_data_available = true;
++        boolean independent = header_read && num_env > 0
++                && (!enable_iid || !iid_dt[0]) && (!enable_icc || !icc_dt[0])
++                && (!enable_ipdopd || (recoveryPhaseParametersThisAu && !ipd_dt[0] && !opd_dt[0]));
++        recoveryInfo = new RecoveryInfo(header_read, recoveryHeaderThisAu,
++                independent, previousReady || independent);
+     }
+ 
+     private void ps_extension(BitStream ld) {
+@@ -270,6 +290,7 @@
+ 
+         if (ps_extension_id == 0) {
+             enable_ipdopd = ld.readBool();
++            recoveryPhaseParametersThisAu = true;
+ 
+             if (enable_ipdopd) {
+                 for (int n = 0; n < num_env; n++) {
