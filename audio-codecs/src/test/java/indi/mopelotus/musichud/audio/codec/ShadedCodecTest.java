@@ -133,6 +133,58 @@ class ShadedCodecTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"opus", "vorbis"})
+  void isolatedArtifactOggSeekReusesRawPacketCores(String codec) throws Exception {
+    byte[] encoded = CodecFixtureTest.resource(codec + ".ogg");
+    var artifact = Path.of(System.getProperty("audioCodecJar"));
+    try (var loader =
+        new URLClassLoader(
+            new URL[] {artifact.toUri().toURL()}, ClassLoader.getPlatformClassLoader())) {
+      String prefix = "indi.mopelotus.musichud.audio.codec.";
+      var sourceType = loader.loadClass(prefix + "OggSeekDecoder$Source");
+      var seekerType = loader.loadClass(prefix + "OggSeekDecoder");
+      var resultType = loader.loadClass(prefix + "OggSeekDecoder$Result");
+      var decoderType = loader.loadClass(prefix + "PcmDecoder");
+      Object source =
+          java.lang.reflect.Proxy.newProxyInstance(
+              loader,
+              new Class<?>[] {sourceType},
+              (proxy, method, args) -> {
+                if (method.getName().equals("open")) return new OggSeekTest.MemoryChannel(encoded);
+                throw new UnsupportedOperationException(method.getName());
+              });
+      Object seeker =
+          seekerType
+              .getConstructor(sourceType, long.class)
+              .newInstance(source, (long) encoded.length);
+      try {
+        Object result = seekerType.getMethod("seek", long.class).invoke(seeker, 1201L);
+        Object decoder = resultType.getMethod("decoder").invoke(result);
+        try {
+          var output = new ByteArrayOutputStream();
+          byte[] b = new byte[113 * 4];
+          int n;
+          while ((n =
+                  (int)
+                      decoderType
+                          .getMethod("readFrames", byte[].class, int.class, int.class)
+                          .invoke(decoder, b, 0, 113))
+              != -1) output.write(b, 0, n * 4);
+          byte[] sequential = unshaded(codec);
+          assertArrayEquals(
+              Arrays.copyOfRange(sequential, 1201 * 4, sequential.length), output.toByteArray());
+          assertEquals(1201L, resultType.getMethod("sourceFrame").invoke(result));
+          assertEquals(3599L, decoderType.getMethod("framePosition").invoke(decoder));
+        } finally {
+          decoderType.getMethod("close").invoke(decoder);
+        }
+      } finally {
+        seekerType.getMethod("close").invoke(seeker);
+      }
+    }
+  }
+
   private static byte[] unshaded(String mode) throws Exception {
     if (mode.equals("opus-six")) return CodecFixtureTest.resource("opus-six.s16");
     if (mode.endsWith("-packet")) return OggPacketTest.decode(mode.replace("-packet", ""));
