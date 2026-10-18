@@ -67,6 +67,26 @@ class MusicInfoCardPusherTest {
         }
     }
 
+    @Test void sharedWidgetHidesMissingSkinsAndRestoresThemWithoutChangingTheBoundPlayer() throws Exception {
+        try (var e = environment()) {
+            Object card = card(e);
+            UUID player = UUID.randomUUID();
+            bind(card, music(new PusherInfo(player, "player")));
+            var lookup = e.loadClass(ROOT + "client.utils.PlayerInfoUtil");
+            lookup.getField("missing").setBoolean(null, true);
+            assertNull(supplier(card).get());
+            assertEquals(View.GONE, view(card, "getPusherHeadView").getVisibility());
+            assertEquals(View.VISIBLE, view(card, "getPusherRow").getVisibility());
+            lookup.getField("missing").setBoolean(null, false);
+            assertNotNull(supplier(card).get());
+            assertEquals(View.VISIBLE, view(card, "getPusherHeadView").getVisibility());
+            assertEquals(player, lookup.getField("last").get(null));
+            assertTrue(((icyllis.modernui.view.ViewGroup)view(card, "getPusherRow")).getLayoutTransition()
+                    .isTransitionTypeEnabled(icyllis.modernui.animation.LayoutTransition.CHANGING));
+            bind(card, null); assertHidden(card);
+        }
+    }
+
     private MusicDetail music(PusherInfo info) {
         var detail = MusicDetail.fromTuneWeave(UUID.randomUUID().getLeastSignificantBits(), "qq:test", "video", "track", 3000, null, List.of());
         detail.setPusherInfo(info); return detail;
@@ -92,12 +112,12 @@ class MusicInfoCardPusherTest {
         s.put("net.minecraft.client.multiplayer.PlayerInfo", "public class PlayerInfo {}");
         s.put(ROOT + "client.utils.PlayerInfoUtil", """
                 public class PlayerInfoUtil {
-                    public static java.util.UUID last; public static Runnable duringResolve;
+                    public static java.util.UUID last; public static Runnable duringResolve; public static boolean missing;
                     public static net.minecraft.client.multiplayer.PlayerInfo getPlayerInfoByUUID(java.util.UUID uuid) {
                         last=uuid; Runnable next=duringResolve; duringResolve=null; if(next!=null) next.run();
                         return new net.minecraft.client.multiplayer.PlayerInfo();
                     }
-                    public static net.minecraft.resources.Identifier getPlayerSkin(net.minecraft.client.multiplayer.PlayerInfo info) { return new net.minecraft.resources.Identifier("skin"); }
+                    public static net.minecraft.resources.Identifier getPlayerSkin(net.minecraft.client.multiplayer.PlayerInfo info) { return missing ? null : new net.minecraft.resources.Identifier("skin"); }
                 }
                 """);
         s.put(COMPONENT + "PlayerHeadView", """

@@ -22,7 +22,6 @@ import indi.mopelotus.musichud.client.ui.components.ToggleTrackLikeStateButton;
 import indi.mopelotus.musichud.client.ui.components.FlexWrapLayout;
 import indi.mopelotus.musichud.client.ui.components.ArtistDetailView;
 import indi.mopelotus.musichud.client.ui.components.MusicCollectionDetailView;
-import indi.mopelotus.musichud.client.utils.PlayerInfoUtil;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
 import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import lombok.Getter;
@@ -65,20 +64,18 @@ public class MusicListItem extends LinearLayout {
     private TextView feeLabel;
     private FlexWrapLayout row2;
     private TextView durationText;
-    private TextView pusherText;
     @Setter
     @Getter
     private boolean showPusherInfo = true;
     @Getter
     private MusicDetail musicDetail;
-    private PlayerHeadView pusherHeadView;
     private ToggleTrackLikeStateButton likeButton;
     @Getter
     private LinearLayout buttonsLayout;
     private ModifyPlaylistTrackModalButton addToPlaylistButton;
     private PlaybackSourceLink sourceButton;
     private TextView playRecordTimeText;
-    private LinearLayout pusherInfo;
+    private PusherWidget pusherInfo;
     @Getter
     private LinearLayout infoRow;
 
@@ -152,30 +149,10 @@ public class MusicListItem extends LinearLayout {
         params1.setMargins(0, 0, dp(12), 0);
         infoRow.addView(feeLabel, params1);
 
-        pusherInfo = new LinearLayout(context);
-        pusherInfo.setOrientation(LinearLayout.HORIZONTAL);
-        pusherInfo.setGravity(Gravity.CENTER_VERTICAL);
-        pusherInfo.setVisibility(GONE);
+        pusherInfo = new PusherWidget(context);
         LayoutParams params2 = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
         params2.setMargins(0, 0, dp(12), 0);
         infoRow.addView(pusherInfo, params2);
-
-        pusherText = new TextView(context);
-        pusherText.setTextColor(Theme.SECONDARY_TEXT_COLOR);
-        pusherText.setTextSize(Theme.TEXT_SIZE_NORMAL);
-        pusherText.setTextAlignment(TEXT_ALIGNMENT_TEXT_START);
-
-        pusherHeadView = new PlayerHeadView(context);
-        int rowHeight = pusherText.dp(Theme.TEXT_SIZE_LARGER);
-        //noinspection SuspiciousNameCombination
-        pusherHeadView.setLayoutParams(new LinearLayout.LayoutParams(rowHeight, rowHeight));
-        pusherHeadView.setVisibility(View.GONE);
-
-        pusherInfo.addView(pusherHeadView);
-        LinearLayout.LayoutParams params5 = new LinearLayout.LayoutParams(WRAP_CONTENT, rowHeight);
-        params5.gravity = Gravity.LEFT | Gravity.CENTER_HORIZONTAL;
-        params5.setMargins(pusherText.dp(4), 0, 0, 0);
-        pusherInfo.addView(pusherText, params5);
 
         sourceButton = new PlaybackSourceLink(context);
         infoRow.addView(sourceButton, new LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
@@ -244,9 +221,7 @@ public class MusicListItem extends LinearLayout {
         feeLabel.setVisibility(GONE);
         durationText.setText("");
         row2.removeAllViews();
-        pusherText.setText("");
-        pusherHeadView.setVisibility(View.GONE);
-        pusherHeadView.setPlayerSkinSupplier(null);
+        pusherInfo.clear();
         playRecordTimeText.setText("");
         playRecordTimeText.setVisibility(GONE);
         addToPlaylistButton.bindMusicDetail(null);
@@ -370,25 +345,7 @@ public class MusicListItem extends LinearLayout {
                 LocalTime.MIDNIGHT.plusSeconds(duration.toSeconds())
         ));
 
-        pusherInfo.setVisibility(GONE);
-        pusherText.setText("");
-        pusherHeadView.setVisibility(GONE);
-        pusherHeadView.setPlayerSkinSupplier(null);
-        if (showPusherInfo) {
-            PusherInfo pusher = musicDetail.getPusherInfo();
-            if (!pusher.getPlayerName().isBlank()) {
-                pusherInfo.setVisibility(VISIBLE);
-                pusherText.setText(pusher.getPlayerName());
-                pusherHeadView.setVisibility(VISIBLE);
-                pusherHeadView.setPlayerSkinSupplier(() -> {
-                    try {
-                        return PlayerInfoUtil.getPlayerSkin(PlayerInfoUtil.getPlayerInfoByUUID(pusher.getPlayerUUID()));
-                    } catch (IllegalStateException ignored) {
-                        return null;
-                    }
-                });
-            }
-        }
+        pusherInfo.bind(showPusherInfo ? musicDetail.getPusherInfo() : null);
         sourceButton.bind(showPusherInfo ? musicDetail.getPlaybackSource() : PlaybackSource.NONE);
         boolean podcastOrRadio = !platformActionsEnabled || "podcast_episode".equals(musicDetail.getSourceKind())
                 || "radio_station".equals(musicDetail.getSourceKind()) || "cloud_upload".equals(musicDetail.getSourceKind());

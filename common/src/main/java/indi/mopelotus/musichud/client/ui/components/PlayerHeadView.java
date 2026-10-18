@@ -93,20 +93,21 @@ public class PlayerHeadView extends FrameLayout {
     }
 
     public void setPlayerSkinSupplier(@Nullable Supplier<ResourceLocation> playerSkinSupplier) {
+        if (playerSkinSupplier == null || this.playerSkinSupplier != playerSkinSupplier) {
+            // A new binding must never inherit the previous player's cached image.
+            skin = null;
+        }
         this.playerSkinSupplier = playerSkinSupplier;
-        skin = playerSkinSupplier == null ? null : playerSkinSupplier.get();
-//        if (RenderSystem.isOnRenderThread()) {
         updateHeadImage();
-//        } else {
-//            Minecraft.getInstance().submit(this::updateHeadImage);
-//        }
     }
 
     private void updateHeadImage() {
         if (ClientGraphicsResources.RENDER.isStopped()) return;
-        if (playerSkinSupplier != null) {
-            skin = playerSkinSupplier.get();
-        }
+        Supplier<ResourceLocation> supplier = playerSkinSupplier;
+        ResourceLocation resolved = supplier == null ? null : supplier.get();
+        // A supplier may synchronously trigger a clear/rebind while resolving.
+        if (supplier != playerSkinSupplier) return;
+        if (supplier == null || resolved != null) skin = resolved;
         if (skin == null) {
             clearImages();
             lastRenderedSkin = null;
