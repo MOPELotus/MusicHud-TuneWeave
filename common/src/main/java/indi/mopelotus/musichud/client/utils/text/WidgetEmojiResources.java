@@ -17,6 +17,9 @@ public final class WidgetEmojiResources {
         if (owned != null) Core.getUiHandlerAsync().post(owned::synchronize);
     }
 
+    /** Completed reload identity for cached offscreen widget snapshots; no resources are allocated. */
+    public static long currentEpoch() { return generation.epoch(); }
+
     static EmojiImages.Generation currentGeneration() { return generation; }
 
     static EmojiImages forCanvas() {
