@@ -1,5 +1,6 @@
 package indi.mopelotus.musichud.client.ui.dto;
 
+import com.ibm.icu.text.BreakIterator;
 import icyllis.modernui.graphics.Canvas;
 import icyllis.modernui.graphics.text.FontMetricsInt;
 import icyllis.modernui.graphics.text.ShapedText;
@@ -43,7 +44,7 @@ public class LyricLine implements Comparable<LyricLine> {
     private boolean phraseParsed = false;
 
     private static HighlightSpan applySpan(SpannableString spannableString, int start, int end, int charStartInPhrase) {
-        HighlightSpan span = new HighlightSpan(charStartInPhrase, Character.codePointCount(spannableString, start, end));
+        HighlightSpan span = new HighlightSpan(charStartInPhrase, Character.codePointCount(spannableString, start, end), start, end);
         spannableString.setSpan(
                 span,
                 start, end,
@@ -98,6 +99,7 @@ public class LyricLine implements Comparable<LyricLine> {
             int lastPhraseEnd = 0;
             Duration lastEndTime = getStartTime();
             int textLength = spannableString.length();
+            BreakIterator graphemes = LyricGraphemes.boundaries(spannableString);
             //LinkedHashMap
             for (Map.Entry<Duration, Integer> entry : phraseEndingOffsetMap.entrySet()) {
                 Integer phraseEnd = entry.getValue();
@@ -105,8 +107,8 @@ public class LyricLine implements Comparable<LyricLine> {
                 // Ignore malformed timing/offset entries without poisoning the next valid phrase.
                 if (phraseEnd == null || endTime == null || phraseEnd <= lastPhraseEnd
                         || phraseEnd > textLength || endTime.compareTo(lastEndTime) <= 0) continue;
-                if (phraseEnd < textLength && Character.isHighSurrogate(spannableString.charAt(phraseEnd - 1))
-                        && Character.isLowSurrogate(spannableString.charAt(phraseEnd))) continue;
+                // A platform offset must not split a surrogate, combining sequence, VS or ZWJ emoji.
+                if (!graphemes.isBoundary(phraseEnd)) continue;
                 List<HighlightSpan> spans = new ArrayList<>(1);
                 Duration phraseDuration = endTime.minus(lastEndTime);
                 int durationMillis = phraseDuration.compareTo(Duration.ofMillis(Integer.MAX_VALUE)) >= 0
@@ -119,9 +121,10 @@ public class LyricLine implements Comparable<LyricLine> {
                     // Whitespace is left unspanned to preserve word-boundary break points.
                     int spanEnd = Math.min(phraseEnd, textLength);
                     int wordStart = -1;
-                    for (int i = lastPhraseEnd; i <= spanEnd; i++) {
+                    for (int i = lastPhraseEnd; i <= spanEnd;
+                         i = i == spanEnd ? spanEnd + 1 : graphemes.following(i)) {
                         boolean boundary = i >= spanEnd
-                                || Character.isWhitespace(spannableString.charAt(i));
+                                || Character.isWhitespace(Character.codePointAt(spannableString, i));
                         if (!boundary && wordStart < 0) {
                             wordStart = i;
                         } else if (boundary && wordStart >= 0) {
@@ -184,18 +187,22 @@ public class LyricLine implements Comparable<LyricLine> {
         // Per-char (code point) animation state
         private final float[] charYOffsets;
         private final float[] charScales;
-        // Lazily shaped per-char glyphs. The cache window is established by the first
-        // getSize call, which covers the full span range (MeasuredParagraph), and each
-        // slot is shaped independently (same kerning behavior as per-char spans).
-        private ShapedText[] charShapedTexts;
-        private int[] charWidths;
-        private int[] charCodeUnitLengths;
+        private final int sourceStart;
+        private final int sourceEnd;
+        // Shape whole grapheme clusters in span context. The first original code point
+        // owns each cluster's animation state, preserving the platform timing indices.
+        // Drawing order follows bidi visual order; paint/shader remains caller-owned.
+        private ShapedText[] clusterGlyphs;
+        private int[] clusterWidths;
+        private List<LyricGraphemes.Cluster> clusters;
         private int cacheStart;
         private int cacheEnd;
         private icyllis.modernui.graphics.text.FontPaint cachedPaint;
         private CharSequence cachedText;
 
-        public HighlightSpan(int charStartInPhrase, int charCount) {
+        private HighlightSpan(int charStartInPhrase, int charCount, int sourceStart, int sourceEnd) {
+            this.sourceStart = sourceStart;
+            this.sourceEnd = sourceEnd;
             this.charStartInPhrase = charStartInPhrase;
             this.charYOffsets = new float[charCount];
             this.charScales = new float[charCount];
@@ -223,31 +230,24 @@ public class LyricLine implements Comparable<LyricLine> {
 
         private void ensureShaped(@NonNull TextPaint paint, CharSequence text,
                                   int start, int end) {
-            if (charShapedTexts != null && cachedText == text && start >= cacheStart && end <= cacheEnd
+            if (clusterGlyphs != null && cachedText == text && start >= cacheStart && end <= cacheEnd
                     && cachedPaint.equals(paint.getInternalPaint())) {
                 return;
             }
             cachedPaint = paint.createInternalPaint();
             cachedText = text;
-            cacheStart = start;
-            cacheEnd = end;
-            int count = Math.min(Character.codePointCount(text, start, end), charYOffsets.length);
-            charShapedTexts = new ShapedText[count];
-            charWidths = new int[count];
-            charCodeUnitLengths = new int[count];
-            int cu = start;
-            for (int j = 0; j < count; j++) {
-                // cu is always within [start, end) here, so the 2-arg overload is safe
-                int cp = Character.codePointAt(text, cu);
-                int len = Character.charCount(cp);
-                ShapedText shaped = TextShaper.shapeText(
-                        text, cu, len,
-                        TextDirectionHeuristics.FIRSTSTRONG_LTR, paint
-                );
-                charShapedTexts[j] = shaped;
-                charWidths[j] = Math.round(shaped.getAdvance());
-                charCodeUnitLengths[j] = len;
-                cu += len;
+            cacheStart = sourceStart;
+            cacheEnd = sourceEnd;
+            clusters = LyricGraphemes.visualOrder(text, sourceStart, sourceEnd);
+            clusterGlyphs = new ShapedText[clusters.size()];
+            clusterWidths = new int[clusters.size()];
+            for (int j = 0; j < clusters.size(); j++) {
+                LyricGraphemes.Cluster cluster = clusters.get(j);
+                ShapedText shaped = TextShaper.shapeTextRun(
+                        text, cluster.start(), cluster.end() - cluster.start(),
+                        sourceStart, sourceEnd - sourceStart, cluster.rtl(), paint);
+                clusterGlyphs[j] = shaped;
+                clusterWidths[j] = Math.round(shaped.getAdvance());
             }
         }
 
@@ -259,19 +259,14 @@ public class LyricLine implements Comparable<LyricLine> {
                 paint.getFontMetricsInt(fm);
             }
             int total = 0;
-            int cu = cacheStart;
-            for (int j = 0; j < charShapedTexts.length; j++) {
-                ShapedText shaped = charShapedTexts[j];
+            for (int j = 0; j < clusterGlyphs.length; j++) {
+                ShapedText shaped = clusterGlyphs[j];
                 if (shaped == null) {
                     break;
                 }
-                int len = charCodeUnitLengths[j];
-                if (cu + len > start && cu < end) {
-                    total += charWidths[j];
-                }
-                cu += len;
-                if (cu >= end) {
-                    break;
+                LyricGraphemes.Cluster cluster = clusters.get(j);
+                if (cluster.start() < end && cluster.end() > start) {
+                    total += clusterWidths[j];
                 }
             }
             return total;
@@ -283,17 +278,16 @@ public class LyricLine implements Comparable<LyricLine> {
                          @NonNull TextPaint paint) {
             ensureShaped(paint, text, start, end);
             float cx = x;
-            int cu = cacheStart;
-            for (int j = 0; j < charShapedTexts.length; j++) {
-                ShapedText shaped = charShapedTexts[j];
+            for (int j = 0; j < clusterGlyphs.length; j++) {
+                ShapedText shaped = clusterGlyphs[j];
                 if (shaped == null) {
                     break;
                 }
-                int len = charCodeUnitLengths[j];
-                if (cu + len > start && cu < end) {
-                    float w = charWidths[j];
-                    float s = charScales[j];
-                    float yOff = charYOffsets[j];
+                LyricGraphemes.Cluster cluster = clusters.get(j);
+                if (cluster.start() < end && cluster.end() > start) {
+                    float w = clusterWidths[j];
+                    float s = charScales[cluster.codePointIndex()];
+                    float yOff = charYOffsets[cluster.codePointIndex()];
                     if (s == 1f) {
                         canvas.drawShapedText(shaped, cx, y + yOff, paint);
                     } else {
@@ -307,10 +301,6 @@ public class LyricLine implements Comparable<LyricLine> {
                         }
                     }
                     cx += w;
-                }
-                cu += len;
-                if (cu >= end) {
-                    break;
                 }
             }
         }

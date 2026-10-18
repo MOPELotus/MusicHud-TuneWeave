@@ -57,6 +57,35 @@ class LyricLineTest {
         assertEquals(Integer.MAX_VALUE, longLine.getPhrases().getFirst().durationMillis());
     }
 
+    @Test void timingOffsetsInsideGraphemeClustersDoNotSplitTheNextValidPhrase() {
+        for (String cluster : new String[]{"👩‍🎤", "☀️", "é", "🇨🇳", "👍🏽"}) {
+            var timings = new LinkedHashMap<Duration, Integer>();
+            timings.put(Duration.ofSeconds(1), Character.charCount(cluster.codePointAt(0)));
+            timings.put(Duration.ofSeconds(2), cluster.length());
+            var line = line(cluster, timings);
+            line.parsePhrases();
+            assertEquals(1, line.getPhrases().size(), cluster);
+            var phrase = line.getPhrases().getFirst();
+            assertEquals(cluster.codePointCount(0, cluster.length()), phrase.charCount());
+            assertEquals(cluster.length(), phrase.endOffset());
+            assertEquals(0, line.getSpannableString().getSpanStart(phrase.spans().getFirst()));
+        }
+    }
+
+    @Test void durablePhrasesKeepClusterWordsAndOriginalCodePointTimingCounts() {
+        String text = "A👩‍🎤 ☀️é";
+        var line = line(text, Map.of(Duration.ofSeconds(2), text.length()));
+        line.parsePhrases();
+        var phrase = line.getPhrases().getFirst();
+        assertEquals(2, phrase.spans().size());
+        assertEquals(8, phrase.charCount()); // Space remains breakable, original code points count.
+        assertEquals(4, phrase.spans().getFirst().getCharCount());
+        assertEquals(5, phrase.spans().getLast().getCharStartInPhrase());
+        assertEquals(0, line.getSpannableString().getSpanStart(phrase.spans().getFirst()));
+        assertEquals(6, line.getSpannableString().getSpanEnd(phrase.spans().getFirst()));
+        assertEquals(7, line.getSpannableString().getSpanStart(phrase.spans().getLast()));
+    }
+
     private static LyricLine line(String text, Map<Duration, Integer> timings) {
         return LyricLine.builder().text(text).startTime(Duration.ZERO).duration(Duration.ofSeconds(4))
                 .wordByWord(true).phraseEndingOffsetMap(timings).build();
