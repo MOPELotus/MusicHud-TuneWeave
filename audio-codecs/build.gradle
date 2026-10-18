@@ -154,7 +154,24 @@ test {
     maxHeapSize = '256m'
     systemProperty 'audioCodecJar', tasks.named('shadowJar').get().archiveFile.get().asFile.absolutePath
 }
-tasks.named('check') { dependsOn verifyVendoredSources }
+def verifyCodecJar = tasks.register('verifyCodecJar') {
+    dependsOn tasks.named('shadowJar')
+    inputs.file(tasks.named('shadowJar').flatMap { it.archiveFile })
+    doLast {
+        new java.util.zip.ZipFile(tasks.named('shadowJar').get().archiveFile.get().asFile).withCloseable { zip ->
+            def foreignClasses = zip.entries().findAll { entry ->
+                def name = entry.name.replaceFirst('^META-INF/versions/[0-9]+/', '')
+                name.endsWith('.class') && name != 'module-info.class' &&
+                        !name.startsWith('indi/mopelotus/musichud/audio/codec/')
+            }*.name
+            if (!foreignClasses.isEmpty()) {
+                throw new GradleException("Codec classes escaped the private namespace: ${foreignClasses}")
+            }
+        }
+    }
+}
+tasks.named('check') { dependsOn verifyVendoredSources, verifyCodecJar }
+tasks.named('test') { dependsOn verifyCodecJar }
 
 processResources {
     from(rootProject.file('license')) { into 'META-INF/licenses/audio-codecs/project'; rename { 'LICENSE' } }

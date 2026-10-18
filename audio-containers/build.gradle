@@ -84,6 +84,8 @@ shadowJar {
     }
     ['org.mp4parser', 'org.aspectj'].each { relocate it, "indi.mopelotus.musichud.audio.container.shaded.${it}" }
     minimize { r8 {
+        // Keep every renamed dependency class inside this component's private namespace.
+        keepRules.add('-repackageclasses indi.mopelotus.musichud.audio.container.shaded.r8')
         args.addAll(provider { project.configurations.r8Libraries.files.collectMany { ['--lib', it.absolutePath] } })
         keepRules.add('-keep public class indi.mopelotus.musichud.audio.container.* { public *; }')
         keepRules.add('-keep public class indi.mopelotus.musichud.audio.container.io.* { public *; }')
@@ -113,6 +115,14 @@ def verifyContainerJar = tasks.register('verifyContainerJar') {
                                 'META-INF/licenses/audio-containers/aspectj-LICENSE.txt',
                                 'META-INF/licenses/audio-containers/NOTICE'])
                 if (zip.getEntry(name) == null) throw new GradleException("Missing container entry ${name}")
+            def foreignClasses = zip.entries().findAll { entry ->
+                def name = entry.name.replaceFirst('^META-INF/versions/[0-9]+/', '')
+                name.endsWith('.class') && name != 'module-info.class' &&
+                        !name.startsWith('indi/mopelotus/musichud/audio/container/')
+            }*.name
+            if (!foreignClasses.isEmpty()) {
+                throw new GradleException("Container classes escaped the private namespace: ${foreignClasses}")
+            }
             if (zip.entries().any { it.name.startsWith('com/sedmelluq/') || it.name.startsWith('org/mp4parser/') ||
                     it.name.startsWith('org/aspectj/') || it.name.startsWith('org/slf4j/') || it.name.startsWith('com/android/tools/') ||
                     it.name.startsWith('indi/mopelotus/musichud/audio/codec/') })
