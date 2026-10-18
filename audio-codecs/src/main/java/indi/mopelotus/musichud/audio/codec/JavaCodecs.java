@@ -49,6 +49,44 @@ public final class JavaCodecs {
         });
   }
 
+  /**
+   * Reopens an unchanged MP3 snapshot at plan.byteOffset(). Frame position starts at the plan's
+   * global audible sample. The plan must come from this index; this method owns the input.
+   */
+  public static PcmDecoder mp3Indexed(
+      InputStream ownedAtOffset, Mp3SeekIndex index, Mp3SeekIndex.Plan plan) throws IOException {
+    final IndexedMp3Decoder d;
+    try {
+      d = new IndexedMp3Decoder(ownedAtOffset, index.core(), Mp3SeekIndex.corePlan(plan));
+    } catch (IOException | RuntimeException failure) {
+      // IndexedMp3Decoder owns closure after construction starts; these validation failures occur
+      // earlier.
+      if (index == null || plan == null) {
+        try {
+          ownedAtOffset.close();
+        } catch (IOException close) {
+          failure.addSuppressed(close);
+        }
+      }
+      throw failure;
+    }
+    int frameBytes = d.channels() * 2;
+    return new ChunkDecoder(
+        format(d.sampleRate(), d.channels(), PcmFormat.Encoding.S16LE, false),
+        new ChunkDecoder.Core() {
+          public byte[] next() throws IOException {
+            byte[] b = new byte[1152 * frameBytes];
+            int n = d.readChunk(b, 0, b.length);
+            return n < 0 ? null : java.util.Arrays.copyOf(b, n);
+          }
+
+          public void close() throws IOException {
+            d.close();
+          }
+        },
+        plan.audibleSample());
+  }
+
   public static PcmDecoder ogg(InputStream owned) throws IOException {
     var d = new JOrbisOggDecoder(owned);
     return new ChunkDecoder(

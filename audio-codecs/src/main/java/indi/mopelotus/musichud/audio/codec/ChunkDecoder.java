@@ -22,6 +22,12 @@ final class ChunkDecoder implements PcmDecoder {
   private volatile long position;
 
   public ChunkDecoder(PcmFormat format, Core core) {
+    this(format, core, 0);
+  }
+
+  ChunkDecoder(PcmFormat format, Core core, long initialPosition) {
+    if (initialPosition < 0) throw new IllegalArgumentException("Negative initial frame position");
+    position = initialPosition;
     this.format = Objects.requireNonNull(format);
     this.core = Objects.requireNonNull(core);
   }

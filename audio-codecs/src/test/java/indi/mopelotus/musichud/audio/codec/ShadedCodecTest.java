@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
+import java.util.Arrays;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -76,6 +78,57 @@ class ShadedCodecTest {
         while ((n = unshaded.readFrames(b, 0, 113)) != -1)
           out.write(b, 0, n * unshaded.format().frameBytes());
         assertArrayEquals(out.toByteArray(), actual, "Relocation/R8 must preserve codec output");
+      }
+    }
+  }
+
+  @Test
+  void isolatedArtifactIndexDoesNotExposeOrDependOnUnshadedJLayer() throws Exception {
+    byte[] encoded = CodecFixtureTest.resource("mp3.mp3");
+    var artifact = Path.of(System.getProperty("audioCodecJar"));
+    try (var loader =
+        new URLClassLoader(
+            new URL[] {artifact.toUri().toURL()}, ClassLoader.getPlatformClassLoader())) {
+      String prefix = "indi.mopelotus.musichud.audio.codec.";
+      var indexType = loader.loadClass(prefix + "Mp3SeekIndex");
+      var planType = loader.loadClass(prefix + "Mp3SeekIndex$Plan");
+      var decoderType = loader.loadClass(prefix + "PcmDecoder");
+      Object index =
+          indexType
+              .getMethod("build", InputStream.class, java.util.function.BooleanSupplier.class)
+              .invoke(
+                  null,
+                  new ByteArrayInputStream(encoded),
+                  (java.util.function.BooleanSupplier) () -> false);
+      Object plan = indexType.getMethod("plan", long.class).invoke(index, 1201L);
+      long offset = (long) planType.getMethod("byteOffset").invoke(plan);
+      Object decoder =
+          loader
+              .loadClass(prefix + "JavaCodecs")
+              .getMethod("mp3Indexed", InputStream.class, indexType, planType)
+              .invoke(
+                  null,
+                  new ByteArrayInputStream(
+                      Arrays.copyOfRange(encoded, (int) offset, encoded.length)),
+                  index,
+                  plan);
+      try {
+        assertEquals(1201L, decoderType.getMethod("framePosition").invoke(decoder));
+        var output = new ByteArrayOutputStream();
+        byte[] b = new byte[113 * 4];
+        int n;
+        while ((n =
+                (int)
+                    decoderType
+                        .getMethod("readFrames", byte[].class, int.class, int.class)
+                        .invoke(decoder, b, 0, 113))
+            != -1) output.write(b, 0, n * 4);
+        byte[] sequential = unshaded("mp3");
+        assertArrayEquals(
+            Arrays.copyOfRange(sequential, 1201 * 4, sequential.length), output.toByteArray());
+        assertEquals(4800L, decoderType.getMethod("framePosition").invoke(decoder));
+      } finally {
+        decoderType.getMethod("close").invoke(decoder);
       }
     }
   }

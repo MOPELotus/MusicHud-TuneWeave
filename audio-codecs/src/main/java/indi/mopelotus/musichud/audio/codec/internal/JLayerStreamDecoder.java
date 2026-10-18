@@ -17,7 +17,7 @@ public final class JLayerStreamDecoder implements AutoCloseable {
   private final InputStream owned;
   private final Bitstream bits;
   private final Decoder decoder = new Decoder();
-  private final PcmBuffer output;
+  private final JLayerPcmBuffer output;
   private final Mp3Headers.Metadata metadata;
   private final long expected;
   private long toSkip;
@@ -58,7 +58,7 @@ public final class JLayerStreamDecoder implements AutoCloseable {
       metadata = Mp3Headers.inspect(frame, h, offset);
       stream.unread(frame);
       bits = new Bitstream(new FrameBoundaryInputStream(stream, h));
-      output = new PcmBuffer(h.channels());
+      output = new JLayerPcmBuffer(h.channels());
       decoder.setOutputBuffer(output);
       boolean info =
           timingMode == TimingMode.EMBEDDED_GAPLESS
@@ -264,47 +264,6 @@ public final class JLayerStreamDecoder implements AutoCloseable {
    * Public Obuffer hook: recover full-scale float PCM before JLayer's default 32700-gain/truncating
    * SampleBuffer.
    */
-  private static final class PcmBuffer extends Obuffer {
-    final short[] samples = new short[2304];
-    final int[] positions = new int[2];
-    final int channels;
-
-    PcmBuffer(int channels) {
-      this.channels = channels;
-      clearBuffer();
-    }
-
-    int length() {
-      return positions[0];
-    }
-
-    public void append(int channel, short value) {
-      samples[positions[channel]] = value;
-      positions[channel] += channels;
-    }
-
-    public void appendSamples(int channel, float[] values) {
-      int pos = positions[channel];
-      for (int i = 0; i < 32; i++) {
-        int value = Math.round(values[i] * (32768.0f / 32700.0f));
-        samples[pos] = (short) Math.max(-32768, Math.min(32767, value));
-        pos += channels;
-      }
-      positions[channel] = pos;
-    }
-
-    public void clearBuffer() {
-      positions[0] = 0;
-      positions[1] = 1;
-    }
-
-    public void writeBuffer(int ignored) {}
-
-    public void close() {}
-
-    public void setStopFlag() {}
-  }
-
   private static final class ProgressInputStream extends FilterInputStream {
     ProgressInputStream(InputStream in) {
       super(in);
