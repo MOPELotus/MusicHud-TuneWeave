@@ -11,6 +11,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.util.ReferenceCountUtil;
 import java.io.*;
 import java.net.*;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.zip.GZIPInputStream;
@@ -65,8 +66,137 @@ public final class MediaTransport implements AutoCloseable {
     }
   }
 
-  public record Response(URI finalUri, int status, long length, InputStream body)
+  public sealed interface IfRange permits StrongETag, ModifiedAt {
+    String headerValue();
+  }
+
+  public record StrongETag(String value) implements IfRange {
+    public StrongETag {
+      if (!MediaValidators.validEntityTag(value) || value.startsWith("W/"))
+        throw new IllegalArgumentException("If-Range requires a valid strong entity tag");
+    }
+
+    @Override
+    public String headerValue() {
+      return value;
+    }
+  }
+
+  public record ModifiedAt(Instant value) implements IfRange {
+    public ModifiedAt {
+      value = MediaValidators.checkedDate(value);
+    }
+
+    @Override
+    public String headerValue() {
+      return MediaValidators.formatDate(value);
+    }
+  }
+
+  /** Validators describe the identity-coded byte representation, never a decoded gzip length. */
+  public record Representation(
+      URI finalUri,
+      long totalLength,
+      String entityTag,
+      Instant lastModified,
+      Instant responseDate,
+      boolean identityEncoded) {
+    public Representation {
+      Objects.requireNonNull(finalUri);
+      if (totalLength < -1 || entityTag != null && !MediaValidators.validEntityTag(entityTag))
+        throw new IllegalArgumentException("Invalid media representation metadata");
+      if (lastModified != null) lastModified = MediaValidators.checkedDate(lastModified);
+      if (responseDate != null) responseDate = MediaValidators.checkedDate(responseDate);
+    }
+
+    private IfRange validator() {
+      if (entityTag != null) return entityTag.startsWith("W/") ? null : new StrongETag(entityTag);
+      // Keep a conservative clock margin for CDN/proxy Date values (RFC 9110 8.8.2.2).
+      if (lastModified != null
+          && responseDate != null
+          && responseDate.getEpochSecond() - lastModified.getEpochSecond() >= 60)
+        return new ModifiedAt(lastModified);
+      return null;
+    }
+
+    public boolean canRange() {
+      return identityEncoded && totalLength >= 0 && validator() != null;
+    }
+
+    public ExpectedRepresentation expected() {
+      if (!canRange())
+        throw new IllegalStateException("No safe validator for cross-request ranges");
+      return new ExpectedRepresentation(finalUri, totalLength, validator());
+    }
+  }
+
+  public record ExpectedRepresentation(URI finalUri, long totalLength, IfRange validator) {
+    public ExpectedRepresentation {
+      Objects.requireNonNull(finalUri);
+      Objects.requireNonNull(validator);
+      if (totalLength < 0) throw new IllegalArgumentException("Expected total length is unknown");
+    }
+  }
+
+  public enum ChangeReason {
+    HTTP_STATUS,
+    FINAL_URI,
+    TOTAL_LENGTH,
+    VALIDATOR,
+    ENCODING
+  }
+
+  /** A cache must discard all old prefixes and reopen its entire source after this error. */
+  public static final class ResourceChangedException extends IOException {
+    private final ChangeReason reason;
+    private final int status;
+
+    private ResourceChangedException(ChangeReason reason, int status) {
+      super("Media representation changed: " + reason);
+      this.reason = reason;
+      this.status = status;
+    }
+
+    public ChangeReason reason() {
+      return reason;
+    }
+
+    public int status() {
+      return status;
+    }
+  }
+
+  /**
+   * Body has HTTP content decoding applied, but retains any interleaved ICY metadata. {@code
+   * icyMetaInt} is zero when absent; callers strip metadata before audio decoding.
+   */
+  public record Response(
+      URI finalUri,
+      int status,
+      long length,
+      InputStream body,
+      Representation representation,
+      int icyMetaInt)
       implements AutoCloseable {
+    public Response {
+      if (icyMetaInt < 0 || icyMetaInt > 16 * 1024 * 1024)
+        throw new IllegalArgumentException("Invalid ICY metadata interval");
+    }
+
+    public Response(
+        URI finalUri, int status, long length, InputStream body, Representation representation) {
+      this(finalUri, status, length, body, representation, 0);
+    }
+
+    public Response(URI finalUri, int status, long length, InputStream body) {
+      this(
+          finalUri,
+          status,
+          length,
+          body,
+          new Representation(finalUri, -1, null, null, null, false));
+    }
+
     @Override
     public void close() throws IOException {
       body.close();
@@ -82,6 +212,7 @@ public final class MediaTransport implements AutoCloseable {
           "content-length",
           "transfer-encoding",
           "range",
+          "if-range",
           "proxy-authorization",
           "proxy-connection",
           "upgrade",
@@ -132,6 +263,20 @@ public final class MediaTransport implements AutoCloseable {
       ByteRange range,
       Cancellation cancellation)
       throws IOException {
+    return open(uri, headers, publicOnly, range, cancellation, null);
+  }
+
+  /** Conditional ranges may only join bytes from the initial response's expected representation. */
+  public Response open(
+      URI uri,
+      Map<String, String> headers,
+      boolean publicOnly,
+      ByteRange range,
+      Cancellation cancellation,
+      ExpectedRepresentation expected)
+      throws IOException {
+    if (expected != null && range == null)
+      throw new IllegalArgumentException("Expected representation requires a byte range");
     Objects.requireNonNull(cancellation);
     Map<String, String> safe = validateHeaders(headers, publicOnly);
     URI current = uri;
@@ -143,7 +288,8 @@ public final class MediaTransport implements AutoCloseable {
           resolve(current.getHost(), publicOnly, cancellation, phaseDeadline(timeoutMillis));
       if (addresses.length == 0) throw new UnknownHostException("No media addresses");
       // No unresolved socket address reaches Netty: this exact validated address is connected.
-      Response response = connect(current, safe, range, cancellation, addresses, sensitiveAllowed);
+      Response response =
+          connect(current, safe, range, cancellation, addresses, sensitiveAllowed, expected);
       if (!Set.of(301, 302, 303, 307, 308).contains(response.status())) {
         Body owner = ((BodyStream) response.body()).owner;
         try {
@@ -158,7 +304,9 @@ public final class MediaTransport implements AutoCloseable {
               response.finalUri(),
               response.status(),
               decoded == response.body() ? response.length() : -1L,
-              decoded);
+              decoded,
+              response.representation(),
+              response.icyMetaInt());
         } catch (IOException | RuntimeException error) {
           try {
             response.close();
@@ -230,7 +378,8 @@ public final class MediaTransport implements AutoCloseable {
       ByteRange range,
       Cancellation cancellation,
       InetAddress[] addresses,
-      boolean sensitiveAllowed)
+      boolean sensitiveAllowed,
+      ExpectedRepresentation expected)
       throws IOException {
     IOException last = null;
     // DNS, TCP failover, and response opening have separate deadlines per redirect hop.
@@ -243,7 +392,7 @@ public final class MediaTransport implements AutoCloseable {
       long remaining = remainingMillis(connectionDeadline);
       int connectMillis =
           (int) Math.min(timeoutMillis, Math.max(1L, remaining / (addresses.length - index)));
-      Body body = new Body(cancellation, timeoutMillis, range);
+      Body body = new Body(cancellation, timeoutMillis, range, uri, expected != null);
       final boolean secure = uri.getScheme().equalsIgnoreCase("https");
       int port = port(uri);
       Bootstrap bootstrap =
@@ -267,6 +416,7 @@ public final class MediaTransport implements AutoCloseable {
                         engine.setSSLParameters(parameters);
                         channel.pipeline().addLast(new SslHandler(engine));
                       }
+                      channel.pipeline().addLast(new IcyStatusNormalizer());
                       channel.pipeline().addLast(new HttpClientCodec(4096, 16384, 8192));
                       channel.pipeline().addLast(body);
                     }
@@ -304,22 +454,36 @@ public final class MediaTransport implements AutoCloseable {
                 request.headers().set(name, value);
             });
         if (range != null) request.headers().set(HttpHeaderNames.RANGE, range.header());
+        if (expected != null)
+          request.headers().set(HttpHeaderNames.IF_RANGE, expected.validator().headerValue());
         requestSent = true;
         channel.writeAndFlush(request);
         channel.read();
         Header header =
             body.header.get(remainingMillis(body.openingDeadline), TimeUnit.MILLISECONDS);
+        if (expected != null && Set.of(200, 412, 416).contains(header.status))
+          throw new ResourceChangedException(ChangeReason.HTTP_STATUS, header.status);
+        if (expected != null && header.status == 206)
+          validateExpected(expected, header.metadata, header.status);
         if (header.status != 200
             && header.status != 206
             && !Set.of(301, 302, 303, 307, 308).contains(header.status))
           throw new IOException("Media HTTP status " + header.status);
-        return new Response(uri, header.status, header.length, new BodyStream(body));
+        return new Response(
+            uri,
+            header.status,
+            header.icyMetaInt > 0 ? -1L : header.length,
+            new BodyStream(body),
+            header.metadata.representation(),
+            header.icyMetaInt);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         body.close();
         throw new IOException("Media interrupted", e);
       } catch (ExecutionException | TimeoutException e) {
         body.close();
+        if (e instanceof ExecutionException && e.getCause() instanceof IOException failure)
+          throw failure;
         throw new IOException("Media response failed", e);
       } catch (IOException | RuntimeException e) {
         body.close();
@@ -339,7 +503,8 @@ public final class MediaTransport implements AutoCloseable {
     }
   }
 
-  private record Header(int status, long length) {}
+  private record Header(
+      int status, long length, MediaValidators.Observation metadata, int icyMetaInt) {}
 
   private static final class Body extends ChannelInboundHandlerAdapter {
     private static final Object END = new Object();
@@ -348,6 +513,8 @@ public final class MediaTransport implements AutoCloseable {
     final Cancellation cancellation;
     final int timeoutMillis;
     final ByteRange range;
+    final URI targetUri;
+    final boolean conditionalRange;
     volatile Channel channel;
     volatile boolean closed, ended;
     boolean interim;
@@ -357,10 +524,17 @@ public final class MediaTransport implements AutoCloseable {
     volatile boolean opening = true;
     long received, expected = -1;
 
-    Body(Cancellation cancellation, int timeoutMillis, ByteRange range) {
+    Body(
+        Cancellation cancellation,
+        int timeoutMillis,
+        ByteRange range,
+        URI targetUri,
+        boolean conditionalRange) {
       this.cancellation = cancellation;
       this.timeoutMillis = timeoutMillis;
       this.range = range;
+      this.targetUri = targetUri;
+      this.conditionalRange = conditionalRange;
     }
 
     byte[] current;
@@ -381,19 +555,31 @@ public final class MediaTransport implements AutoCloseable {
           interim = false;
           if (header.isDone()) throw new IOException("Duplicate media response");
           location = response.headers().get(HttpHeaderNames.LOCATION);
+          if (response.headers().getAll(HttpHeaderNames.CONTENT_ENCODING).size() > 1)
+            throw new IOException("Ambiguous media content encoding");
           encoding =
               response
                   .headers()
                   .get(HttpHeaderNames.CONTENT_ENCODING, "identity")
                   .trim()
                   .toLowerCase(Locale.ROOT);
+          if (range != null && !encoding.equals("identity") && conditionalRange)
+            throw new ResourceChangedException(ChangeReason.ENCODING, status);
           if (!Set.of("identity", "gzip", "x-gzip", "deflate").contains(encoding)
               || range != null && !encoding.equals("identity"))
             throw new IOException("Unexpected media content encoding");
+          int icyMetaInt = icyMetaInt(response.headers());
+          if (icyMetaInt > 0 && conditionalRange)
+            throw new ResourceChangedException(ChangeReason.ENCODING, status);
+          if (icyMetaInt > 0 && range != null && range.first() > 0)
+            throw new IOException("ICY metadata streams cannot seek by byte range");
           expected = HttpUtil.getContentLength(response, -1);
           if (expected < -1) throw new IOException("Invalid media length");
+          long totalLength = status == 200 ? expected : -1;
           if (status == 206) {
             if (range == null) throw new IOException("Unsolicited partial media response");
+            if (response.headers().getAll(HttpHeaderNames.CONTENT_RANGE).size() != 1)
+              throw new IOException("Ambiguous media content range");
             String value = response.headers().get(HttpHeaderNames.CONTENT_RANGE);
             java.util.regex.Matcher m =
                 java.util.regex.Pattern.compile("bytes ([0-9]+)-([0-9]+)/([0-9]+|\\*)")
@@ -410,9 +596,19 @@ public final class MediaTransport implements AutoCloseable {
             if (!m.group(3).equals("*") && Long.parseLong(m.group(3)) <= last)
               throw new IOException("Invalid content range total");
             expected = length;
-          } else if (status == 200 && range != null && (range.first > 0 || range.last != null))
-            throw new IOException("Media server ignored range");
-          header.complete(new Header(status, expected));
+            totalLength = m.group(3).equals("*") ? -1 : Long.parseLong(m.group(3));
+          } else if (status == 200
+              && !conditionalRange
+              && range != null
+              && (range.first > 0 || range.last != null))
+            throw new ResourceChangedException(ChangeReason.HTTP_STATUS, status);
+          MediaValidators.Observation metadata =
+              MediaValidators.read(
+                  targetUri,
+                  response.headers(),
+                  encoding.equals("identity") && icyMetaInt == 0 ? totalLength : -1,
+                  encoding.equals("identity"));
+          header.complete(new Header(status, expected, metadata, icyMetaInt));
         }
         if (message instanceof HttpContent content) {
           if (interim) return;
@@ -429,8 +625,8 @@ public final class MediaTransport implements AutoCloseable {
           if (message instanceof LastHttpContent) {
             if (expected >= 0 && received != expected)
               throw new IOException("Truncated media body");
-            ended = true;
             offer(END);
+            ended = true;
             ctx.close();
           }
         }
@@ -476,6 +672,8 @@ public final class MediaTransport implements AutoCloseable {
     // Stream wrapper stays separate from the channel handler (InputStream is a class).
     private final InputStream input =
         new InputStream() {
+          private boolean exhausted;
+
           @Override
           public int read() throws IOException {
             byte[] b = new byte[1];
@@ -490,24 +688,35 @@ public final class MediaTransport implements AutoCloseable {
             cancellation.check();
             if (opening) remainingMillis(openingDeadline);
             if (closed) throw new IOException("Media stream closed");
+            if (exhausted) return -1;
             while (current == null || offset == current.length) {
               current = null;
               offset = 0;
               Object item = queue.poll();
               if (item == null) {
-                if (ended) return -1;
-                channel.read();
-                try {
-                  item =
-                      queue.poll(
-                          opening
-                              ? Math.min(timeoutMillis, remainingMillis(openingDeadline))
-                              : timeoutMillis,
-                          TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                  Thread.currentThread().interrupt();
-                  close();
-                  throw new IOException("Media interrupted", e);
+                if (ended) {
+                  // The producer publishes its terminal queue item before ended. Recheck after
+                  // observing that publication: the first poll may predate the final bytes/error.
+                  item = queue.poll();
+                  if (item == null) {
+                    cancellation.check();
+                    if (closed) throw new IOException("Media stream closed");
+                    return -1;
+                  }
+                } else {
+                  channel.read();
+                  try {
+                    item =
+                        queue.poll(
+                            opening
+                                ? Math.min(timeoutMillis, remainingMillis(openingDeadline))
+                                : timeoutMillis,
+                            TimeUnit.MILLISECONDS);
+                  } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    close();
+                    throw new IOException("Media interrupted", e);
+                  }
                 }
               }
               cancellation.check();
@@ -516,7 +725,10 @@ public final class MediaTransport implements AutoCloseable {
                 close();
                 throw new IOException("Media read timeout");
               }
-              if (item == END) return -1;
+              if (item == END) {
+                exhausted = true;
+                return -1;
+              }
               if (item instanceof IOException e) throw e;
               current = (byte[]) item;
             }
@@ -542,6 +754,50 @@ public final class MediaTransport implements AutoCloseable {
         cancellation.detach(channel);
       }
     }
+  }
+
+  /**
+   * Interval counts media payload bytes after HTTP transfer/content decoding, before ICY stripping.
+   */
+  private static int icyMetaInt(HttpHeaders headers) throws IOException {
+    List<String> values = headers.getAll("icy-metaint");
+    if (values.isEmpty()) return 0;
+    if (values.size() != 1) throw new IOException("Ambiguous ICY metadata interval");
+    String value = values.getFirst();
+    if (value.isEmpty()) throw new IOException("Invalid ICY metadata interval");
+    int interval = 0;
+    for (int i = 0; i < value.length(); i++) {
+      char digit = value.charAt(i);
+      if (digit < '0' || digit > '9') throw new IOException("Invalid ICY metadata interval");
+      interval = interval * 10 + (digit - '0');
+      if (interval > 16 * 1024 * 1024) throw new IOException("ICY metadata interval exceeds limit");
+    }
+    if (interval == 0) throw new IOException("Invalid ICY metadata interval");
+    return interval;
+  }
+
+  private static void validateExpected(
+      ExpectedRepresentation expected, MediaValidators.Observation observed, int status)
+      throws ResourceChangedException {
+    Representation actual = observed.representation();
+    if (!expected.finalUri().equals(actual.finalUri()))
+      throw new ResourceChangedException(ChangeReason.FINAL_URI, status);
+    if (!actual.identityEncoded())
+      throw new ResourceChangedException(ChangeReason.ENCODING, status);
+    if (expected.totalLength() != actual.totalLength())
+      throw new ResourceChangedException(ChangeReason.TOTAL_LENGTH, status);
+    // A compliant If-Range 206 may omit repeated validators (RFC 9110 15.3.7).
+    // When supplied, however, the corresponding field must be valid and match exactly.
+    boolean matches =
+        switch (expected.validator()) {
+          case StrongETag tag ->
+              !observed.entityTagPresent()
+                  || observed.entityTagValid() && tag.value().equals(actual.entityTag());
+          case ModifiedAt modified ->
+              !observed.lastModifiedPresent()
+                  || observed.lastModifiedValid() && modified.value().equals(actual.lastModified());
+        };
+    if (!matches) throw new ResourceChangedException(ChangeReason.VALIDATOR, status);
   }
 
   private static long phaseDeadline(long millis) {
