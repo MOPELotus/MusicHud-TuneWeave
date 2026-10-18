@@ -14,6 +14,23 @@ import org.junit.jupiter.api.Test;
 
 final class AudioDecoderFactoryTest {
   @Test
+  void probeRetainsTheValidatedLogicalOggCodec() throws Exception {
+    Path file = Files.createTempFile("java-ogg-codec-", ".bin");
+    try {
+      for (String name : new String[] {"tone.opus", "tone-second.ogg"}) {
+        try (var input = getClass().getResourceAsStream("/javaaudio/" + name)) {
+          Files.write(file, input.readAllBytes());
+        }
+        assertEquals(
+            name.endsWith(".opus") ? FormatType.OPUS : FormatType.OGG,
+            AudioDecoderFactory.probe(file.toString(), FormatType.AUTO).detectedFormat());
+      }
+    } finally {
+      Files.deleteIfExists(file);
+    }
+  }
+
+  @Test
   void failedSignedResourcesDoNotEmbedTheirQueryInDecoderDiagnostics() throws Exception {
     var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     server.createContext(

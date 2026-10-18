@@ -116,7 +116,8 @@ final class JavaDecoderFactory {
                 multichannelSupported,
                 SpeakerOrder.forFormat(presented.format())),
             resource,
-            container);
+            container,
+            first.codec());
       } catch (Throwable error) {
         presented.close();
         throw error;
@@ -244,7 +245,7 @@ final class JavaDecoderFactory {
     }
   }
 
-  private record Opened(PcmDecoder decoder, PacketSource.Track track) {}
+  private record Opened(PcmDecoder decoder, PacketSource.Track track, String codec) {}
 
   private static Opened decode(JavaAudioResource.Lease lease, JavaAudioProbe.PreparedInput prepared)
       throws IOException {
@@ -260,22 +261,27 @@ final class JavaDecoderFactory {
       int prerollSeconds)
       throws IOException {
     PcmDecoder decoder;
+    String codec = null;
     PacketSource packets = null;
     switch (prepared.container()) {
       case MPEG_AUDIO -> decoder = JavaCodecs.mp3(prepared.input());
       case OGG -> {
         var links = JavaCodecs.oggLinks(prepared.input());
+        String[] selected = {null};
         decoder =
             new StreamMediaDecoder(
                 new StreamMediaDecoder.Input() {
                   public PcmDecoder nextLink() throws IOException {
-                    return links.nextLink();
+                    var link = links.nextLink();
+                    if (link != null && selected[0] == null) selected[0] = link.codec();
+                    return link;
                   }
 
                   public void close() throws IOException {
                     links.close();
                   }
                 });
+        codec = selected[0];
       }
       case WAVPACK -> decoder = JavaCodecs.wavpack(prepared.input());
       case ASF -> decoder = JavaCodecs.wma(prepared.input());
@@ -353,7 +359,7 @@ final class JavaDecoderFactory {
         throw error;
       }
     }
-    return new Opened(decoder, packets == null ? null : packets.track());
+    return new Opened(decoder, packets == null ? null : packets.track(), codec);
   }
 
   private static final class Factory implements PresentedDecoder.Factory {
@@ -465,12 +471,20 @@ final class JavaDecoderFactory {
 
   private static AudioDecoder managed(
       AudioDecoder decoder, AutoCloseable resource, JavaAudioProbe.Container container) {
+    return managed(decoder, resource, container, null);
+  }
+
+  private static AudioDecoder managed(
+      AudioDecoder decoder,
+      AutoCloseable resource,
+      JavaAudioProbe.Container container,
+      String codec) {
     FormatType type =
         switch (container) {
           case WAV -> FormatType.WAV;
           case FLAC -> FormatType.FLAC;
           case MPEG_AUDIO -> FormatType.MP3;
-          case OGG -> FormatType.OGG;
+          case OGG -> "opus".equals(codec) ? FormatType.OPUS : FormatType.OGG;
           case ISO_BMFF -> FormatType.M4A;
           case ADTS -> FormatType.AAC;
           case AIFF -> FormatType.AIFF;
