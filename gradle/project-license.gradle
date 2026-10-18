@@ -1,0 +1,60 @@
+import java.util.Arrays
+import java.util.zip.ZipFile
+
+// Keep the project's own license separate from every third-party component.
+// Core is already included by all client and server/proxy deployment artifacts.
+project(':core') {
+    plugins.withId('java') {
+        tasks.named('processResources') {
+            from(rootProject.file('license')) {
+                into 'META-INF/licenses/musichud-tuneweave'
+                rename { 'LICENSE' }
+            }
+        }
+        tasks.matching { it.name == 'sourcesJar' }.configureEach {
+            from(rootProject.file('license')) {
+                into 'META-INF/licenses/musichud-tuneweave'
+                rename { 'LICENSE' }
+            }
+        }
+    }
+}
+
+gradle.projectsEvaluated {
+    subprojects {
+        if (name in ['fabric', 'neoforge', 'paper', 'velocity', 'bungeecord']) {
+            def deployment = tasks.findByName('remapJar') ?:
+                    tasks.getByName(name in ['paper', 'velocity', 'bungeecord'] ? 'shadowJar' : 'jar')
+            def projectLicense = rootProject.file('license')
+            def projectNotice = rootProject.file('core/src/main/resources/META-INF/licenses/musichud-tuneweave/NOTICE')
+            def verifyProjectLicense = tasks.register('verifyProjectLicenseJar') {
+                group = 'verification'
+                description = 'Verifies the project license and upstream attribution in the actual deployment JAR.'
+                dependsOn deployment
+                inputs.file(deployment.archiveFile)
+                inputs.files(projectLicense, projectNotice)
+                doLast {
+                    def notice = projectNotice.getText('UTF-8')
+                    for (String required : ['https://github.com/Ephern/MusicHud',
+                                            'https://github.com/MOPELotus/MusicHud-TuneWeave',
+                                            'Etern', 'MOPELotus', 'GNU Lesser General Public License']) {
+                        if (!notice.contains(required)) throw new GradleException("Missing project attribution: ${required}")
+                    }
+                    new ZipFile(deployment.archiveFile.get().asFile).withCloseable { zip ->
+                        ['LICENSE': projectLicense, 'NOTICE': projectNotice].each { leaf, source ->
+                            def path = "META-INF/licenses/musichud-tuneweave/${leaf}"
+                            def entries = zip.entries().toList().findAll { it.name == path }
+                            if (entries.size() != 1 || !Arrays.equals(zip.getInputStream(entries.first()).bytes, source.bytes)) {
+                                throw new GradleException("Missing, duplicated or modified project license/attribution: ${path}")
+                            }
+                        }
+                        if (zip.getEntry('indi/mopelotus/musichud/network/ProtocolInfo.class') == null) {
+                            throw new GradleException('Missing project protocol namespace in deployment artifact')
+                        }
+                    }
+                }
+            }
+            tasks.named('build').configure { dependsOn verifyProjectLicense }
+        }
+    }
+}
