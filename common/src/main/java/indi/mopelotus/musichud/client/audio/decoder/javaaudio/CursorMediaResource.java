@@ -276,6 +276,21 @@ public final class CursorMediaResource implements AutoCloseable {
       }
     }
 
+    /** Explicitly completes this response snapshot, including a known Content-Length. */
+    public long materialize() throws IOException {
+      initialize();
+      if (streamingOnly) throw new IOException("Live ICY audio cannot be materialized");
+      long saved = position;
+      position = streamPosition;
+      try {
+        byte[] scratch = new byte[8192];
+        while (read(scratch) >= 0) {}
+        return length;
+      } finally {
+        position = saved;
+      }
+    }
+
     /** One adapter per cursor; closing this channel closes the same cursor lease. */
     public SeekableByteChannel asChannel() {
       return new SeekableByteChannel() {

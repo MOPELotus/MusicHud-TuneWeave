@@ -41,6 +41,10 @@ public final class PcmAudioInput {
         .body();
   }
 
+  static MediaTransport sharedTransport() throws IOException {
+    return transport();
+  }
+
   private static synchronized MediaTransport transport() throws IOException {
     if (stopped) throw new IOException("Media transport has stopped");
     if (transport == null) transport = new MediaTransport();
