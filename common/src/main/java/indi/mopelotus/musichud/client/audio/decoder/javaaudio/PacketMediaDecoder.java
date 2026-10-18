@@ -10,7 +10,16 @@ import java.util.concurrent.atomic.*;
 
 /** Raw media-clock stream with real timestamp-gap silence; MP4 edits remain outside this layer. */
 public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversion {
+  @FunctionalInterface
+  public interface Mapper {
+    DecodedPacket map(DecodedPacket packet) throws IOException;
+  }
+
   private final PacketSource source;
+  private final Mapper mapper;
+  private final int targetRate;
+  private PcmFormat initialSourceFormat;
+  private PacketSource.Time firstDecodedTime;
   private PacketPcmNormalizer normalizer;
   private final AtomicBoolean closed = new AtomicBoolean();
   private final Object reader = new Object();
@@ -19,14 +28,27 @@ public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversio
   private PcmFormat format;
   private ByteBuffer pcm = ByteBuffer.allocate(0);
   private long silence, position;
-  private boolean eof;
+  private boolean eof, pendingDiscontinuity;
 
   public PacketMediaDecoder(PacketSource owned) throws IOException {
     this(owned, 0);
   }
 
   public PacketMediaDecoder(PacketSource owned, long initialMediaFrame) throws IOException {
-    source = owned;
+    this(owned, initialMediaFrame, packet -> packet);
+  }
+
+  public PacketMediaDecoder(PacketSource owned, long initialMediaFrame, Mapper mapper)
+      throws IOException {
+    this(owned, 0, initialMediaFrame, mapper);
+  }
+
+  public PacketMediaDecoder(
+      PacketSource owned, int targetRate, long initialMediaFrame, Mapper mapper)
+      throws IOException {
+    source = java.util.Objects.requireNonNull(owned);
+    this.targetRate = targetRate;
+    this.mapper = java.util.Objects.requireNonNull(mapper);
     position = initialMediaFrame;
     try {
       load();
@@ -85,14 +107,34 @@ public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversio
         continue;
       }
       if (codec == null || !packet.format().equals(codecFormat) || packet.discontinuity()) {
+        pendingDiscontinuity |= codec != null;
         if (codec != null) codec.close();
         codecFormat = packet.format();
         codec = create(codecFormat);
       }
       var result = codec.decode(packet);
       if (result == null) continue;
+      if (pendingDiscontinuity && !result.source().discontinuity()) {
+        var original = result.source();
+        var marked =
+            new PacketSource.Packet(
+                original.format(),
+                original.decodeTime(),
+                original.presentationTime(),
+                original.duration(),
+                original.discardStart(),
+                original.discardEnd(),
+                true,
+                original.encoded());
+        result = new DecodedPacket(marked, result.format(), result.pcm());
+      }
+      pendingDiscontinuity = false;
+      result = mapper.map(result);
       if (normalizer == null) {
-        normalizer = new PacketPcmNormalizer(result.format().sampleRate());
+        initialSourceFormat = result.format();
+        firstDecodedTime = result.source().presentationTime();
+        normalizer =
+            new PacketPcmNormalizer(targetRate == 0 ? result.format().sampleRate() : targetRate);
         format = normalizer.format();
       }
       if (!normalizer.accept(result)) throw new IOException("Packet presentation backpressure");
@@ -101,6 +143,14 @@ public final class PacketMediaDecoder implements PcmDecoder, PcmChannelConversio
 
   public boolean hasDownmixedChannels() {
     return normalizer != null && normalizer.hasDownmixedChannels();
+  }
+
+  public PcmFormat initialSourceFormat() {
+    return initialSourceFormat;
+  }
+
+  public PacketSource.Time firstDecodedTime() {
+    return firstDecodedTime;
   }
 
   public PacketSource.Track track() {
