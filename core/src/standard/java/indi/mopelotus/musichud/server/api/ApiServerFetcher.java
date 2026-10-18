@@ -1,5 +1,6 @@
 package indi.mopelotus.musichud.server.api;
 
+import com.google.gson.JsonParser;
 import com.google.gson.annotations.SerializedName;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.utils.JsonUtil;
@@ -8,15 +9,11 @@ import lombok.Getter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
-import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -27,14 +24,9 @@ import java.util.function.BiConsumer;
 
 /** Downloads the current TuneWeave release selected by its published manifest. */
 public class ApiServerFetcher {
+    // Largest official beta.1 binary is 23,358,600 bytes; leave ample headroom without unbounded disk writes.
+    static final long MAX_ARTIFACT_BYTES = 256L * 1024 * 1024;
     public static final String TUNEWEAVE_MANIFEST_URL = "https://raw.githubusercontent.com/MOPELotus/TuneWeave/main/release-manifest.json";
-
-    private static final HttpClient HTTP = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_2)
-            .connectTimeout(Duration.ofSeconds(10))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .executor(MusicHud.EXECUTOR)
-            .build();
 
     // ---- data models ----
 
@@ -43,6 +35,13 @@ public class ApiServerFetcher {
 
     @Getter
     public static class TuneWeaveManifest {
+        @SerializedName("schema_version")
+        private int schemaVersion;
+        private String project;
+        @SerializedName("api_version")
+        private String apiVersion;
+        @SerializedName("compatibility_profiles")
+        private List<String> compatibilityProfiles;
         private String version;
         private String tag;
         @SerializedName("release_page")
@@ -70,6 +69,7 @@ public class ApiServerFetcher {
     }
 
     public enum DownloadProxy {
+        AUTO(null),
         DIRECT(null),
         CLOUDFLARE_IPV4("https://gh-proxy.org/"),
         CLOUDFLARE_CN_IPV4("https://v4.gh-proxy.org/"),
@@ -84,6 +84,7 @@ public class ApiServerFetcher {
         }
 
         public String resolveUrl(String originalUrl) {
+            if (this == AUTO) throw new IllegalStateException("Automatic download source must be measured first");
             if (proxyBase == null) return originalUrl;
             return proxyBase + originalUrl;
         }
@@ -92,15 +93,15 @@ public class ApiServerFetcher {
     public static CompletableFuture<TuneWeaveManifest> fetchTuneWeaveManifest() {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                HttpRequest request = HttpRequest.newBuilder(URI.create(TUNEWEAVE_MANIFEST_URL))
-                        .header("Accept", "application/json")
-                        .header("User-Agent", MusicHud.PROJECT_NAME)
-                        .GET().build();
-                HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() != 200) {
-                    throw new IOException("TuneWeave release manifest returned HTTP " + response.statusCode());
-                }
-                TuneWeaveManifest manifest = JsonUtil.gson.fromJson(response.body(), TuneWeaveManifest.class);
+                TuneWeaveManifest manifest = DownloadSources.withSource(TUNEWEAVE_MANIFEST_URL,
+                        DownloadProxy.DIRECT, "application/json", null, selected -> {
+                            var response = DownloadSources.open(TUNEWEAVE_MANIFEST_URL, selected, "application/json", null);
+                            try (var input = response.body()) {
+                                byte[] bytes = input.readNBytes(1024 * 1024 + 1);
+                                if (bytes.length > 1024 * 1024) throw new IOException("TuneWeave manifest is too large");
+                                return parseManifest(new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+                            }
+                        });
                 if (manifest == null || manifest.getArtifacts() == null || manifest.getArtifacts().isEmpty()) {
                     throw new IOException("TuneWeave release manifest contains no artifacts");
                 }
@@ -109,6 +110,29 @@ public class ApiServerFetcher {
                 throw new RuntimeException("Failed to fetch TuneWeave release manifest", error);
             }
         }, MusicHud.EXECUTOR);
+    }
+
+    static TuneWeaveManifest parseManifest(String json) throws IOException {
+        try {
+            var document = JsonParser.parseString(json).getAsJsonObject();
+            if (document.has("compatibility_profiles")) {
+                var value = document.get("compatibility_profiles");
+                if (!value.isJsonArray() || value.getAsJsonArray().isEmpty() || value.getAsJsonArray().size() > 16)
+                    throw new IOException("Invalid TuneWeave compatibility profiles");
+                var unique = new java.util.HashSet<String>();
+                for (var profile : value.getAsJsonArray()) {
+                    if (!profile.isJsonPrimitive() || !profile.getAsJsonPrimitive().isString()
+                            || !profile.getAsString().matches("[a-z0-9][a-z0-9._-]{0,63}")
+                            || !unique.add(profile.getAsString())) throw new IOException("Invalid TuneWeave compatibility profiles");
+                }
+            }
+            TuneWeaveManifest manifest = JsonUtil.gson.fromJson(document, TuneWeaveManifest.class);
+            if (manifest == null || manifest.schemaVersion != 1 || !"TuneWeave".equals(manifest.project)
+                    || manifest.apiVersion == null || !manifest.apiVersion.matches("v[1-9][0-9]*")
+                    || manifest.artifacts == null || manifest.artifacts.isEmpty())
+                throw new IOException("Invalid TuneWeave release manifest identity");
+            return manifest;
+        } catch (RuntimeException invalid) { throw new IOException("Invalid TuneWeave release manifest", invalid); }
     }
 
     public static TuneWeaveArtifact currentTuneWeaveArtifact(TuneWeaveManifest manifest) {
@@ -139,48 +163,93 @@ public class ApiServerFetcher {
             TuneWeaveArtifact artifact, Path target, DownloadProxy proxy,
             BiConsumer<Long, Long> progress, AtomicBoolean cancelled) {
         return CompletableFuture.runAsync(() -> {
-            Path temporary = target.resolveSibling(target.getFileName() + ".part");
+            Path temporary = null;
+            List<Path> completedAttempts = new ArrayList<>();
             try {
                 Path parent = target.toAbsolutePath().getParent();
                 if (parent != null) Files.createDirectories(parent);
-                MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                String url = proxy.resolveUrl(artifact.getDownloadUrl());
-                HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                        .header("User-Agent", MusicHud.PROJECT_NAME)
-                        .GET().build();
-                HttpResponse<InputStream> response = HTTP.send(request, HttpResponse.BodyHandlers.ofInputStream());
-                if (response.statusCode() != 200) throw new IOException("TuneWeave download returned HTTP " + response.statusCode());
-                long total = response.headers().firstValueAsLong("Content-Length").orElse(-1);
-                long downloaded = 0;
-                try (InputStream input = response.body(); OutputStream output = Files.newOutputStream(
-                        temporary, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
-                    byte[] buffer = new byte[32 * 1024];
-                    int count;
-                    while ((count = input.read(buffer)) != -1) {
-                        if (cancelled != null && cancelled.get()) throw new CancellationException("Download cancelled");
-                        output.write(buffer, 0, count);
-                        digest.update(buffer, 0, count);
-                        downloaded += count;
-                        if (progress != null) progress.accept(downloaded, total);
-                    }
-                }
-                HttpRequest checksumRequest = HttpRequest.newBuilder(URI.create(
-                                proxy.resolveUrl(artifact.getVerification().getChecksumUrl())))
-                        .header("User-Agent", MusicHud.PROJECT_NAME).GET().build();
-                HttpResponse<String> checksumResponse = HTTP.send(checksumRequest,
-                        HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
-                if (checksumResponse.statusCode() != 200) throw new IOException("Checksum download returned HTTP " + checksumResponse.statusCode());
-                String expected = checksumResponse.body().trim().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-                String actual = HexFormat.of().formatHex(digest.digest());
-                if (!actual.equals(expected)) throw new IOException("TuneWeave SHA-256 verification failed");
+                // Freeze verification data over official TLS before contacting any mirror.
+                String expected = fetchExpectedChecksum(artifact.getVerification().getChecksumUrl(), cancelled);
+                temporary = DownloadSources.withSource(artifact.getDownloadUrl(), proxy, cancelled, selected -> {
+                    var response = DownloadSources.open(artifact.getDownloadUrl(), selected,
+                            "application/octet-stream", cancelled);
+                    long total = response.headers().firstValueAsLong("Content-Length").orElse(-1);
+                    Path staged = stageVerifiedArtifact(response.body(), parent, total, MAX_ARTIFACT_BYTES,
+                            expected, progress, cancelled);
+                    completedAttempts.add(staged);
+                    return staged;
+                });
+                DownloadSources.checkCancelled(cancelled);
                 Files.move(temporary, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 if (!"windows".equalsIgnoreCase(artifact.getPlatform())) target.toFile().setExecutable(true);
             } catch (Exception error) {
-                try { Files.deleteIfExists(temporary); } catch (IOException ignored) { }
+                try { if (temporary != null) Files.deleteIfExists(temporary); } catch (IOException ignored) { }
                 if (error instanceof CancellationException cancellation) throw cancellation;
                 throw new RuntimeException("Failed to download TuneWeave artifact", error);
+            } finally {
+                // withSource may observe cancellation after staging succeeds but before assigning its result.
+                for (Path completed : completedAttempts) {
+                    try { Files.deleteIfExists(completed); } catch (IOException ignored) { }
+                }
             }
         }, MusicHud.EXECUTOR);
+    }
+
+    /** Owns only its unique temporary file; failures leave both targets and previous attempts untouched. */
+    static Path stageVerifiedArtifact(InputStream input, Path directory, long declaredSize, long limit,
+                                      String expected, BiConsumer<Long, Long> progress, AtomicBoolean cancelled)
+            throws IOException {
+        Path temporary = null;
+        try {
+            try (InputStream owned = input) {
+                DownloadSources.checkCancelled(cancelled);
+                if (limit < 1 || limit > MAX_ARTIFACT_BYTES || declaredSize < -1 || declaredSize > limit)
+                    throw new IOException("TuneWeave artifact exceeds download size limit");
+                temporary = Files.createTempFile(directory, ".musichud-tuneweave-", ".part");
+                MessageDigest digest;
+                try { digest = MessageDigest.getInstance("SHA-256"); }
+                catch (java.security.NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
+                long downloaded = 0;
+                try (OutputStream output = Files.newOutputStream(temporary, StandardOpenOption.TRUNCATE_EXISTING)) {
+                    byte[] buffer = new byte[32 * 1024];
+                    int count;
+                    while ((count = owned.read(buffer, 0, (int) Math.min(buffer.length, limit - downloaded + 1))) != -1) {
+                        DownloadSources.checkCancelled(cancelled);
+                        if (count > limit - downloaded) throw new IOException("TuneWeave artifact exceeds download size limit");
+                        downloaded += count;
+                        if (declaredSize >= 0 && downloaded > declaredSize) throw new IOException("Invalid TuneWeave artifact length");
+                        output.write(buffer, 0, count);
+                        digest.update(buffer, 0, count);
+                        if (progress != null) progress.accept(downloaded, declaredSize);
+                    }
+                }
+                DownloadSources.checkCancelled(cancelled);
+                if (declaredSize >= 0 && downloaded != declaredSize) throw new IOException("Incomplete TuneWeave artifact");
+                if (!HexFormat.of().formatHex(digest.digest()).equals(expected))
+                    throw new IOException("TuneWeave SHA-256 verification failed");
+            }
+            return temporary;
+        } catch (IOException | RuntimeException error) {
+            if (temporary != null) {
+                try { Files.deleteIfExists(temporary); } catch (IOException cleanup) { error.addSuppressed(cleanup); }
+            }
+            throw error;
+        }
+    }
+
+    private static String fetchExpectedChecksum(String original, AtomicBoolean cancelled) throws IOException, InterruptedException {
+        var response = DownloadSources.open(original, DownloadProxy.DIRECT, "text/plain", cancelled);
+        try (InputStream input = response.body()) {
+            byte[] bytes = input.readNBytes(4097);
+            if (bytes.length > 4096) throw new IOException("Checksum response is too large");
+            return parseChecksum(new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    static String parseChecksum(String text) throws IOException {
+        String expected = text.trim().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
+        if (!expected.matches("[0-9a-f]{64}")) throw new IOException("Invalid official SHA-256 checksum");
+        return expected;
     }
 
     private static String currentPlatformName() {

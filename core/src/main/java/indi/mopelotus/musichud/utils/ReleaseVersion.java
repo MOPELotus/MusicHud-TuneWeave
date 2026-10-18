@@ -1,4 +1,4 @@
-package indi.mopelotus.musichud.client.update;
+package indi.mopelotus.musichud.utils;
 
 import java.util.List;
 import java.util.regex.Pattern;

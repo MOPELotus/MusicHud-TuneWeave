@@ -17,7 +17,7 @@ gradle.projectsEvaluated {
             doLast {
                 def file = deploymentTask.archiveFile.get().asFile
                 boolean cf = rootProject.distribution == 'cf'
-                def forbidden = ['ApiServerManager', 'SodaSignerSupport', 'SodaSignerProcess', 'UpdateInstaller', 'UpdateBackupCleanup', 'installer.jar', 'ApiServerFetcher', 'ApiBinaryUpdateService', 'ApiDownloadSession',
+                def forbidden = ['ServiceUpdateService', 'ServiceUpdateUi', 'ServiceUpdateCompatibility', 'DownloadSourceUi', 'DownloadSources', 'TuneWeaveCompatibility', 'ModServiceCompatibility', 'ServiceReleaseProfiles', 'ServiceUpdateHealth', 'ApiServerManager', 'SodaSignerSupport', 'SodaSignerProcess', 'UpdateInstaller', 'UpdateBackupCleanup', 'installer.jar', 'ApiServerFetcher', 'ApiBinaryUpdateService', 'ApiDownloadSession',
                                  'release-manifest.json', 'NeteaseCloudMusicApiEnhanced/api-enhanced/releases',
                                  'com/sedmelluq/discord/lavaplayer/source/youtube/',
                                  'com.sedmelluq.discord.lavaplayer.source.youtube.',
