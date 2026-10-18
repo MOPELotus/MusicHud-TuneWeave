@@ -59,8 +59,15 @@ public class LyricLineView extends LinearLayout {
     private boolean blurDisabled = false;
     private boolean blurInitialized = false;
 
+    private final int subLyricSize;
+
     public LyricLineView(Context context, LyricLine lyricLine) {
+        this(context, lyricLine, Theme.MAIN_LYRIC_SIZE, Theme.SUB_LYRIC_SIZE);
+    }
+
+    public LyricLineView(Context context, LyricLine lyricLine, int mainLyricSize, int subLyricSize) {
         super(context);
+        this.subLyricSize = subLyricSize;
         try {
             this.lyricLine = lyricLine;
             setOrientation(LinearLayout.VERTICAL);
@@ -100,9 +107,9 @@ public class LyricLineView extends LinearLayout {
 //                mainText.setAlpha(Theme.FADE_LYRIC_ALPHA);
                     mainLine.addView(mainText);
                     if (lyricLine.getType() == LyricLine.Type.META_DATA) {
-                        mainText.setTextSize(Theme.SUB_LYRIC_SIZE);
+                        mainText.setTextSize(subLyricSize);
                     } else {
-                        mainText.setTextSize(Theme.MAIN_LYRIC_SIZE);
+                        mainText.setTextSize(mainLyricSize);
 
                         refreshSubLyricLine();
                     }
@@ -142,7 +149,7 @@ public class LyricLineView extends LinearLayout {
                 if (subLyric != null && !subLyric.isEmpty()) {
                     subText = new TextView(getContext());
                     subText.setText(subLyric);
-                    subText.setTextSize(Theme.SUB_LYRIC_SIZE);
+                    subText.setTextSize(subLyricSize);
                     subText.setTextStyle(TextPaint.BOLD);
                     subText.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
                     subText.setAlpha(Theme.FADE_LYRIC_ALPHA);

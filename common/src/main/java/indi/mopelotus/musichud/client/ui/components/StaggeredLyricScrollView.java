@@ -17,6 +17,7 @@ import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
 import indi.mopelotus.musichud.client.audio.NowPlayingInfo;
 import indi.mopelotus.musichud.client.ui.dto.LyricLine;
+import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.hud.HudRendererManager;
 import indi.mopelotus.musichud.client.ui.lyric.LineBlurRenderer;
 import indi.mopelotus.musichud.client.utils.ui.Easing;
@@ -186,6 +187,24 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
         scrollSpring = new SpringValue((float) SCROLL_RESPONSE_MILLIS / 1000, SCROLL_DAMPING);
     }
 
+    @Setter
+    private int mainLyricSize = Theme.MAIN_LYRIC_SIZE;
+    @Setter
+    private int subLyricSize = Theme.SUB_LYRIC_SIZE;
+
+    public void clearLyrics() {
+        musicDetail = MusicDetail.NONE;
+        requestedLyrics = List.of();
+        ++rowsGeneration;
+        cancelSwitchAnimation();
+        cancelAlphaAnimation();
+        stopUpdateLoop();
+        removeCallbacks(autoRecenterRunnable);
+        pendingHighlightLine.set(null);
+        replaceRows(List.of());
+        container.setTranslationX(0);
+    }
+
     public void switchLyrics(MusicDetail detail, Collection<LyricLine> lyrics) {
         List<LyricLine> next = lyrics == null ? List.of() : List.copyOf(lyrics);
         if (musicDetail == detail && Objects.equals(requestedLyrics, next)) return;
@@ -271,7 +290,7 @@ public class StaggeredLyricScrollView extends ClampingScrollView {
 
         rows.clear();
         for (LyricLine line : lyrics) {
-            LyricLineView row = new LyricLineView(context, line);
+            LyricLineView row = new LyricLineView(context, line, mainLyricSize, subLyricSize);
             container.addView(row);
             lyricLines.put(line, row);
             lyricLineViewList.add(row);
