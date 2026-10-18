@@ -1,48 +1,69 @@
 package indi.mopelotus.musichud.client.audio.decoder;
 
-import indi.mopelotus.musichud.server.playback.SharedResourceValidator;
-import java.io.*;
+import indi.mopelotus.musichud.client.audio.decoder.transport.MediaTransport;
+import indi.mopelotus.musichud.interfaces.ClientRegister;
+import indi.mopelotus.musichud.interfaces.ICommonEventService;
+import indi.mopelotus.musichud.interfaces.RegisterMark;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClients;
 
 public final class PcmAudioInput {
-    private PcmAudioInput() {}
+  private static MediaTransport transport;
+  private static boolean stopped;
 
-    /** Shared media transport for public artwork, retaining the same actual-DNS and redirect checks. */
-    public static InputStream openPublicMedia(String identifier, Map<String, String> headers) throws IOException {
-        return open(identifier, headers, true);
-    }
+  private PcmAudioInput() {}
 
-    static InputStream open(String identifier, Map<String, String> headers, boolean publicOnly) throws IOException {
-        if (!identifier.startsWith("http://") && !identifier.startsWith("https://")) {
-            if (publicOnly) throw new IOException("Public audio must use HTTP");
-            return Files.newInputStream(Path.of(identifier));
-        }
-        if (publicOnly) SharedResourceValidator.requireSafeHttpUrl(identifier);
-        var builder = HttpClients.custom().disableCookieManagement().disableAutomaticRetries()
-                .setDefaultRequestConfig(RequestConfig.custom().setConnectTimeout(10_000).setSocketTimeout(10_000)
-                        .setConnectionRequestTimeout(10_000).setMaxRedirects(5).build());
-        if (publicOnly) builder.setDnsResolver(SharedResourceValidator::resolvePublicAddresses).setRedirectStrategy(new SafeAudioRedirectStrategy());
-        var client = builder.build();
-        try {
-            HttpGet request = new HttpGet(identifier);
-            if (headers != null) headers.forEach(request::setHeader);
-            var response = client.execute(request);
-            if (response.getStatusLine().getStatusCode() != 200 || response.getEntity() == null) {
-                response.close(); throw new IOException("Audio stream request failed");
-            }
-            return new FilterInputStream(response.getEntity().getContent()) {
-                private boolean closed;
-                @Override public void close() throws IOException {
-                    if (closed) return;
-                    closed = true;
-                    try { super.close(); } finally { try { response.close(); } finally { client.close(); } }
-                }
-            };
-        } catch (IOException | RuntimeException error) { client.close(); throw error; }
+  /** Shared media transport with connection-level DNS and per-hop redirect validation. */
+  public static InputStream openPublicMedia(String identifier, Map<String, String> headers)
+      throws IOException {
+    return open(identifier, headers, true);
+  }
+
+  static InputStream open(String identifier, Map<String, String> headers, boolean publicOnly)
+      throws IOException {
+    if (!identifier.regionMatches(true, 0, "http://", 0, 7)
+        && !identifier.regionMatches(true, 0, "https://", 0, 8)) {
+      if (publicOnly) throw new IOException("Public audio must use HTTP");
+      return Files.newInputStream(Path.of(identifier));
     }
+    final URI uri;
+    try {
+      uri = URI.create(identifier);
+    } catch (IllegalArgumentException error) {
+      throw new IOException("Invalid media URL");
+    }
+    return transport()
+        .open(uri, headers, publicOnly, null, new MediaTransport.Cancellation())
+        .body();
+  }
+
+  private static synchronized MediaTransport transport() throws IOException {
+    if (stopped) throw new IOException("Media transport has stopped");
+    if (transport == null) transport = new MediaTransport();
+    return transport;
+  }
+
+  /** Stops shared download resources; requests arriving after shutdown cannot recreate them. */
+  public static void closeTransport() {
+    MediaTransport owned;
+    synchronized (PcmAudioInput.class) {
+      stopped = true;
+      owned = transport;
+      transport = null;
+    }
+    if (owned != null) owned.close();
+  }
+
+  @RegisterMark
+  public static final class RegisterImpl implements ClientRegister {
+    @Override
+    public void register() {
+      ICommonEventService.getInstance()
+          .registerCommonLifecycleStopping(PcmAudioInput::closeTransport);
+    }
+  }
 }
