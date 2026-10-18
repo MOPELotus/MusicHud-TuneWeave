@@ -192,7 +192,10 @@ public final class Mp4PacketSource implements PacketSource {
               .orElseThrow(() -> new IOException("ALAC without config"));
       if (!(box instanceof org.mp4parser.boxes.UnknownBox raw))
         throw new IOException("Unexpected ALAC configuration box");
+      // UnknownBox parses by advancing its shared buffer to the end. Assertions may
+      // rewind that buffer during verification, so its cursor is not a payload boundary.
       var payload = raw.getData().duplicate();
+      payload.rewind();
       var bytes = ByteBuffer.allocate(Math.addExact(8, payload.remaining()));
       bytes.putInt(bytes.capacity()).putInt(0x616c6163).put(payload);
       config = bytes.array();

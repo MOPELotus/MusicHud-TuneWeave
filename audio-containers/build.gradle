@@ -120,11 +120,16 @@ def verifyContainerJar = tasks.register('verifyContainerJar') {
         }
     }
 }
+def packetCodecArtifact = project(':audio-codecs').tasks.named('shadowJar').flatMap { it.archiveFile }.map { it.asFile }
 test {
+    inputs.file(tasks.named('shadowJar').flatMap { it.archiveFile })
+    inputs.file(packetCodecArtifact)
     useJUnitPlatform()
     maxHeapSize = '128m'
-    dependsOn verifyContainerJar, project(':audio-codecs').tasks.named('jar')
+    dependsOn verifyContainerJar, project(':audio-codecs').tasks.named('jar'), project(':audio-codecs').tasks.named('shadowJar')
     doFirst {
+        systemProperty 'packetCodecJar', packetCodecArtifact.get().absolutePath
+        systemProperty 'packetHostSlf4jJar', project.configurations.r8Libraries.files.find { it.name.startsWith('slf4j-api-') }.absolutePath
         systemProperty 'containerJar', tasks.named('shadowJar').get().archiveFile.get().asFile.absolutePath
         systemProperty 'containerLibraries', project.configurations.r8Libraries.files.collect { it.absolutePath }.join(File.pathSeparator)
     }

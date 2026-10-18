@@ -6,3 +6,4 @@ src/test/resources/containers/*.mp4 binary
 src/test/resources/containers/*.webm binary
 src/test/resources/container/hls/*.ts binary
 src/test/resources/container/ts/*.ts binary
+src/test/resources/containers/*.s16le binary
