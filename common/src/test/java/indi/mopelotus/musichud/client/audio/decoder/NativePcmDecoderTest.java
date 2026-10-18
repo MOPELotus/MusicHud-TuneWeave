@@ -40,7 +40,8 @@ class NativePcmDecoderTest {
             assertNull(decoder.readChunk(64));
         }
         assertThrows(IOException.class, () -> PcmAudioInput.open("file:///private", Map.of(), true));
-        assertThrows(IllegalArgumentException.class, () -> PcmAudioInput.open("http://127.0.0.1/private", Map.of(), true));
+        // The bounded asynchronous transport reports DNS/address-policy rejection as I/O failure.
+        assertThrows(IOException.class, () -> PcmAudioInput.open("http://127.0.0.1/private", Map.of(), true));
     }
 
     @Test void waveNativeDepthSurvivesOddChunkBoundariesAndFallback() throws Exception {
