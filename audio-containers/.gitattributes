@@ -7,3 +7,6 @@ src/test/resources/containers/*.webm binary
 src/test/resources/container/hls/*.ts binary
 src/test/resources/container/ts/*.ts binary
 src/test/resources/containers/*.s16le binary
+src/test/resources/container/fmp4/*.mp4 binary
+src/test/resources/container/fmp4/*.m4s binary
+src/test/resources/container/fmp4/*.gz binary

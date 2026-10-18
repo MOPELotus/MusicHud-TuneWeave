@@ -21,6 +21,7 @@ public final class Mp4PacketSource implements PacketSource {
   private final BoundedMedia media;
   private final IsoFile iso;
   private final Track info;
+  private final boolean openEndedFinalEdit;
   private final Map<SampleEntry, Format> formats = new IdentityHashMap<>();
   private final Mp4SampleRanges ranges;
   private final List<SampleEntry> sampleEntries;
@@ -102,6 +103,9 @@ public final class Mp4PacketSource implements PacketSource {
               .findFirst()
               .orElseThrow(() -> new IOException("No audio track"));
       long trackId = selected.getTrackHeaderBox().getTrackId();
+      boolean fragmentedTrack =
+          org.mp4parser.tools.Path.<TrackExtendsBox>getPaths(iso, "moov/mvex/trex").stream()
+              .anyMatch(defaults -> defaults.getTrackId() == trackId);
       timescale = selected.getMediaBox().getMediaHeaderBox().getTimescale();
       if (timescale <= 0) throw new IOException("Invalid media timescale");
       sampleEntries =
@@ -139,12 +143,19 @@ public final class Mp4PacketSource implements PacketSource {
                   new Time(e.getSegmentDuration(), movieScale),
                   new Rate(fixedRate, 65536)));
         }
+      openEndedFinalEdit =
+          fragmentedTrack
+              && !edits.isEmpty()
+              && edits.getLast().mediaStart() != null
+              && edits.getLast().presentationDuration().ticks() == 0;
+      boolean initializationOnly =
+          fragmentedTrack && durations.length == 0 && !hasFragments(trackId);
       info =
           new Track(
               formats.get(
                   sampleEntries.get(
                       ranges.descriptions.length == 0 ? 0 : ranges.descriptions[0] - 1)),
-              new Time(starts[durations.length], timescale),
+              initializationOnly ? null : new Time(starts[durations.length], timescale),
               edits,
               Time.ZERO,
               Time.ZERO);
@@ -269,6 +280,22 @@ public final class Mp4PacketSource implements PacketSource {
         }
     if (at != durations.length) throw new IOException("Fragment sample count mismatch");
     starts[at] = end;
+  }
+
+  private boolean hasFragments(long trackId) {
+    return iso.getBoxes(MovieFragmentBox.class).stream()
+        .flatMap(fragment -> fragment.getBoxes(TrackFragmentBox.class).stream())
+        .anyMatch(fragment -> fragment.getTrackFragmentHeaderBox().getTrackId() == trackId);
+  }
+
+  /**
+   * The selected fragmented track ends with a nonempty edit whose declared duration is zero. Such
+   * an edit is open-ended; its original mediaStart, duration and rate remain in track().edits().
+   * The mapper must preserve that mediaStart and reject unsupported rates. Classic zero-duration
+   * edits and terminal empty edits do not carry this marker.
+   */
+  public boolean hasOpenEndedFinalEdit() {
+    return openEndedFinalEdit;
   }
 
   public Track track() {
