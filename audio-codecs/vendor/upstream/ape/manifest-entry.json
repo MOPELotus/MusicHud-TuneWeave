@@ -1,0 +1,71 @@
+{
+  "name": "ape-ffmpeg-java-port",
+  "upstream": "https://github.com/FFmpeg/FFmpeg/tree/n9.0.2",
+  "revision": "n9.0.2",
+  "license": "LGPL-2.1-or-later",
+  "provenance": "Controlled Java translation of the pinned C references. port-source is the frozen v2 Java translation, not upstream Java; only namespace relocation applied for integration. Original C copyright and license retained. No JMAC source.",
+  "reference_files": [
+    {
+      "path": "vendor/upstream/ape/reference/apetag.c",
+      "sha256": "3926025ba8307a897e538e53050358bad5d1c43eb3702df195d8d9ffaf21594f"
+    },
+    {
+      "path": "vendor/upstream/ape/reference/apedec.c",
+      "sha256": "981f664b9a9489979cf499c0eb7eb319c46547849719fa2e06363f357faacb50"
+    },
+    {
+      "path": "vendor/upstream/ape/reference/COPYING.LGPLv2.1",
+      "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+    },
+    {
+      "path": "vendor/upstream/ape/reference/lossless_audiodsp.c",
+      "sha256": "d4db72e01f280062257efe236158a0a7c3fe58aff8485a6ab9e6c7fdf750d2b4"
+    },
+    {
+      "path": "vendor/upstream/ape/reference/lossless_audiodsp.h",
+      "sha256": "111371264648a6da9c70e37c1dc625d707600c90ee8f97c31b04184f3ee70c43"
+    },
+    {
+      "path": "vendor/upstream/ape/reference/ape.c",
+      "sha256": "332e3ae87ede8e1e51445b10e94543e7df4c821e1cf7351e26375f6fc4d9ceae"
+    }
+  ],
+  "port_sources": [
+    {
+      "original": "vendor/upstream/ape/port-source/study/ape/ApeDecoder.java",
+      "original_sha256": "572ddc82ccdcb0dc3f66de9c0904cdacbbb987a54dfc993e640ef49242f6d7cd",
+      "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeDecoder.java",
+      "compiled_sha256": "00029f330e9b4baac50571f43df0c6fe09355b92f8840758875a0d917538bd89",
+      "patch": "vendor/patches/ape/ApeDecoder-namespace.patch",
+      "patch_sha256": "76b3942979fb4ee12016695e255a7860eef61f3428abbd2e5c2f2046f0a2d524",
+      "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+    },
+    {
+      "original": "vendor/upstream/ape/port-source/study/ape/ApeInput.java",
+      "original_sha256": "8cd1216694b030433b206534118fc21a199930bceeb1fdb66994b8ee3792d54b",
+      "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeInput.java",
+      "compiled_sha256": "6fb0eda7a335423c863ea49a7d130854f0b364ee56a906c2129f1bb6e6cb1113",
+      "patch": "vendor/patches/ape/ApeInput-namespace.patch",
+      "patch_sha256": "23a24948aa0fe7f108f7817392a9c161b8669f5f453bfcc3cd657c1e94162533",
+      "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+    },
+    {
+      "original": "vendor/upstream/ape/port-source/study/ape/ApeEntropy.java",
+      "original_sha256": "5170ceef7b30324986c0b08c775754dcf25ed78510508004266044e057e67950",
+      "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApeEntropy.java",
+      "compiled_sha256": "42fb1ecd6ba4445dd217a475d6ab880db42a5d84f97ab011f40919e2706bb2a7",
+      "patch": "vendor/patches/ape/ApeEntropy-namespace.patch",
+      "patch_sha256": "d5be3f27767c22d3b4f80e12a1dcf8ef7bfdbd3dfc430a1f74e27eb6feecca25",
+      "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+    },
+    {
+      "original": "vendor/upstream/ape/port-source/study/ape/ApePredictor.java",
+      "original_sha256": "49d56e9538fa154a5f25a73feef1f23e80019e1fd72cd3a27ae762b5cc9d75c0",
+      "compiled": "src/thirdParty/java/indi/mopelotus/musichud/audio/codec/internal/ape/ApePredictor.java",
+      "compiled_sha256": "779ae5e4c30cca11721f51c1af5a433ad514b2449f7d301384b03eb449521f1e",
+      "patch": "vendor/patches/ape/ApePredictor-namespace.patch",
+      "patch_sha256": "3e88ccc090a579425ed6a612b28e78541b46eabc943a5fc2410d21ead6ec610b",
+      "reason": "Namespace relocation only; controlled Java translation, not an upstream Java source."
+    }
+  ]
+}

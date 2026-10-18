@@ -3,25 +3,23 @@ package indi.mopelotus.musichud.client.update;
 import icyllis.modernui.view.View;
 import icyllis.modernui.view.MeasureSpec;
 import icyllis.modernui.widget.TextView;
-import indi.mopelotus.musichud.BuildDistribution;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.ui.Theme;
 import indi.mopelotus.musichud.client.ui.components.Modal;
 import net.minecraft.client.resources.language.I18n;
-import java.net.URI;
 import java.nio.file.*;
 
 /** UI-scoped subscription: a late result cannot reopen a destroyed fragment. */
 public final class ClientUpdateUi implements AutoCloseable {
-    public static final URI FULL_EDITION = URI.create("https://github.com/MOPELotus/MusicHud-TuneWeave/releases");
     private static String dismissedVersion;
     private final View owner;
     private final ClientUpdateService service;
     private AutoCloseable subscription;
-    private boolean closed, manual;
+    private boolean closed, manual, started;
+    private AutoCloseable apiDownloadUi;
     private Modal modal;
     private TextView progressText;
-    private final Path notice = MusicHud.getConfigDirectory().resolve("musichud-tuneweave/cf-notice-v1.accepted");
+    private final Path notice = MusicHud.getConfigDirectory().resolve("musichud-tuneweave/standard-service-notice-v1.accepted");
     private static ClientUpdateUi active;
     private ClientUpdateUi(View owner) { this.owner = owner; this.service = ClientUpdateService.INSTANCE; }
     public static ClientUpdateUi attach(View owner) {
@@ -32,17 +30,38 @@ public final class ClientUpdateUi implements AutoCloseable {
     }
     private void start() {
         if (closed) return;
-        if (BuildDistribution.EDITION.equals("cf") && !Files.isRegularFile(notice)) {
-            modal = new Modal(owner.getContext(), text(tr("cfTitle")), content(tr("cfNotice")),
-                    new Modal.ActionButton(tr("fullEdition"), (b, m) -> openFullEdition()),
-                    new Modal.ActionButton(tr("understood"), (b, m) -> {
-                        try { Files.createDirectories(notice.getParent()); Files.writeString(notice, "1\n", StandardOpenOption.CREATE_NEW); }
-                        catch (java.io.IOException e) { MusicHud.LOGGER.warn("Could not save CF notice acknowledgement"); }
-                        m.dismiss();
-                    }));
-            modal.setOnDismissListener(() -> { modal = null; if (!closed && service != null) render(service.state()); });
-            modal.show();
-        } else if (service != null) render(service.state());
+        started = true;
+        if (Files.isRegularFile(notice, LinkOption.NOFOLLOW_LINKS)) {
+            if (service != null) render(service.state());
+            return;
+        }
+        boolean[] download = {false};
+        boolean[] chosen = {false};
+        modal = new Modal(owner.getContext(), text(tr("serviceTitle")), content(tr("serviceNotice")),
+                new Modal.ActionButton(tr("understood"), (b, m) -> {
+                    if (closed || chosen[0]) return;
+                    chosen[0] = true; acknowledge(); m.dismiss();
+                }),
+                new Modal.ActionButton(tr("goDownload"), (b, m) -> {
+                    if (closed || chosen[0]) return;
+                    chosen[0] = true; acknowledge(); download[0] = true; m.dismiss();
+                }));
+        modal.setOnDismissListener(() -> {
+            modal = null;
+            if (closed) return;
+            if (download[0]) {
+                apiDownloadUi = indi.mopelotus.musichud.client.ui.pages.ApiDistributionUi.openAndStart(owner, () -> {
+                    apiDownloadUi = null;
+                    if (!closed && service != null) render(service.state());
+                });
+            } else if (service != null) render(service.state());
+        });
+        modal.show();
+    }
+    private void acknowledge() {
+        try { Files.createDirectories(notice.getParent()); Files.writeString(notice, "1\n", StandardOpenOption.CREATE_NEW); }
+        catch (FileAlreadyExistsException accepted) { }
+        catch (java.io.IOException error) { MusicHud.LOGGER.warn("Could not save service notice acknowledgement"); }
     }
     public static void manualCheck() {
         if (active == null || active.closed) return;
@@ -52,7 +71,7 @@ public final class ClientUpdateUi implements AutoCloseable {
         else active.service.check();
     }
     private void render(ClientUpdateService.State state) {
-        if (closed || service == null || service.state() != state) return;
+        if (closed || !started || apiDownloadUi != null || service == null || service.state() != state) return;
         if (progressText != null && modal != null && modal.isShowing()) {
             switch (state.status()) {
                 case READY -> { progressText.setText(tr("ready")); progressText = null; manual = false; }
@@ -69,18 +88,10 @@ public final class ClientUpdateUi implements AutoCloseable {
                 String version = state.offer().version();
                 if (!manual && version.equals(dismissedVersion)) return;
                 manual = false; dismissedVersion = version;
-                boolean cf = BuildDistribution.EDITION.equals("cf");
-                String message = tr("available", version) + "\n\n" + tr(cf ? "manualDownloadNotice" : "restartNotice");
-                if (BuildDistribution.EDITION.equals("cf")) message += "\n\n" + tr("cfNotice");
-                var now = new Modal.ActionButton(tr(cf ? "goDownload" : "now"), (b, m) -> {
-                    if (cf) net.minecraft.Util.getPlatform().openUri(state.offer().releasePageUri());
-                    else service.download();
-                    m.dismiss();
-                });
+                String message = tr("available", version) + "\n\n" + tr("restartNotice");
+                var now = new Modal.ActionButton(tr("now"), (b, m) -> { service.download(); m.dismiss(); });
                 var later = new Modal.ActionButton(tr("later"), (b, m) -> m.dismiss());
-                modal = BuildDistribution.EDITION.equals("cf")
-                        ? new Modal(owner.getContext(), text(tr("cfTitle")), content(message), now, later, new Modal.ActionButton(tr("fullEdition"), (b, m) -> openFullEdition()))
-                        : new Modal(owner.getContext(), text(tr("title")), content(message), now, later);
+                modal = new Modal(owner.getContext(), text(tr("title")), content(message), now, later);
                 modal.setOnDismissListener(() -> { modal = null; if (!closed && service.state().status() != ClientUpdateService.Status.AVAILABLE) render(service.state()); });
                 modal.show();
             }
@@ -120,10 +131,10 @@ public final class ClientUpdateUi implements AutoCloseable {
         var view = new TextView(owner.getContext()); view.setText(value); view.setTextSize(Theme.TEXT_SIZE_NORMAL); view.setTextColor(Theme.NORMAL_TEXT_COLOR); return view;
     }
     public static String tr(String key, Object... args) { return I18n.get(MusicHud.MOD_ID + ".update." + key, args); }
-    private static void openFullEdition() { net.minecraft.Util.getPlatform().openUri(FULL_EDITION); }
     @Override public void close() {
         closed = true;
         if (active == this) active = null;
+        if (apiDownloadUi != null) { try { apiDownloadUi.close(); } catch (Exception ignored) { } apiDownloadUi = null; }
         if (subscription != null) try { subscription.close(); } catch (Exception ignored) { }
         if (modal != null) { modal.setOnDismissListener(() -> {}); modal.dismiss(); modal = null; }
     }

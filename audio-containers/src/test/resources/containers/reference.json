@@ -1,0 +1,77 @@
+{
+  "opus.webm": {
+    "file_sha256": "adf5c7629486e93a119a0d3b2de98a9f14a4a705fa0ee8d741715bc410cebef1",
+    "packet_sha256": "7737e0bc3a99f742ec0a2f992391a21a1c7e1083716fb31c02bffb88c204f400",
+    "packets": 7,
+    "config_hex": "4f707573486561640102380180bb0000000000",
+    "codec": "opus",
+    "time_base": "1/1000",
+    "first_pts": -7,
+    "last_packet": {
+      "codec_type": "audio",
+      "stream_index": 0,
+      "pts": 114,
+      "pts_time": "0.114000",
+      "dts": 114,
+      "dts_time": "0.114000",
+      "duration": 20,
+      "duration_time": "0.020000",
+      "size": "400",
+      "pos": "2460",
+      "flags": "K__",
+      "side_data_list": [
+        {
+          "side_data_type": "Skip Samples",
+          "skip_samples": 0,
+          "discard_padding": 168,
+          "skip_reason": 0,
+          "discard_reason": 0
+        }
+      ]
+    }
+  },
+  "aac.m4a": {
+    "file_sha256": "8f3a4a21c2ad4483c71de1386665a4b60a7fb49c71179870fccfbb96ac465a3d",
+    "packet_sha256": "a9b1cbfc67e4a714d6c7e33faf18048f5173b3fcc4ee2cf83e2de168bfa7b67b",
+    "packets": 8,
+    "config_hex": "119056e500",
+    "codec": "aac",
+    "time_base": "1/48000",
+    "first_pts": -1024,
+    "last_packet": {
+      "codec_type": "audio",
+      "stream_index": 0,
+      "pts": 6144,
+      "pts_time": "0.128000",
+      "dts": 6144,
+      "dts_time": "0.128000",
+      "duration": 96,
+      "duration_time": "0.002000",
+      "size": "7",
+      "pos": "2406",
+      "flags": "K__"
+    }
+  },
+  "alac.m4a": {
+    "file_sha256": "167e5fd276c78cde90a02d3b7429c620cb384944c26c1f21193656d187c23aab",
+    "packet_sha256": "2064593ea38f039a61000afd70108e6a44c894c9574249d981cbc3f133fdcbbf",
+    "packets": 2,
+    "config_hex": "00000024616c616300000000000010000010280a0e02000000004004001770000000bb80",
+    "codec": "alac",
+    "time_base": "1/48000",
+    "first_pts": 0,
+    "last_packet": {
+      "codec_type": "audio",
+      "stream_index": 0,
+      "pts": 4096,
+      "pts_time": "0.085333",
+      "dts": 4096,
+      "dts_time": "0.085333",
+      "duration": 2144,
+      "duration_time": "0.044667",
+      "size": "1040",
+      "pos": "1900",
+      "flags": "K__"
+    }
+  }
+}

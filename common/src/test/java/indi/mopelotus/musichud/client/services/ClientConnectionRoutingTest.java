@@ -1,12 +1,26 @@
 package indi.mopelotus.musichud.client.services;
 
 import indi.mopelotus.musichud.MusicHud.ConnectStatus;
+import indi.mopelotus.musichud.interfaces.IConnectionManager.ConnectionMode;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import static indi.mopelotus.musichud.client.services.ClientConnectionRouting.Route.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ClientConnectionRoutingTest {
+    @Test void localMembershipMatchesIntegratedExternalAndExplicitIsolationPolicy() {
+        for (boolean integrated : List.of(false, true)) for (ConnectStatus status : ConnectStatus.values()) {
+            assertTrue(ClientConnectionRouting.usesLocalMembership(integrated, ConnectionMode.ISOLATED, status));
+            assertFalse(ClientConnectionRouting.usesLocalMembership(integrated, ConnectionMode.DISCONNECTED, status));
+            assertEquals(integrated && status == ConnectStatus.CONNECTED,
+                    ClientConnectionRouting.usesLocalMembership(integrated, ConnectionMode.EXTERNAL, status));
+        }
+        assertEquals(LOCAL, ClientConnectionRouting.route(true, false, ConnectStatus.CONNECTED, false, false));
+        assertTrue(ClientConnectionRouting.usesLocalMembership(true, ConnectionMode.EXTERNAL, ConnectStatus.CONNECTED));
+        assertEquals(REMOTE, ClientConnectionRouting.route(true, true, ConnectStatus.CONNECTED, false, false));
+        assertFalse(ClientConnectionRouting.usesLocalMembership(false, ConnectionMode.EXTERNAL, ConnectStatus.CONNECTED));
+    }
+
     @Test void integratedHandshakeAndInitialStateWorkWithEitherFallbackPolicy() {
         for (boolean isolated : List.of(false, true)) {
             assertEquals(LOCAL, ClientConnectionRouting.route(true, false, ConnectStatus.NOT_CONNECTED, true, isolated));

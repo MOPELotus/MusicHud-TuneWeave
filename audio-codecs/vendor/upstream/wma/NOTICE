@@ -1,0 +1,22 @@
+WMA v1/v2 decoder core
+
+Port source: devoxin/lavaplayer commit 2a5e4a279e3643d380c78207cc139c03cbbf6aa6
+https://github.com/devoxin/lavaplayer/tree/2a5e4a279e3643d380c78207cc139c03cbbf6aa6/main/src/main/java/com/sedmelluq/discord/lavaplayer/natives/wma
+
+The port identifies FFmpeg wma.c/wmadec.c. Applicable original notices:
+WMA compatible decoder: Copyright (c) 2002 The FFmpeg Project
+WMA compatible codec: Copyright (c) 2002-2007 The FFmpeg Project
+Original source and license references:
+https://github.com/FFmpeg/FFmpeg/blob/n9.0.2/libavcodec/wmadec.c
+https://github.com/FFmpeg/FFmpeg/blob/n9.0.2/libavcodec/wma.c
+https://github.com/FFmpeg/FFmpeg/blob/n9.0.2/COPYING.LGPLv2.1
+These sources identify LGPL version 2.1 or (at your option) any later version.
+LICENSE retains the complete LGPL 2.1 text. UPSTREAM-APACHE-LICENSE retains
+the fork root Apache-2.0 text; do not classify this FFmpeg-derived core as
+Apache-only. No FFmpeg binary or external runtime decoder is required.
+
+Original sources and finite bounded-input, overlap-drain and paired RLE/IMDCT
+polarity changes are provided with this module. Tables remain unchanged.
+The JDK-only ASF adapter follows the pinned WmaFileLoader/WmaTrackProvider
+container parsing, with bounded inputs and explicit ownership/cancellation.
+WMA Pro, WMA lossless, ASF descrambling and indexed seek are unsupported.

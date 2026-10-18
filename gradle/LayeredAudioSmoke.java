@@ -6,14 +6,14 @@ import java.util.jar.*;
 import javax.tools.ToolProvider;
 
 /** Verifies the packaged audio path with game libraries represented as named JPMS modules. */
-// Arguments: existing smoke source, work directory, distribution, final JAR, host library JARs.
+// Arguments: smoke source, work directory, distribution, fixture directory, final JAR, host library JARs.
 class LayeredAudioSmoke {
     public static void main(String[] args) throws Exception {
         Path source = Path.of(args[0]);
         Files.createDirectories(Path.of(args[1]));
         Path work = Files.createTempDirectory(Path.of(args[1]), "modules-");
         String distribution = args[2];
-        List<Path> jars = Arrays.stream(args).skip(3).map(Path::of).toList();
+        List<Path> jars = Arrays.stream(args).skip(4).map(Path::of).toList();
         Files.createDirectories(work.resolve("source/audit"));
         Path testSource = work.resolve("source/audit/CfAudioSmoke.java");
         Files.writeString(testSource, "package audit;\n" + Files.readString(source));
@@ -47,20 +47,7 @@ class LayeredAudioSmoke {
         Thread.currentThread().setContextClassLoader(loader);
         var main = loader.loadClass("audit.CfAudioSmoke").getDeclaredMethod("main", String[].class);
         main.setAccessible(true);
-        main.invoke(null, (Object) new String[] {distribution});
-        Path wave = work.resolve("production-adapter.wav");
-        byte[] pcm = new byte[4800 * 4];
-        for (int i = 0; i < pcm.length; i++) pcm[i] = (byte) (i % 100);
-        var format = new javax.sound.sampled.AudioFormat(48000, 16, 2, true, false);
-        try (var input = new javax.sound.sampled.AudioInputStream(new java.io.ByteArrayInputStream(pcm), format, 4800)) {
-            javax.sound.sampled.AudioSystem.write(input, javax.sound.sampled.AudioFileFormat.Type.WAVE, wave.toFile());
-        }
-        Class<?> adapter = loader.loadClass("indi.mopelotus.musichud.client.audio.decoder.LavaplayerStreamDecoder");
-        Object decoder = adapter.getMethod("open", String.class).invoke(null, wave.toString());
-        try (AutoCloseable closeable = (AutoCloseable) decoder) {
-            byte[] decoded = (byte[]) adapter.getMethod("readChunk", long.class).invoke(decoder, 16384L);
-            if (decoded == null || decoded.length == 0) throw new IllegalStateException("Production adapter returned no PCM");
-        }
+        main.invoke(null, (Object) new String[] {distribution, args[3]});
         System.out.println("Verified packaged audio in named modules: " + roots);
     }
 }

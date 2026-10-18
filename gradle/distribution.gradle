@@ -20,22 +20,10 @@ subprojects {
                 dependencies {
                     exclude(dependency('commons-io:commons-io:.*'))
                     exclude(dependency('commons-codec:commons-codec:.*'))
-                    // Also supplied by the fixed Minecraft versions supported on this branch.
-                    exclude(dependency('org.apache.httpcomponents:httpclient:.*'))
-                    exclude(dependency('org.apache.httpcomponents:httpcore:.*'))
-                    exclude(dependency('commons-logging:commons-logging:.*'))
                 }
                 // Upstream command-line examples; no production metadata reader uses these.
                 exclude 'org/jaudiotagger/test/**'
                 exclude 'org/jaudiotagger/Test.class', 'org/jaudiotagger/Test2.class'
-            }
-        }
-        if (distribution == 'cf' && project.name in ['fabric', 'neoforge']) {
-            tasks.named('shadowJar').configure {
-                // Only HTTP streams and local audio are used. Remove the unused
-                // YouTube implementation and its convenience registration helper.
-                exclude 'com/sedmelluq/discord/lavaplayer/source/youtube/**'
-                exclude 'com/sedmelluq/discord/lavaplayer/source/AudioSourceManagers.class'
             }
         }
     }
@@ -92,6 +80,7 @@ subprojects {
                                             'musichud_tuneweave.button.localApiSetup', 'musichud_tuneweave.text.localApiSetup',
                                             'musichud_tuneweave.button.localApiSetupClose',
                                             'musichud_tuneweave.update.fullEdition', 'musichud_tuneweave.update.goDownload',
+                                            'musichud_tuneweave.update.serviceTitle', 'musichud_tuneweave.update.serviceNotice',
                                             'musichud_tuneweave.update.manualDownloadNotice', 'musichud_tuneweave.update.restartNotice']
                         }
                         file.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(translations)) + '\n', 'UTF-8')

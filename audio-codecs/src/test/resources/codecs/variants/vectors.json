@@ -1,0 +1,42 @@
+[
+  {
+    "name": "float-stereo",
+    "channels": 2,
+    "bits": 32,
+    "float": true,
+    "hybrid": false,
+    "mask": 3
+  },
+  {
+    "name": "float-eight",
+    "channels": 8,
+    "bits": 32,
+    "float": true,
+    "hybrid": false,
+    "mask": 255
+  },
+  {
+    "name": "integer-eight",
+    "channels": 8,
+    "bits": 32,
+    "float": false,
+    "hybrid": false,
+    "mask": 255
+  },
+  {
+    "name": "hybrid-stereo",
+    "channels": 2,
+    "bits": 24,
+    "float": false,
+    "hybrid": true,
+    "mask": 3
+  },
+  {
+    "name": "hybrid-float-six",
+    "channels": 6,
+    "bits": 32,
+    "float": true,
+    "hybrid": true,
+    "mask": 63
+  }
+]
