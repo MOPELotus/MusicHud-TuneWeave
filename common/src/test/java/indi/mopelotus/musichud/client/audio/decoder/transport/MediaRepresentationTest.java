@@ -9,12 +9,79 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 import javax.net.ssl.SSLContext;
 import org.junit.jupiter.api.Test;
 
 class MediaRepresentationTest {
+  @Test
+  void ignoredUnconditionalRangesHaveTypedStatusAndCloseTheUnusedBody() throws Exception {
+    for (var range :
+        List.of(new MediaTransport.ByteRange(1L, null), new MediaTransport.ByteRange(0L, 2L))) {
+      try (var server = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
+          var client = transport()) {
+        var disconnected = new CompletableFuture<Boolean>();
+        Thread.ofVirtual()
+            .start(
+                () -> {
+                  try (Socket peer = server.accept()) {
+                    peer.setSoTimeout(2000);
+                    var reader =
+                        new BufferedReader(
+                            new InputStreamReader(
+                                peer.getInputStream(), StandardCharsets.ISO_8859_1));
+                    String line;
+                    while ((line = reader.readLine()) != null && !line.isEmpty()) {}
+                    peer.getOutputStream()
+                        .write(
+                            ("HTTP/1.1 200 OK\r\nContent-Length: 1000000\r\n"
+                                    + "Connection: keep-alive\r\n\r\n")
+                                .getBytes(StandardCharsets.ISO_8859_1));
+                    peer.getOutputStream().flush();
+                    // Never send the body: the rejected response must close immediately.
+                    disconnected.complete(peer.getInputStream().read() == -1);
+                  } catch (Throwable failure) {
+                    disconnected.completeExceptionally(failure);
+                  }
+                });
+        var failure =
+            assertThrows(
+                MediaTransport.ResourceChangedException.class,
+                () ->
+                    client.open(
+                        URI.create("http://media.test:" + server.getLocalPort() + "/media"),
+                        Map.of(),
+                        false,
+                        range,
+                        new MediaTransport.Cancellation()));
+        assertEquals(MediaTransport.ChangeReason.HTTP_STATUS, failure.reason());
+        assertEquals(200, failure.status());
+        assertTrue(disconnected.get(2, TimeUnit.SECONDS));
+      }
+    }
+  }
+
+  @Test
+  void openEndedRangeFromZeroStillAcceptsAnOrdinaryFullResponse() throws Exception {
+    try (var source = new Source();
+        var client = transport()) {
+      source.mode = Mode.FULL;
+      try (var response =
+          client.open(
+              source.uri(),
+              Map.of(),
+              false,
+              new MediaTransport.ByteRange(0L, null),
+              new MediaTransport.Cancellation())) {
+        assertEquals(200, response.status());
+        assertEquals(
+            "0123456789", new String(response.body().readAllBytes(), StandardCharsets.UTF_8));
+      }
+    }
+  }
+
   @Test
   void strongValidatorPinsRangesEvenWhenThe206OmitsRepeatedMetadata() throws Exception {
     try (var source = new Source();
