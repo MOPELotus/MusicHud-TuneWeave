@@ -60,7 +60,14 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
         }
     }
 
+    /** Ordinary playback changes slide the outgoing lyrics away. */
     public synchronized void clear() {
+        pendingLines.clear();
+        setLines(new Line(null, "", 0, 0, 0), new Line(null, "", 0, 0, 0), true);
+    }
+
+    /** Resource teardown must discard every queued update and active animation immediately. */
+    public synchronized void hardClear() {
         pendingLines.clear();
         pairs.clear();
     }
@@ -98,7 +105,7 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
         Line line2 = pending.line2();
         float height = layout.getHeight();
 
-        // Non-animated update (e.g. clear): drop every running pair and snap to the new lines.
+        // Non-animated update: drop every running pair and snap to the new lines.
         if (!pending.animate()) {
             pairs.clear();
             LinePair pair = new LinePair();
