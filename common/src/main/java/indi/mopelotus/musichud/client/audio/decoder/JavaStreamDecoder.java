@@ -67,14 +67,31 @@ public final class JavaStreamDecoder implements AudioDecoder {
     }
   }
 
+  public boolean supportsFastSeek() {
+    return input.supportsFastSeek();
+  }
+
+  public long getPositionFrames() {
+    return input.framePosition();
+  }
+
+  public boolean seekToFrame(long frame) {
+    if (frame < 0) return false;
+    try {
+      return input.seekFrame(frame);
+    } catch (IOException | ArithmeticException error) {
+      return false;
+    }
+  }
+
   public boolean seekToMillis(long millis) {
     if (millis < 0) return false;
     try {
-      return input.seekFrame(
+      return seekToFrame(
           Math.addExact(
               Math.multiplyExact(millis / 1000, format.sampleRate()),
               millis % 1000 * format.sampleRate() / 1000));
-    } catch (IOException | ArithmeticException error) {
+    } catch (ArithmeticException error) {
       return false;
     }
   }

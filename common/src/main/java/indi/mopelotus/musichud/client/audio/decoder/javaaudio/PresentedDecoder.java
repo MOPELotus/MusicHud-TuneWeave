@@ -17,6 +17,10 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
   public interface Factory {
     Attempt attempt();
 
+    default boolean supportsFastSeek() {
+      return false;
+    }
+
     /**
      * Returns raw-media PCM at or before this absolute frame. Default is an exact from-start
      * fallback.
@@ -60,6 +64,10 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
 
   public boolean hasDownmixedChannels() {
     return downmixed;
+  }
+
+  public boolean supportsFastSeek() {
+    return factory.supportsFastSeek();
   }
 
   public PcmFormat format() {
