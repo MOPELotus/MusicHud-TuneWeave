@@ -90,7 +90,7 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
       synchronized (state) {
         check();
         if (!ready) throw new IOException("Seek in progress");
-        if (atEnd) return -1;
+        if (atEnd) return maxFrames == 0 ? 0 : -1;
         version = epoch;
         initial = position;
       }

@@ -25,7 +25,7 @@ final class OggPlaybackFactory implements PresentedDecoder.Factory {
   }
 
   public boolean supportsFastSeek() {
-    return !declined;
+    return !declined && (resource.rangeStable() || snapshot.get() != null);
   }
 
   public PresentedDecoder.Attempt attempt() {

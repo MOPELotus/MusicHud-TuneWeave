@@ -166,7 +166,14 @@ final class JavaDecoderFactoryTest {
       byte[] expected = all(decoder);
       assertEquals(1, requests.get());
       for (int millis : List.of(20, 80, 20, 0)) {
+        if (requests.get() == 1)
+          assertFalse(
+              decoder.supportsFastSeek(),
+              "Cold weak sources must not force a complete download for automatic synchronization");
         assertTrue(decoder.seekToMillis(millis), "seek=" + millis);
+        assertTrue(
+            decoder.supportsFastSeek(),
+            "Completed same-response snapshot permits bounded local seeks");
         assertEquals(millis, decoder.getPositionMillis());
         int byteOffset = millis * decoder.getSampleRate() / 1000 * decoder.getFrameSize();
         assertArrayEquals(Arrays.copyOfRange(expected, byteOffset, expected.length), all(decoder));
