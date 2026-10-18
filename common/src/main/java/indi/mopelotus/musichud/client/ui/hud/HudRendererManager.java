@@ -70,6 +70,9 @@ public class HudRendererManager {
     private volatile boolean closed;
     private Logger logger;
     private int albumImageThumbnailSize = -1;
+    private volatile boolean idle = true;
+    private boolean pendingSwitchToEmpty;
+    private final HudVisibilityFade visibilityFade = new HudVisibilityFade();
 
     private void publishLyricStyles(LyricStyles lines) {
         var current = nowPlayingInfo.snapshot();
@@ -319,14 +322,22 @@ public class HudRendererManager {
         return bgImages;
     }
 
-    public void switchMusic(MusicDetail musicDetail) {
+    public synchronized void switchMusic(MusicDetail musicDetail) {
         if (closed) return;
         lyrics.cancel();
         artwork.cancel();
         try {
-            if (musicDetail == null || musicDetail.equals(MusicDetail.NONE)) {
-                reset();
+            boolean wasIdle = idle;
+            idle = musicDetail == null || musicDetail.equals(MusicDetail.NONE);
+            if (idle) {
+                if ((clientConfig.getHideHudWhenNotPlaying() || !clientConfig.getEnable() || !clientConfig.getEnableHud())
+                        && (!wasIdle || pendingSwitchToEmpty)) {
+                    pendingSwitchToEmpty = true;
+                } else {
+                    resetContent();
+                }
             } else {
+                pendingSwitchToEmpty = false;
                 TITLE_RENDERER.setText(musicDetail.getName());
                 PLATFORM_ICON_RENDERER.setPlatform(PlatformIconUtils.platform(musicDetail));
                 String artists = musicDetail.getArtists().stream()
@@ -374,11 +385,14 @@ public class HudRendererManager {
                 });
     }
 
-    public void reset() {
+    public synchronized void reset() { switchMusic(MusicDetail.NONE); }
+
+    private void resetContent() {
         if (closed) return;
         lyrics.cancel();
         artwork.cancel();
-        TITLE_RENDERER.setText(I18n.get(MusicHud.MOD_ID + ".text.idle"));
+        pendingSwitchToEmpty = false;
+        TITLE_RENDERER.setText(clientConfig.getHideHudWhenNotPlaying() ? "" : I18n.get(MusicHud.MOD_ID + ".text.idle"));
         PLATFORM_ICON_RENDERER.setPlatform(null);
         ARTISTS_AND_ALBUM_RENDERER.setText("");
         LYRICS_LINE_RENDERER.clear();
@@ -413,7 +427,14 @@ public class HudRendererManager {
     private synchronized void renderFrame(GuiGraphics graphics, @Nullable DeltaTracker deltaTracker, boolean preview) {
         if (closed) return;
         try {
-            if (!preview && (!clientConfig.getEnable() || !clientConfig.getEnableHud()
+            float targetOpacity = HudVisibilityFade.target(clientConfig.getEnable(), clientConfig.getEnableHud(),
+                    false, clientConfig.getHideHudWhenNotPlaying(), idle);
+            float opacity = visibilityFade.advance(targetOpacity, System.nanoTime());
+            if (pendingSwitchToEmpty && (visibilityFade.hidden() || targetOpacity > 0f)) {
+                resetContent();
+            }
+            baseLayout.setAlpha(preview ? 1f : opacity);
+            if (!preview && (visibilityFade.hidden()
                     || Minecraft.getInstance().screen instanceof indi.mopelotus.musichud.client.ui.screen.MusicHudScreen
                     || Minecraft.getInstance().screen instanceof indi.mopelotus.musichud.client.ui.screen.HudLayoutEditorScreen)) {
                 return;
@@ -423,12 +444,9 @@ public class HudRendererManager {
             }
 
             NowPlayingInfo nowPlayingInfo = this.nowPlayingInfo;
-            MusicDetail musicDetail = nowPlayingInfo.getCurrentlyPlayingMusicDetail();
-            if (musicDetail == null || musicDetail.equals(MusicDetail.NONE)) {
-                TITLE_RENDERER.setText(I18n.get(MusicHud.MOD_ID + ".text.idle"));//To prevent i18n lazy loading result in wrong text
-                if (!preview && clientConfig.getHideHudWhenNotPlaying()) {
-                    return;
-                }
+            if (idle && !pendingSwitchToEmpty && !clientConfig.getHideHudWhenNotPlaying()) {
+                // Translation resources may become available after construction.
+                TITLE_RENDERER.setText(I18n.get(MusicHud.MOD_ID + ".text.idle"));
             }
             hudBaseData.getTransitionableBackground().updateTransition();
 
