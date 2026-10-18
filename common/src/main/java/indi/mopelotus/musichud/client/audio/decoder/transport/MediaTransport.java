@@ -601,7 +601,7 @@ public final class MediaTransport implements AutoCloseable {
               && !conditionalRange
               && range != null
               && (range.first > 0 || range.last != null))
-            throw new IOException("Media server ignored range");
+            throw new ResourceChangedException(ChangeReason.HTTP_STATUS, status);
           MediaValidators.Observation metadata =
               MediaValidators.read(
                   targetUri,
