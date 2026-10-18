@@ -26,6 +26,31 @@ final class JavaDecoderFactoryTest {
           "tone.au");
 
   @Test
+  void sparseHeAacHeadersExpandTheRecoveryWindowBeforePresentingTheTarget() throws Exception {
+    Path file = Files.createTempFile("java-aac-sparse-headers-", ".mp4");
+    try {
+      Files.write(file, fixture("seek-hev2-period72.m4a"));
+      byte[] complete;
+      try (var decoder = JavaDecoderFactory.open(file.toString(), Map.of(), false, true, true)) {
+        complete = all(decoder);
+      }
+      try (var decoder = JavaDecoderFactory.open(file.toString(), Map.of(), false, true, true)) {
+        for (long millis : new long[] {3000, 3200}) {
+          assertTrue(decoder.seekToMillis(millis));
+          long target = millis * decoder.getSampleRate() / 1000;
+          assertEquals(target, decoder.getPositionFrames());
+          assertArrayEquals(
+              Arrays.copyOfRange(
+                  complete, Math.toIntExact(target * decoder.getFrameSize()), complete.length),
+              all(decoder));
+        }
+      }
+    } finally {
+      Files.deleteIfExists(file);
+    }
+  }
+
+  @Test
   void aacSeekPreservesThePresentedSampleGridAfterRecovery() throws Exception {
     Path file = Files.createTempFile("java-aac-recovery-", ".mp4");
     try {
