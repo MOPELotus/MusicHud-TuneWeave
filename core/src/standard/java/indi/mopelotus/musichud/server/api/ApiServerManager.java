@@ -82,6 +82,25 @@ public class ApiServerManager implements ClientRegister {
         if (serverConfig.getStartupBinaryApiServerWhenLaunch()) restartApiServer();
     }
 
+    public record ManagedProcessSnapshot(long generation, Path executable, boolean processAlive,
+                                         boolean owned, BinaryApiServerStatus status) {}
+
+    public synchronized ManagedProcessSnapshot managedProcessSnapshot() {
+        Attempt current = attempt;
+        boolean alive = current != null && current.process != null && current.process.isAlive();
+        return new ManagedProcessSnapshot(generation, current == null ? null : current.executable,
+                alive, alive && isCurrent(current), binaryApiServerStatus);
+    }
+
+    /** Returns the new generation only when no newer user lifecycle intent superseded it. */
+    public synchronized long restartIfGeneration(long expectedGeneration, Runnable configure) {
+        if (generation != expectedGeneration || jvmStopping) return -1;
+        configure.run();
+        if (generation != expectedGeneration || jvmStopping) return -1;
+        restartApiServer();
+        return generation == expectedGeneration + 1 ? generation : -1;
+    }
+
     public synchronized void stopApiServer() {
         Attempt previous = attempt;
         long stoppedGeneration = ++generation;
@@ -219,6 +238,7 @@ public class ApiServerManager implements ClientRegister {
                     return;
                 }
                 executable = executablePath();
+                owner.executable = executable.toAbsolutePath().normalize();
                 triedCount++;
                 setApiStatus(BinaryApiServerStatus.LAUNCHING, owner.generation);
                 if (!isCurrent(owner)) return;
@@ -360,7 +380,11 @@ public class ApiServerManager implements ClientRegister {
                         // Listener callbacks can stop/restart the manager synchronously.
                         if (isCurrent(owner)) {
                             try {
-                                cleanup.accept(executable);
+                                // A user may change only the configured binary while this health probe is pending.
+                                // Such a selection change must not let this older launch delete their chosen binary.
+                                String selected = serverConfig.getServerApiBinaryExecutablePath();
+                                if (selected != null && executable.toAbsolutePath().normalize()
+                                        .equals(Path.of(selected).toAbsolutePath().normalize())) cleanup.accept(executable);
                             } catch (RuntimeException failure) {
                                 apiLogger.warn("Deferred TuneWeave managed-binary cleanup", failure);
                             }
@@ -575,6 +599,7 @@ public class ApiServerManager implements ClientRegister {
         final CompletableFuture<Void> finishedFuture = new CompletableFuture<>();
         final CompletableFuture<Process> createdFuture = new CompletableFuture<>();
         Process process;
+        Path executable;
         PrintWriter writer;
         boolean creationStarted;
         boolean terminationScheduled;

@@ -219,4 +219,26 @@ class ClientUpdateTest {
         assertEquals(1, cleaned[0]); assertTrue(work.isEmpty());
     }
 
+    @Test void catalogCarriesTargetServiceProfilesAndRejectsMalformedDeclarations() {
+        for (String invalid : List.of("null", "{}", "[]", "[1]", "[\"x\",\"x\"]", "[\"../escape\"]")) {
+            String json = catalog("standard").replace("\"size\":123", "\"size\":123,\"service_profiles\":" + invalid);
+            assertThrows(IllegalArgumentException.class, () -> ClientUpdateCatalog.select(json, "v1.4.0-beta.1", installed("standard"), true, ""));
+        }
+        String json = catalog("standard").replace("\"size\":123", "\"size\":123,\"service_profiles\":[\"tuneweave-http-v2\"]");
+        assertEquals(List.of("tuneweave-http-v2"), ClientUpdateCatalog.select(json, "v1.4.0-beta.1", installed("standard"), true, "").orElseThrow().serviceProfiles());
+    }
+    @Test void incompatibleTargetPairCannotStageModEvenAfterRepeatedClicks() {
+        var work = new ArrayList<Runnable>(); int[] staged = {0};
+        var offer = ClientUpdateCatalog.select(catalog("standard"), "v1.4.0-beta.1", installed("standard"), true, "").orElseThrow();
+        var service = new ClientUpdateService(work::add, new ClientUpdateService.Backend() {
+            public Optional<ClientUpdateCatalog.Offer> check() { return Optional.of(offer); }
+            public String compatibility(ClientUpdateCatalog.Offer value) { return "manualPair"; }
+            public void stage(ClientUpdateCatalog.Offer value) { staged[0]++; }
+        });
+        service.check(); work.removeFirst().run();
+        assertEquals("manualPair", service.state().message());
+        service.download(); service.download("DIRECT");
+        assertTrue(work.isEmpty()); assertEquals(0, staged[0]);
+    }
+
 }
