@@ -26,6 +26,14 @@ public final class CommonInitializer implements ModInitializer {
                     mod.getMetadata().getVersion().getFriendlyString(), "fabric",
                     FabricLoader.getInstance().getModContainer("minecraft").orElseThrow().getMetadata().getVersion().getFriendlyString());
         }
+        if (!inClient) {
+            var type = indi.mopelotus.musichud.platform.mod.network.DeploymentProbePayload.TYPE;
+            var codec = indi.mopelotus.musichud.platform.mod.network.DeploymentProbePayload.CODEC;
+            net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(type, codec);
+            net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playS2C().register(type, codec);
+            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(type,
+                    (payload, context) -> indi.mopelotus.musichud.platform.mod.network.DedicatedDeploymentProbe.receive(payload, context.player()));
+        }
         MusicHud.init();
         MusicHud.onConfigLoaded();
         if (inClient) indi.mopelotus.musichud.client.update.ClientUpdateService.watchSuccessfulStartup();
