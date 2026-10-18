@@ -104,6 +104,12 @@ public class NeoForgeNetworkManager implements INetworkRegister, VanillaServerNe
         for (RegistrationInfo<?> info : pendingRegistrations) {
             registerPayloadInternal(info);
         }
+        if (side == Environment.Side.SERVER) {
+            var type = indi.mopelotus.musichud.platform.mod.network.DeploymentProbePayload.TYPE;
+            var codec = indi.mopelotus.musichud.platform.mod.network.DeploymentProbePayload.CODEC;
+            registrar.playBidirectional(type, codec, (payload, context) ->
+                    indi.mopelotus.musichud.platform.mod.network.DedicatedDeploymentProbe.receive(payload, (ServerPlayer) context.player()));
+        }
         pendingRegistrations.clear(); // 清空，避免重复注册
     }
 
