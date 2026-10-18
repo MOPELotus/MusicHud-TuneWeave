@@ -15,7 +15,7 @@ class CfAudioSmoke {
     Path fixtures = Path.of(args[1]);
     var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     String[] samples = {
-      "tone.mp3", "tone.flac", "tone.wav", "tone.m4a", "tone.opus", "tone.alac.m4a"
+      "tone.mp3", "tone.flac", "tone.wav", "tone.m4a", "tone.opus", "tone.alac.m4a", "chain-rate-change.ogg"
     };
     for (int i = 0; i < samples.length; i++) {
       byte[] bytes = Files.readAllBytes(fixtures.resolve(samples[i]));
@@ -44,6 +44,14 @@ class CfAudioSmoke {
                 Map.of("X-Audio-Smoke", "required"));
         if (!Arrays.equals(local, remote))
           throw new AssertionError("Local/HTTP PCM differ: " + samples[i]);
+        if (samples[i].equals("chain-rate-change.ogg")) {
+          int firstLinkBytes = decode(fixtures.resolve("tone.opus").toString(), Map.of()).length;
+          if (local.length < firstLinkBytes + 48000 / 20 * 4)
+            throw new AssertionError("Chained sample lost its resampled logical stream");
+          boolean tailSignal = false;
+          for (int index = firstLinkBytes; index < local.length; index++) tailSignal |= local[index] != 0;
+          if (!tailSignal) throw new AssertionError("Resampled logical stream is silent");
+        }
         System.out.println(
             "Packaged "
                 + args[0]

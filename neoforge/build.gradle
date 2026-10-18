@@ -204,12 +204,12 @@ shadowJar {
 }
 
 jar {
-    // Use the relocated decoder caller from shadowJar, not the original source-set output.
+    // Shadow owns every project class so relocated callers cannot lose to raw source output.
+    // NeoForge compiles common sources into this project's main classes directory as well.
     eachFile { details ->
-        if (details.path in ['indi/mopelotus/musichud/client/utils/image/WebpImages.class',
-                            'indi/mopelotus/musichud/client/utils/image/SvgImages.class',
-                            'indi/mopelotus/musichud/client/utils/image/QrImageUtils.class'] &&
-                sourceSets.main.output.classesDirs.files.any { details.file.toPath().startsWith(it.toPath()) }) {
+        if (details.path.endsWith('.class') && sourceSets.main.output.classesDirs.files.any {
+            details.file.toPath().toAbsolutePath().normalize().startsWith(it.toPath().toAbsolutePath().normalize())
+        }) {
             details.exclude()
         }
     }

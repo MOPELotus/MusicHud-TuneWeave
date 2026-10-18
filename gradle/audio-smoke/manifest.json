@@ -139,6 +139,17 @@
         "-1",
         "tone.alac.m4a"
       ]
+    },
+    {
+      "file": "chain-rate-change.ogg",
+      "bytes": 6563,
+      "sha256": "f847f7f12cd7004bc0ee6fd34a27a86dc2b9a5b92c4a1b7659cb94208b415a77",
+      "source": "Byte concatenation of existing synthetic 48 kHz stereo tone.opus and CC0 44.1 kHz mono common/src/test/resources/javaaudio/tone-second.ogg; exercises logical-link normalization and the packaged relocated resampler.",
+      "operation": [
+        "concatenate",
+        "tone.opus",
+        "../../common/src/test/resources/javaaudio/tone-second.ogg"
+      ]
     }
   ]
 }
