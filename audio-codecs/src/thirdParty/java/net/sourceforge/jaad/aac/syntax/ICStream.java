@@ -82,7 +82,7 @@ public class ICStream implements HCB, ScaleFactorTable, IQTable {
         tnsDataPresent = in.readBool();
         if (tnsDataPresent && !er) {
             if (tns == null) tns = new TNS();
-            tns.decode(in, info);
+            tns.decode(in, info, conf.getProfile());
         }
 
         gainControlPresent = in.readBool();

@@ -13,6 +13,11 @@ WavPack Tiny Decoder: David Bryant / Peter McQuillan, BSD terms; finite float in
 AAC: JAAD / Vavi authors, retained upstream public-domain dedication; finite compatibility/correctness patches and four read-only access-unit recovery
 observers plus two configuration-state getters, with originals and complete diffs. Recovery observation does not copy
 DSP/filter state or alter decoding arithmetic.
+The separate TNS filtering overlay adapts FFmpeg n9.0.2 apply_tns and the
+unnormalized compute_lpc_coefs recursion, LGPL 2.1 or later: copyright
+2005-2006 Oded Shimon, 2006-2007 Maxim Gavrilov, 2008-2013 Alex Converse,
+2006 Justin Ruggles. It uses the project LGPL text and preserves the public-domain
+JAAD parser. Reference: https://github.com/FFmpeg/FFmpeg/tree/n9.0.2/libavcodec
 
 The separate WavPack integer precision adapter follows the scalar supplemental
 bit/CRC arithmetic of FFmpeg 9.0.2, LGPL-2.1-or-later. Its corresponding notice
