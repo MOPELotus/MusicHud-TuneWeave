@@ -1,0 +1,14 @@
+--- a/vendor/upstream/aac/src/net/sourceforge/jaad/aac/huffman/Huffman.java
++++ b/src/thirdParty/java/net/sourceforge/jaad/aac/huffman/Huffman.java
+@@ -40,8 +40,10 @@
+         boolean neg = s < 0;
+ 
+         int i = 4;
++        // The legal escape magnitude is at most 8191: at most 12 tail bits.
+         while (in.readBool()) {
+-            i++;
++            if (++i > 12)
++                throw new AACException("AAC spectral escape overflow");
+         }
+         int j = in.readBits(i) | (1 << i);
+ 
