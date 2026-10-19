@@ -35,6 +35,14 @@ The AAC escape overlay bounds the unary escape prefix before any shift and
 retains the legal inclusive magnitude 8191, whose final inverse-quantization
 table entry is missing upstream. Existing 0..8190 arithmetic is unchanged.
 
+The AAC pulse correction applies the bounded pulse amplitudes to signed
+quantized coefficients before inverse quantization and scaling, handling
+zero-valued coefficients and repeated offsets while leaving uncoded, noise
+and intensity bands unchanged.
+Pulse positions are bounded by the window SWB endpoint; the coded escape
+limit remains 8191, while up to four amplitudes can increase a decoded value
+by at most 60. Only that finite pulse extension uses a scalar power fallback.
+
 The Concentus files, including `VorbisLayout.java`, match the pinned upstream Git blobs exactly. JLayer remains unchanged. ALAC has a finite native20-bit packing/sign-extension patch; WavPack preserves intermediate integer values before exact bounded IEEE float reconstruction. Their prediction and entropy algorithms are unchanged. Vendoring a core does not by itself claim that every optional format profile or malformed input has been qualified by the player.
 
 When distributing binaries, include these license texts and preserve the required attribution. Source distribution must retain the original sources, the corresponding patches, and the project's existing LGPL license and upstream attribution.
