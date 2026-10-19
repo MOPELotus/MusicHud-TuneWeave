@@ -19,7 +19,10 @@ import org.spongepowered.asm.mixin.injection.At;
 /** ModernUI 3.12 plain-layout fast paths build blobs in these static helpers. */
 @Mixin(targets = "icyllis.modernui.text.TextUtils", remap = false)
 public abstract class ModernUiEmojiTextUtilsMixin {
-    @WrapOperation(method = "drawTextRun", at = @At(value = "INVOKE", target =
+    @WrapOperation(method = {
+            "drawTextRun(Licyllis/modernui/graphics/Canvas;[CIIIIFFZLicyllis/modernui/text/TextPaint;)V",
+            "drawTextRun(Licyllis/modernui/graphics/Canvas;Ljava/lang/CharSequence;IIIIFFZLicyllis/modernui/text/TextPaint;)V"
+    }, at = @At(value = "INVOKE", target =
             "Licyllis/modernui/graphics/text/ShapedText;doLayoutRun([CIIIIZLicyllis/modernui/graphics/text/FontPaint;Licyllis/modernui/graphics/text/FontMetricsInt;Licyllis/modernui/graphics/text/ShapedText$RunConsumer;)F"),
             require = 2, allow = 2)
     private static float musichud_tuneweave$captureEmoji(char[] text, int contextStart, int contextEnd,
@@ -40,7 +43,10 @@ public abstract class ModernUiEmojiTextUtilsMixin {
         return original.call(text, contextStart, contextEnd, start, end, rtl, paint, metrics, collecting);
     }
 
-    @WrapOperation(method = "drawTextRun", at = @At(value = "INVOKE", target =
+    @WrapOperation(method = {
+            "drawTextRun(Licyllis/modernui/graphics/Canvas;[CIIIIFFZLicyllis/modernui/text/TextPaint;)V",
+            "drawTextRun(Licyllis/modernui/graphics/Canvas;Ljava/lang/CharSequence;IIIIFFZLicyllis/modernui/text/TextPaint;)V"
+    }, at = @At(value = "INVOKE", target =
             "Licyllis/modernui/graphics/Canvas;drawTextBlob(Licyllis/arc3d/sketch/TextBlob;FFLicyllis/modernui/graphics/Paint;)V"),
             require = 2, allow = 2)
     private static void musichud_tuneweave$drawEmoji(Canvas canvas, TextBlob blob, float x, float baseline,

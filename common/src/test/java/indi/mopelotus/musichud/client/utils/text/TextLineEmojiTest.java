@@ -11,6 +11,9 @@ import org.objectweb.asm.*;
 import org.objectweb.asm.tree.*;
 import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.SimpleRemapper;
+import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
+import org.spongepowered.asm.mixin.injection.selectors.ElementNode;
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
 import java.lang.invoke.MethodHandles;
 
 import java.lang.reflect.*;
@@ -191,7 +194,7 @@ public class TextLineEmojiTest {
             for (var annotation : annotations(method.visibleAnnotations, method.invisibleAnnotations)) {
                 if (!annotation.desc.endsWith("/WrapOperation;")) continue;
                 wrappers++;
-                assertEquals(List.of(utilities ? "drawTextRun" : "handleText"), value(annotation, "method"));
+                assertEquals(expectedSelectors(utilities), value(annotation, "method"));
                 Object atValue = value(annotation, "at");
                 var at = (AnnotationNode) (atValue instanceof List<?> list ? list.getFirst() : atValue);
                 String target = (String) value(at, "target");
@@ -226,6 +229,60 @@ public class TextLineEmojiTest {
         }
         }
     }
+    @Test void bareMethodSelectorStopsAtOneOverloadInsteadOfCoveringBoth() throws Exception {
+        var host = new ClassNode();
+        try (var input = getClass().getClassLoader().getResourceAsStream("icyllis/modernui/text/TextUtils.class")) {
+            assertNotNull(input);
+            new ClassReader(input).accept(host, 0);
+        }
+        var bare = selectedMethods(host, List.of("drawTextRun"));
+        assertEquals(1, bare.size(), "Sponge SELECT_MEMBER limits a bare name to the first exact match");
+        assertEquals(2, selectedMethods(host, productionSelectors(true)).size(),
+                "Both production wrappers must explicitly select both real overloads");
+    }
+
+    private static List<String> expectedSelectors(boolean utilities) {
+        return utilities ? List.of(
+                "drawTextRun(Licyllis/modernui/graphics/Canvas;[CIIIIFFZLicyllis/modernui/text/TextPaint;)V",
+                "drawTextRun(Licyllis/modernui/graphics/Canvas;Ljava/lang/CharSequence;IIIIFFZLicyllis/modernui/text/TextPaint;)V")
+                : List.of("handleText");
+    }
+
+    private static List<String> productionSelectors(boolean utilities) {
+        String targetClass = utilities ? "TextUtils" : "TextLine";
+        String path = "indi/mopelotus/musichud/mixin/ModernUiEmoji" + targetClass + "Mixin.class";
+        var mixin = new ClassNode();
+        try (var input = TextLineEmojiTest.class.getClassLoader().getResourceAsStream(path)) {
+            assertNotNull(input);
+            new ClassReader(input).accept(mixin, 0);
+        } catch (java.io.IOException failure) { throw new AssertionError(failure); }
+        for (var method : mixin.methods) {
+            if (!method.name.endsWith("$captureEmoji")) continue;
+            for (var annotation : annotations(method.visibleAnnotations, method.invisibleAnnotations)) {
+                if (annotation.desc.endsWith("/WrapOperation;")) {
+                    return ((List<?>) value(annotation, "method")).stream().map(String.class::cast).toList();
+                }
+            }
+        }
+        throw new AssertionError("Missing production capture selector");
+    }
+
+    /** Match the actual Sponge root-target selection and its per-selector match limit. */
+    private static Set<MethodNode> selectedMethods(ClassNode host, List<String> selectors) {
+        Set<MethodNode> selected = new LinkedHashSet<>();
+        for (String input : selectors) {
+            var selector = MemberInfo.parse(input, null).configure(ITargetSelector.Configure.SELECT_MEMBER);
+            int matches = 0;
+            for (var method : host.methods) {
+                if (!selector.match(ElementNode.of(host, method)).isExactMatch()) continue;
+                selected.add(method);
+                if (++matches >= selector.getMaxMatchCount()) break;
+            }
+            assertTrue(matches > 0, "Selector must match a real core method: " + input);
+        }
+        return selected;
+    }
+
     private static List<AnnotationNode> annotations(List<AnnotationNode> first, List<AnnotationNode> second) {
         var all = new ArrayList<AnnotationNode>();
         if (first != null) all.addAll(first);
@@ -254,8 +311,7 @@ public class TextLineEmojiTest {
         new ClassReader(original).accept(node, 0);
         boolean utilities = node.name.endsWith("/TextUtils");
         int layouts = 0, blobs = 0;
-        for (var method : node.methods) {
-            if (!method.name.equals(utilities ? "drawTextRun" : "handleText")) continue;
+        for (var method : selectedMethods(node, productionSelectors(utilities))) {
             int slot = method.maxLocals++;
             var init = new InsnList();
             var measured = new LabelNode();
