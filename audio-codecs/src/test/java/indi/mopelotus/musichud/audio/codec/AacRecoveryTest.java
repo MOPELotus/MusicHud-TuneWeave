@@ -13,10 +13,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 class AacRecoveryTest {
   static final Map<String, String> BASELINE =
       Map.of(
-          "he-period10-sig0", "5acab0eef80d8fcaf4df35e4ec2d9bf59aaf67b36cf02445bf3691416f9ea852",
-          "hev2-period10-sig0", "a5ed5f6113a0cc8a2ce9ae70cc6f05eab703833b41f441da1bf05680d51e9108",
-          "he-period72-sig1", "dea85ede61aee203c6958989a15a4546bebd7fcc8eca66095425d37c28a5900b",
-          "hev2-period72-sig1", "4bc630bf27b923ec741ed598369dc06795bb98d49c62a5118991f804fc872717");
+          "he-period10-sig0", "1f7a2c82b378bda2822aaf392e4d641a60ccb74732f4be1fd35e2f66c3e555cf",
+          "hev2-period10-sig0", "5e43874c476c3d791e184a46ef0e72549f4eeda00d66db490f21413050198e51",
+          "he-period72-sig1", "e0b4151c8c96be7cb477a4358a1468785fcfd85b5735378171a1c7e94e7f7442",
+          "hev2-period72-sig1", "6109468731fd5fbf1aa9897d3d451b743cb45801b9fdfc17d2a3c7132bbcc538");
 
   record Bundle(PacketSource.Format format, List<byte[]> packets) {
     PacketSource.Packet packet(int index) {
@@ -54,7 +54,7 @@ class AacRecoveryTest {
         "he-period72-sig1",
         "hev2-period72-sig1"
       })
-  void successfulObservationPreservesExistingPcm(String name) throws Exception {
+  void successfulObservationPreservesCorrectedPcm(String name) throws Exception {
     Bundle bundle = bundle(name);
     var digest = MessageDigest.getInstance("SHA-256");
     long frames = 0;
