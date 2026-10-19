@@ -34,5 +34,12 @@ ordering = "AFTER"
 side = "CLIENT"
 
 
+[[dependencies.musichud_tuneweave]]
+modId = "music_hud"
+type = "incompatible"
+reason = "MusicHud TuneWeave cannot run with upstream MusicHud (music_hud). Remove upstream MusicHud."
+ordering = "NONE"
+side = "BOTH"
+
 [[mixins]]
 config = "musichud_tuneweave.mixins.json"
