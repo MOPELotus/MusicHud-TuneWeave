@@ -81,7 +81,21 @@
          }
  
          gainControlPresent = in.readBool();
-@@ -228,8 +229,7 @@
+@@ -147,10 +148,12 @@
+ 
+         pulseOffset[0] = info.getSWBOffsets()[pulseStartSWB];
+         pulseOffset[0] += in.readBits(5);
++        if (pulseOffset[0] >= info.getSWBOffsetMax())
++            throw new AACException("pulse offset out of range: " + pulseOffset[0]);
+         pulseAmp[0] = in.readBits(4);
+         for (int i = 1; i < pulseCount; i++) {
+             pulseOffset[i] = in.readBits(5) + pulseOffset[i - 1];
+-            if (pulseOffset[i] > 1023) throw new AACException("pulse offset out of range: " + pulseOffset[0]);
++            if (pulseOffset[i] >= info.getSWBOffsetMax()) throw new AACException("pulse offset out of range: " + pulseOffset[i]);
+             pulseAmp[i] = in.readBits(4);
+         }
+     }
+@@ -228,8 +231,7 @@
                          float energy = 0;
  
                          for (int k = 0; k < width; k++) {
@@ -91,27 +105,37 @@
                              energy += iqData[off + k] * iqData[off + k];
                          }
  
-@@ -246,7 +246,7 @@
+@@ -246,7 +248,15 @@
  
                              // inverse quantization & scaling
                              for (int j = 0; j < num; j++) {
 -                                iqData[off + k + j] = (buf[j] > 0) ? IQ_TABLE[buf[j]] : -IQ_TABLE[-buf[j]];
-+                                iqData[off + k + j] = inverseQuantize(buf[j]);
++                                int value = buf[j];
++                                // Pulse modifies quantized values, including zero, in sign/magnitude order.
++                                if (pulseDataPresent) {
++                                    for (int p = 0; p < pulseCount; p++) {
++                                        if (pulseOffset[p] == off + k + j)
++                                            value += value > 0 ? pulseAmp[p] : -pulseAmp[p];
++                                    }
++                                }
++                                iqData[off + k + j] = inverseQuantize(value, pulseDataPresent ? 8251 : 8191);
                                  iqData[off + k + j] *= scaleFactors[idx];
                              }
                          }
-@@ -255,6 +255,15 @@
+@@ -255,6 +265,17 @@
              }
              groupOff += groupLen << 7;
          }
 +    }
 +
-+    private static float inverseQuantize(int value) throws AACException {
-+        if (value < -8191 || value > 8191)
++    private static float inverseQuantize(int value, int maxMagnitude) throws AACException {
++        if (value < -maxMagnitude || value > maxMagnitude)
 +            throw new AACException("AAC spectral magnitude out of range: " + value);
 +        int magnitude = Math.abs(value);
 +        // The upstream table omits its documented final entry, 8191^(4/3).
-+        float result = magnitude == 8191 ? 165113.4940829452f : IQ_TABLE[magnitude];
++        // Huffman escapes stay capped at 8191; at most four 4-bit pulses add 60.
++        float result = magnitude < IQ_TABLE.length ? IQ_TABLE[magnitude]
++                : magnitude == 8191 ? 165113.4940829452f : (float) Math.pow(magnitude, 4.0 / 3.0);
 +        return value > 0 ? result : -result;
      }
  
