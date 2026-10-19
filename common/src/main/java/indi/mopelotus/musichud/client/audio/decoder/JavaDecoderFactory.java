@@ -6,6 +6,7 @@ import indi.mopelotus.musichud.audio.container.aac.AdtsPacketSource;
 import indi.mopelotus.musichud.audio.container.input.PlaylistResolver;
 import indi.mopelotus.musichud.beans.music.FormatType;
 import indi.mopelotus.musichud.client.audio.decoder.javaaudio.*;
+import indi.mopelotus.musichud.client.audio.decoder.transport.MediaTransport;
 import java.io.*;
 import java.net.URI;
 import java.util.*;
@@ -25,12 +26,16 @@ final class JavaDecoderFactory {
     try {
       return open(identifier, headers, publicOnly, floatSupported, multichannelSupported, false);
     } catch (IOException failure) {
-      for (Throwable cause = failure; cause != null; cause = cause.getCause())
+      for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+        if (cause instanceof MediaTransport.RangeNotHonoredException ignoredRange)
+          return open(identifier, headers, publicOnly, floatSupported, multichannelSupported, true,
+              ignoredRange.expected());
         if (cause
             instanceof
             indi.mopelotus.musichud.client.audio.decoder.transport.MediaTransport
                 .ResourceChangedException)
           return open(identifier, headers, publicOnly, floatSupported, multichannelSupported, true);
+      }
       throw failure;
     }
   }
@@ -43,9 +48,17 @@ final class JavaDecoderFactory {
       boolean multichannelSupported,
       boolean singleResponse)
       throws IOException {
+    return open(identifier, headers, publicOnly, floatSupported, multichannelSupported,
+        singleResponse, null);
+  }
+
+  private static AudioDecoder open(
+      String identifier, Map<String, String> headers, boolean publicOnly,
+      boolean floatSupported, boolean multichannelSupported, boolean singleResponse,
+      MediaTransport.ExpectedRepresentation expected) throws IOException {
     headers = headers == null ? Map.of() : Map.copyOf(headers);
     JavaAudioResource resource =
-        new JavaAudioResource(identifier, headers, publicOnly, singleResponse);
+        new JavaAudioResource(identifier, headers, publicOnly, singleResponse, expected);
     try {
       JavaAudioResource.Lease lease = resource.lease();
       JavaAudioProbe.PreparedInput prepared = JavaAudioProbe.prepare(lease.stream());

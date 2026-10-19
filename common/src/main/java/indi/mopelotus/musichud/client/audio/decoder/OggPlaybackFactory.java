@@ -2,6 +2,7 @@ package indi.mopelotus.musichud.client.audio.decoder;
 
 import indi.mopelotus.musichud.audio.codec.*;
 import indi.mopelotus.musichud.client.audio.decoder.javaaudio.*;
+import indi.mopelotus.musichud.client.audio.decoder.transport.MediaTransport;
 import java.io.*;
 import java.nio.channels.*;
 import java.util.*;
@@ -16,6 +17,7 @@ final class OggPlaybackFactory implements PresentedDecoder.Factory {
   private final int targetRate;
   private final AtomicReference<JavaAudioResource.StableSession> snapshot = new AtomicReference<>();
   private volatile boolean declined;
+  private volatile MediaTransport.ExpectedRepresentation ignoredRange;
 
   OggPlaybackFactory(
       JavaAudioResource resource, PresentedDecoder.Factory sequential, int targetRate) {
@@ -25,7 +27,7 @@ final class OggPlaybackFactory implements PresentedDecoder.Factory {
   }
 
   public boolean supportsFastSeek() {
-    return !declined && (resource.rangeStable() || snapshot.get() != null);
+    return !declined && ignoredRange == null && (resource.rangeStable() || snapshot.get() != null);
   }
 
   public PresentedDecoder.Attempt attempt() {
@@ -39,10 +41,48 @@ final class OggPlaybackFactory implements PresentedDecoder.Factory {
       private OggSeekDecoder controller;
       private PcmDecoder presentation;
       private OggLinks fallback;
+      private JavaAudioResource.Lease sequentialLease;
       private final Set<SeekableByteChannel> channels =
           Collections.newSetFromMap(new IdentityHashMap<>());
 
       public PcmDecoder open() throws IOException {
+        var expected = ignoredRange;
+        if (expected != null) return sequentialReplay(expected);
+        try {
+          return indexed();
+        } catch (MediaTransport.RangeNotHonoredException ignored) {
+          List<SeekableByteChannel> previous;
+          OggSeekDecoder index;
+          synchronized (this) {
+            check();
+            previous = new ArrayList<>(channels);
+            index = controller;
+          }
+          IOException failure = null;
+          if (index != null)
+            try {
+              index.close();
+            } catch (IOException closeFailure) {
+              failure = closeFailure;
+            }
+          for (var channel : previous)
+            try {
+              channel.close();
+            } catch (IOException closeFailure) {
+              if (failure == null) failure = closeFailure;
+              else failure.addSuppressed(closeFailure);
+            }
+          if (failure != null) throw failure;
+          synchronized (this) {
+            check();
+            channels.removeAll(previous);
+            if (controller == index) controller = null;
+          }
+          return sequentialReplay(ignored.expected());
+        }
+      }
+
+      private PcmDecoder indexed() throws IOException {
         synchronized (this) {
           check();
           source = snapshot.get();
@@ -122,6 +162,50 @@ final class OggPlaybackFactory implements PresentedDecoder.Factory {
         throw new IOException("Late Ogg PCM presentation");
       }
 
+      private PcmDecoder sequentialReplay(MediaTransport.ExpectedRepresentation expected)
+          throws IOException {
+        JavaAudioResource.Lease lease = resource.sequentialLease(expected);
+        synchronized (this) {
+          if (cancelled) {
+            lease.close();
+            throw new IOException("Ogg replay cancelled");
+          }
+          sequentialLease = lease;
+        }
+        // Incremental from one validated full response: no tail scan or materialization.
+        OggLinks links = JavaCodecs.oggLinks(lease.stream());
+        synchronized (this) {
+          if (cancelled) {
+            links.close();
+            throw new IOException("Ogg replay cancelled");
+          }
+          fallback = links;
+        }
+        PcmDecoder normalized =
+            new StreamMediaDecoder(
+                new StreamMediaDecoder.Input() {
+                  public PcmDecoder nextLink() throws IOException {
+                    return links.nextLink();
+                  }
+
+                  public void close() throws IOException {
+                    links.close();
+                  }
+                },
+                targetRate,
+                0,
+                0);
+        synchronized (this) {
+          if (!cancelled) {
+            ignoredRange = expected;
+            presentation = normalized;
+            return normalized;
+          }
+        }
+        normalized.close();
+        throw new IOException("Late Ogg replay presentation");
+      }
+
       private PcmDecoder replay() throws IOException {
         SeekableByteChannel channel = source.openChannel();
         OggLinks links = JavaCodecs.oggLinks(Channels.newInputStream(channel));
@@ -167,6 +251,7 @@ final class OggPlaybackFactory implements PresentedDecoder.Factory {
         OggSeekDecoder decoder;
         PcmDecoder output;
         OggLinks replay;
+        JavaAudioResource.Lease sequential;
         synchronized (this) {
           if (cancelled) return;
           cancelled = true;
@@ -176,6 +261,7 @@ final class OggPlaybackFactory implements PresentedDecoder.Factory {
           decoder = controller;
           output = presentation;
           replay = fallback;
+          sequential = sequentialLease;
         }
         for (var channel : active)
           try {
@@ -185,6 +271,11 @@ final class OggPlaybackFactory implements PresentedDecoder.Factory {
         if (unfinished != null)
           try {
             unfinished.close();
+          } catch (IOException ignored) {
+          }
+        if (sequential != null)
+          try {
+            sequential.close();
           } catch (IOException ignored) {
           }
         if (replay != null)

@@ -166,6 +166,20 @@ public final class MediaTransport implements AutoCloseable {
     }
   }
 
+  /** A complete, explicitly unchanged entity was returned instead of the requested range. */
+  public static final class RangeNotHonoredException extends IOException {
+    private final ExpectedRepresentation expected;
+
+    private RangeNotHonoredException(ExpectedRepresentation expected) {
+      super("Media server ignored an entity-bound byte range");
+      this.expected = expected;
+    }
+
+    public ExpectedRepresentation expected() {
+      return expected;
+    }
+  }
+
   /**
    * Body has HTTP content decoding applied, but retains any interleaved ICY metadata. {@code
    * icyMetaInt} is zero when absent; callers strip metadata before audio decoding.
@@ -461,7 +475,11 @@ public final class MediaTransport implements AutoCloseable {
         channel.read();
         Header header =
             body.header.get(remainingMillis(body.openingDeadline), TimeUnit.MILLISECONDS);
-        if (expected != null && Set.of(200, 412, 416).contains(header.status))
+        if (expected != null && header.status == 200) {
+          validateWholeRepresentation(expected, header.metadata.representation());
+          throw new RangeNotHonoredException(expected);
+        }
+        if (expected != null && Set.of(412, 416).contains(header.status))
           throw new ResourceChangedException(ChangeReason.HTTP_STATUS, header.status);
         if (expected != null && header.status == 206)
           validateExpected(expected, header.metadata, header.status);
@@ -798,6 +816,19 @@ public final class MediaTransport implements AutoCloseable {
                   || observed.lastModifiedValid() && modified.value().equals(actual.lastModified());
         };
     if (!matches) throw new ResourceChangedException(ChangeReason.VALIDATOR, status);
+  }
+
+  /** Full-response fallback requires an explicit matching validator, unlike a 206 response. */
+  public static void validateWholeRepresentation(
+      ExpectedRepresentation expected, Representation actual) throws ResourceChangedException {
+    if (!expected.finalUri().equals(actual.finalUri()))
+      throw new ResourceChangedException(ChangeReason.FINAL_URI, 200);
+    if (!actual.identityEncoded())
+      throw new ResourceChangedException(ChangeReason.ENCODING, 200);
+    if (expected.totalLength() != actual.totalLength())
+      throw new ResourceChangedException(ChangeReason.TOTAL_LENGTH, 200);
+    if (!expected.validator().equals(actual.validator()))
+      throw new ResourceChangedException(ChangeReason.VALIDATOR, 200);
   }
 
   private static long phaseDeadline(long millis) {
