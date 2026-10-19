@@ -25,6 +25,12 @@ The 2026-10-18 JOrbis patches correct multichannel coupling index widths and bou
 
 The 2026-10-18 AAC patch changes eight files: per-decoder noise state and its recurrence, implicit SBR rate initialization, ADTS first-frame handling and construction validation, decoder construction validation, PS implementation selection and filter corrections, stereo SBR coupling, and high-frequency generation. The existing upstream `PSOrig` implementation is reused without copying another project's algorithm source. The full diff, rather than a rewritten algorithm snapshot, is retained for review and future upstream reconciliation.
 
+The 2026-10-19 AAC TNS overlay activates the missing synthesis and LTP filters,
+bounds orders by profile, and preserves the existing JAAD call convention. Its
+filtering and unnormalized LPC recursion follow FFmpeg n9.0.2 under LGPL 2.1 or
+later; the original JAAD parser remains public domain. No native decoder or
+additional runtime dependency is included.
+
 The Concentus files, including `VorbisLayout.java`, match the pinned upstream Git blobs exactly. JLayer remains unchanged. ALAC has a finite native20-bit packing/sign-extension patch; WavPack preserves intermediate integer values before exact bounded IEEE float reconstruction. Their prediction and entropy algorithms are unchanged. Vendoring a core does not by itself claim that every optional format profile or malformed input has been qualified by the player.
 
 When distributing binaries, include these license texts and preserve the required attribution. Source distribution must retain the original sources, the corresponding patches, and the project's existing LGPL license and upstream attribution.

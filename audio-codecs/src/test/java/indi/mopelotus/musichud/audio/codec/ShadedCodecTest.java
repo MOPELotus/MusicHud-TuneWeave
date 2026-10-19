@@ -198,7 +198,7 @@ class ShadedCodecTest {
     }
   }
 
-  private static byte[] packets(ClassLoader loader, String mode) throws Exception {
+  static byte[] packets(ClassLoader loader, String mode) throws Exception {
     String base = "indi.mopelotus.musichud.audio.codec.";
     var formatType = loader.loadClass(base + "PacketSource$Format");
     var packetType = loader.loadClass(base + "PacketSource$Packet");

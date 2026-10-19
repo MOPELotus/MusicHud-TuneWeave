@@ -3,8 +3,9 @@ AAC recovery regression vectors
 The project generated all signals and encoded them with official FDK AAC 2.0.3
 (commit716f4394641d53f0d79c9ddac3fa93b03a49f278). No downloaded music or
 conformance clips are included. The fixture manifest pins encoded input and the
-pre-observer JAAD PCM hashes. This checks observation invariance, not independent
-waveform equivalence of different AAC implementations.
+historical pre-observer JAAD PCM hashes and the corrected hashes after enabling
+TNS filtering. The tests pin deterministic recovery output; these hashes do not
+claim independent waveform equivalence of different AAC implementations.
 
 Each .packets file: BE32 ASC length, ASC, BE32 AU count, then repeated
 BE32 AU length and raw compressed AU. Output is48k stereo,2048frames per AU.

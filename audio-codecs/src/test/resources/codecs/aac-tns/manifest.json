@@ -1,0 +1,165 @@
+{
+  "format": "BE32 ASC length, ASC bytes, BE32 AU count, repeated BE32 AU length and AU bytes",
+  "selected": [
+    {
+      "id": "chirp-44100-tns0",
+      "asc": "120856e500",
+      "bytes": 7044,
+      "sample_rate": "44100",
+      "skip": 1024,
+      "filters": [],
+      "pns_aus": 0,
+      "tns_active_aus": 0,
+      "license": "Original waveform+generator authored for this task, CC0-1.0; FFmpeg encoder output has no third-party recording content",
+      "reference": "FFmpeg 6.1.1-3ubuntu5+esm15; -ignore_editlist 1; every AU including encoder priming and tail; mono little-endian PCM16.",
+      "reference_frames": 36864,
+      "reference_sha256": "cf06313b826fd5b8b89d029c14c0a2546b7998732aebc3785b1220460291bfd5",
+      "packet_fixture_sha256": "8af6292a976991c7ca90f99f2bc9d88dbb8fb3ef861b3154a637cae7d9df8aca"
+    },
+    {
+      "id": "chirp-44100-tns1",
+      "asc": "120856e500",
+      "bytes": 7049,
+      "sample_rate": "44100",
+      "skip": 1024,
+      "filters": [
+        {
+          "au": 2,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 1,
+          "length_sfb": 9
+        },
+        {
+          "au": 2,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 2,
+          "length_sfb": 9
+        },
+        {
+          "au": 2,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 3,
+          "length_sfb": 9
+        },
+        {
+          "au": 8,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 4,
+          "length_sfb": 11
+        },
+        {
+          "au": 13,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 5,
+          "length_sfb": 11
+        },
+        {
+          "au": 14,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 5,
+          "length_sfb": 9
+        },
+        {
+          "au": 17,
+          "short": false,
+          "order": 6,
+          "direction_reverse": false,
+          "window": 0,
+          "length_sfb": 12
+        },
+        {
+          "au": 17,
+          "short": false,
+          "order": 6,
+          "direction_reverse": true,
+          "window": 0,
+          "length_sfb": 12
+        },
+        {
+          "au": 21,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 0,
+          "length_sfb": 11
+        },
+        {
+          "au": 21,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 1,
+          "length_sfb": 11
+        },
+        {
+          "au": 21,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 2,
+          "length_sfb": 11
+        },
+        {
+          "au": 21,
+          "short": true,
+          "order": 7,
+          "direction_reverse": false,
+          "window": 7,
+          "length_sfb": 11
+        },
+        {
+          "au": 24,
+          "short": false,
+          "order": 6,
+          "direction_reverse": false,
+          "window": 0,
+          "length_sfb": 12
+        },
+        {
+          "au": 24,
+          "short": false,
+          "order": 6,
+          "direction_reverse": true,
+          "window": 0,
+          "length_sfb": 12
+        },
+        {
+          "au": 29,
+          "short": false,
+          "order": 6,
+          "direction_reverse": false,
+          "window": 0,
+          "length_sfb": 12
+        },
+        {
+          "au": 29,
+          "short": false,
+          "order": 6,
+          "direction_reverse": true,
+          "window": 0,
+          "length_sfb": 12
+        }
+      ],
+      "pns_aus": 0,
+      "tns_active_aus": 8,
+      "license": "Original waveform+generator authored for this task, CC0-1.0; FFmpeg encoder output has no third-party recording content",
+      "reference": "FFmpeg 6.1.1-3ubuntu5+esm15; -ignore_editlist 1; every AU including encoder priming and tail; mono little-endian PCM16.",
+      "reference_frames": 36864,
+      "reference_sha256": "2908e1a85ad8b8f5b01a5086a9e099649c44c498bec30fb626357354143aa621",
+      "packet_fixture_sha256": "8822ad7581067fd1ab40bf2b9fb77201fe48f07eb6cf9462a40dff96abcaa967"
+    }
+  ],
+  "oracle": "TNS enabled input is checked against independent FFmpeg PCM, <= 1 LSB per sample. The disabled input must retain the historical mono PCM SHA256 3c6bb716f4b3fe060f138dac88ed50a77d987ecb65a4c716f4d0f14a9c7a95b1. No native tool is required by tests or shipped."
+}
