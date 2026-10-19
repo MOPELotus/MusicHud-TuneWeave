@@ -17,6 +17,7 @@ import net.minecraft.client.gui.Font;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
+import indi.mopelotus.musichud.client.utils.ui.GraphemeProgress;
 import java.util.ArrayList;
 import indi.mopelotus.musichud.client.ui.hud.renderer.text.GradientSpec;
 import java.util.Iterator;
@@ -325,21 +326,13 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
         if (sweep == null) {
             return textWidth;
         }
-        return calcTextWidthAt(text, Math.clamp(sweep.offset(), 0f, text.length()), lineHeight);
+        return calcTextWidthAt(lineState, Math.clamp(sweep.offset(), 0f, text.length()), lineHeight);
     }
 
-    private float calcTextWidthAt(String text, float offset, float lineHeight) {
-        int textLength = text.length();
-        int floor = Math.clamp((int) Math.floor(offset), 0, textLength);
-        if (floor > 0 && floor < textLength && Character.isLowSurrogate(text.charAt(floor))
-                && Character.isHighSurrogate(text.charAt(floor - 1))) floor--;
-        float from = floor <= 0 ? 0 : calcTextWidth(text.substring(0, floor), lineHeight);
-        if (floor >= textLength) {
-            return from;
-        }
-        int ceil = Math.min(textLength, floor + Character.charCount(text.codePointAt(floor)));
-        float to = calcTextWidth(text.substring(0, ceil), lineHeight);
-        return from + (offset - floor) / (ceil - floor) * (to - from);
+    private float calcTextWidthAt(LineState line, float offset, float lineHeight) {
+        String text = line.line.text;
+        return line.graphemes.interpolate(offset, boundary ->
+                boundary == 0 ? 0 : calcTextWidth(text.substring(0, boundary), lineHeight));
     }
 
     private void renderLine(HudRenderContext context, LineState line, int color, int baseX, int baseY, float lineHeight, float yOffset) {
@@ -418,9 +411,11 @@ public class ScrollingLyricLineRenderer implements HudRenderer {
         float scrollTarget;
         float scrollOffset;
         LyricHighlightCalculator highlightCalculator;
+        GraphemeProgress graphemes;
 
         void reset(@Nullable Line line) {
             this.line = line;
+            this.graphemes = new GraphemeProgress(line == null ? "" : line.text);
             this.needScroll = false;
             this.maxScrollOffset = 0;
             this.isScrolling = false;
