@@ -136,7 +136,8 @@ public class HudRenderContext {
     }
 
     public void pushScissor(int fromX, int fromY, int toX, int toY) {
-        ScreenRectangle rectangle = new ScreenRectangle(fromX, fromY, Math.max(0, toX - fromX), Math.max(0, toY - fromY));
+        ScreenRectangle rectangle = new ScreenRectangle(fromX, fromY, Math.max(0, toX - fromX), Math.max(0, toY - fromY))
+                .transformAxisAligned(graphics.pose());
         ScreenRectangle parent = scissorStack.peek();
         if (parent != null) {
             ScreenRectangle intersection = parent.intersection(rectangle);
@@ -158,10 +159,14 @@ public class HudRenderContext {
 
     public void drawGradientString(Font font, String text, int x, int y, GradientSpec gradient, float alpha) {
         if (font == null || text == null || text.isEmpty() || gradient == null || !(alpha > 0f)) return;
+        // Direct glyph submissions have no bounds for Minecraft's usual visibility culling.
+        // Its renderer clamps scissors to the window, but RenderPearl rejects an empty result.
+        ScreenRectangle scissor = HudTextScissor.visibleArea(scissorStack.peek(), guiWidth(), guiHeight());
+        if (scissor.width() <= 0 || scissor.height() <= 0) return;
         List<GradientTextRenderState> states;
         try {
             states = GradientTextRenderer.build(font, text, x, y, gradient, alpha,
-                    scissorStack.peek(), currentPose());
+                    scissor, currentPose());
         } catch (RuntimeException | LinkageError error) {
             indi.mopelotus.musichud.MusicHud.getLogger(HudRenderContext.class)
                     .debug("Gradient text geometry failed", error);
