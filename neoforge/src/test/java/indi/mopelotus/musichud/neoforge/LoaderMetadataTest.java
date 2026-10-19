@@ -20,12 +20,16 @@ class LoaderMetadataTest {
         return new TomlParser().parse(content);
     }
 
-    private static VersionRange dependencyRange(String modId) throws Exception {
+    private static Config dependency(String modId) throws Exception {
         List<Config> dependencies = metadata().get("dependencies.musichud_tuneweave");
         List<Config> matching = dependencies.stream()
                 .filter(config -> modId.equals(config.get("modId"))).toList();
         assertEquals(1, matching.size(), "Expected one declaration for " + modId);
-        Config dependency = matching.getFirst();
+        return matching.getFirst();
+    }
+
+    private static VersionRange dependencyRange(String modId) throws Exception {
+        Config dependency = dependency(modId);
         assertEquals("required", dependency.get("type"));
         String spec = dependency.get("versionRange");
         assertNotNull(spec);
@@ -34,6 +38,22 @@ class LoaderMetadataTest {
         assertTrue(range.hasRestrictions(), "Dependency must have a version restriction");
         assertNotNull(range.getRestrictions().getFirst().getLowerBound(), "Dependency must have a lower bound");
         return range;
+    }
+
+    @Test
+    void loaderMetadataDeclaresUpstreamMusicHudIncompatibleForAllVersions() throws Exception {
+        Config upstream = dependency("music_hud");
+        assertEquals("incompatible", upstream.get("type"));
+        assertEquals("BOTH", upstream.get("side"));
+        assertEquals("NONE", upstream.get("ordering"));
+        assertEquals("MusicHud TuneWeave cannot run with upstream MusicHud (music_hud). Remove upstream MusicHud.",
+                upstream.get("reason"));
+        assertEquals("(,)", upstream.get("versionRange"));
+        VersionRange range = MavenVersionAdapter.createFromVersionSpec(upstream.get("versionRange"));
+        for (String version : List.of("0", "1.3.1+26.3", "2.0.0-alpha", "999.0")) {
+            assertTrue(range.containsVersion(new DefaultArtifactVersion(version)),
+                    () -> "Upstream incompatibility must apply to " + version);
+        }
     }
 
     @Test
