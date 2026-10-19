@@ -1,0 +1,8 @@
+SPDX-License-Identifier: CC0-1.0
+
+The synthetic waveform, AAC inputs, reference PCM and generator authored for
+this fixture are dedicated to the public domain under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No third-party recordings or downloaded test audio were used. FFmpeg is a
+generation-time encoder/oracle and is not covered by this dedication.
