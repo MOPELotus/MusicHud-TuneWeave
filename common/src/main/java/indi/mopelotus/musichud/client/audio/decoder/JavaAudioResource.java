@@ -2,6 +2,7 @@ package indi.mopelotus.musichud.client.audio.decoder;
 
 import indi.mopelotus.musichud.audio.container.input.IcyMetadataInputStream;
 import indi.mopelotus.musichud.client.audio.decoder.javaaudio.CursorMediaResource;
+import indi.mopelotus.musichud.client.audio.decoder.transport.MediaTransport;
 import java.io.*;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class JavaAudioResource implements AutoCloseable {
   private final Path local;
   private final CursorMediaResource remote;
+  private final MediaTransport.ExpectedRepresentation requiredWhole;
   private final Set<Lease> leases = Collections.newSetFromMap(new IdentityHashMap<>());
   private final AtomicBoolean open = new AtomicBoolean(true);
   private volatile boolean icy, rangeStable;
@@ -21,6 +23,13 @@ final class JavaAudioResource implements AutoCloseable {
   JavaAudioResource(
       String identifier, Map<String, String> headers, boolean publicOnly, boolean singleResponse)
       throws IOException {
+    this(identifier, headers, publicOnly, singleResponse, null);
+  }
+
+  JavaAudioResource(
+      String identifier, Map<String, String> headers, boolean publicOnly, boolean singleResponse,
+      MediaTransport.ExpectedRepresentation requiredWhole) throws IOException {
+    this.requiredWhole = requiredWhole;
     if (identifier.regionMatches(true, 0, "icy://", 0, 6))
       identifier = "http://" + identifier.substring(6);
     boolean http =
@@ -102,9 +111,14 @@ final class JavaAudioResource implements AutoCloseable {
   }
 
   Lease lease() throws IOException {
+    return lease(requiredWhole);
+  }
+
+  private Lease lease(MediaTransport.ExpectedRepresentation expected) throws IOException {
     synchronized (leases) {
       if (!open.get()) throw new ClosedChannelException();
-      Lease lease = new Lease(remote == null ? null : remote.newCursor());
+      Lease lease = new Lease(remote == null ? null
+          : expected == null ? remote.newCursor() : remote.newSequentialCursor(expected));
       leases.add(lease);
       return lease;
     }
@@ -236,6 +250,10 @@ final class JavaAudioResource implements AutoCloseable {
   /** Prepare only when random access is requested; ordinary playback never downloads ahead. */
   StableSession newStableSession() throws IOException {
     return new StableSession(lease());
+  }
+
+  Lease sequentialLease(MediaTransport.ExpectedRepresentation expected) throws IOException {
+    return lease(Objects.requireNonNull(expected));
   }
 
   final class StableSession implements AutoCloseable {
