@@ -7,6 +7,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -372,6 +373,11 @@ final class JavaDecoderFactoryTest {
 
   @Test
   void ignoredMp4RangeRestartsOneFreshSingleResponse() throws Exception {
+    ignoredMp4RangeRestartsOneFreshSingleResponse(false);
+    ignoredMp4RangeRestartsOneFreshSingleResponse(true);
+  }
+
+  private void ignoredMp4RangeRestartsOneFreshSingleResponse(boolean changed) throws Exception {
     byte[] original = fixture("tone.m4a");
     int moov = -1;
     for (int offset = 0; offset + 8 <= original.length; ) {
@@ -397,9 +403,10 @@ final class JavaDecoderFactoryTest {
     server.createContext(
         "/",
         exchange -> {
-          requests.incrementAndGet();
+          int request = requests.incrementAndGet();
           if (exchange.getRequestHeaders().getFirst("Range") != null) ranges.incrementAndGet();
-          exchange.getResponseHeaders().set("ETag", "\"stable\"");
+          exchange.getResponseHeaders().set(
+              "ETag", changed && request > 1 ? "\"replacement\"" : "\"stable\"");
           exchange.sendResponseHeaders(200, encoded.length);
           try (var out = exchange.getResponseBody()) {
             out.write(encoded);
@@ -491,6 +498,157 @@ final class JavaDecoderFactoryTest {
     } finally {
       origin.stop(0);
       cdn.stop(0);
+    }
+  }
+
+  @Test
+  void ignoredOggRangeReopensOneIdentityCheckedStreamAndCommitsExactPcm() throws Exception {
+    byte[] encoded = fixture("seek-ignored-range.opus");
+    byte[] expected;
+    Path local = Files.createTempFile("ignored-range-reference-", ".opus");
+    Files.write(local, encoded);
+    try (var decoder = JavaDecoderFactory.open(local.toString(), Map.of(), false, true, true)) {
+      expected = all(decoder);
+    } finally { Files.deleteIfExists(local); }
+    AtomicInteger gets = new AtomicInteger(), ranges = new AtomicInteger();
+    var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext("/", e -> {
+      gets.incrementAndGet();
+      if (e.getRequestHeaders().getFirst("Range") != null) {
+        ranges.incrementAndGet();
+        assertEquals("\"same\"", e.getRequestHeaders().getFirst("If-Range"));
+      }
+      e.getResponseHeaders().set("ETag", "\"same\"");
+      e.sendResponseHeaders(200, encoded.length);
+      try (var out = e.getResponseBody()) { out.write(encoded); }
+      catch (IOException cancelled) {}
+    });
+    server.start();
+    try (var decoder = JavaDecoderFactory.open(
+        "http://127.0.0.1:" + server.getAddress().getPort() + "/", Map.of(), false, true, true)) {
+      assertNotNull(decoder.readChunk(64));
+      assertTrue(decoder.supportsFastSeek());
+      long target = decoder.getSampleRate() / 20;
+      assertTrue(decoder.seekToFrame(target));
+      assertEquals(target, decoder.getPositionFrames());
+      assertEquals(1, ranges.get());
+      assertEquals(3, gets.get());
+      assertFalse(decoder.supportsFastSeek(), "Do not try the ignored Range again");
+      assertArrayEquals(Arrays.copyOfRange(expected,
+          Math.toIntExact(target * decoder.getFrameSize()), expected.length), all(decoder));
+      assertTrue(decoder.seekToFrame(100L * decoder.getSampleRate()));
+      assertNull(decoder.readChunk(64), "Beyond-tail sequential fallback remains natural EOF");
+      assertTrue(decoder.seekToFrame(0));
+      assertArrayEquals(expected, all(decoder));
+      assertEquals(1, ranges.get());
+    } finally { server.stop(0); }
+  }
+
+  @Test
+  void ignoredRangeCannotReopenChangedOrUnvalidatedFullBody() throws Exception {
+    byte[] encoded = fixture("seek-ignored-range.opus");
+    for (String mode : List.of("changed", "missing", "weak", "bad", "duplicate", "changed-on-reopen")) {
+      AtomicInteger ranges = new AtomicInteger(), gets = new AtomicInteger();
+      var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+      server.createContext("/", e -> {
+        int request = gets.incrementAndGet();
+        boolean range = e.getRequestHeaders().getFirst("Range") != null;
+        if (range) ranges.incrementAndGet();
+        String tag = "\"same\"";
+        if (range && !mode.equals("changed-on-reopen") || request >= 3) {
+          tag = switch (mode) {
+            case "missing" -> null;
+            case "weak" -> "W/\"same\"";
+            case "bad" -> "unquoted";
+            case "duplicate" -> "\"same\"";
+            default -> "\"changed\"";
+          };
+        }
+        if (tag != null) e.getResponseHeaders().set("ETag", tag);
+        if (range && mode.equals("duplicate")) e.getResponseHeaders().add("ETag", "\"other\"");
+        e.sendResponseHeaders(200, encoded.length);
+        try (var out = e.getResponseBody()) { out.write(encoded); }
+        catch (IOException cancelled) {}
+      });
+      server.start();
+      try (var decoder = JavaDecoderFactory.open(
+          "http://127.0.0.1:" + server.getAddress().getPort() + "/", Map.of(), false, true, true)) {
+        assertNotNull(decoder.readChunk(64));
+        assertFalse(decoder.seekToFrame(decoder.getSampleRate() / 20), mode);
+        assertEquals(1, ranges.get(), mode);
+        assertEquals(mode.equals("changed-on-reopen") ? 3 : 2, gets.get(), mode);
+      } finally { server.stop(0); }
+    }
+  }
+
+  @Test
+  @org.junit.jupiter.api.Timeout(15)
+  void ignoredRangeReplayDoesNotWaitForTheUnneededTail() throws Exception {
+    byte[] encoded = fixture("seek-ignored-range.opus");
+    var executor = Executors.newCachedThreadPool();
+    CountDownLatch tail = new CountDownLatch(1), release = new CountDownLatch(1);
+    AtomicInteger requests = new AtomicInteger();
+    var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.setExecutor(executor);
+    server.createContext("/", e -> {
+      int n = requests.incrementAndGet();
+      e.getResponseHeaders().set("ETag", "\"same\"");
+      e.sendResponseHeaders(200, encoded.length);
+      try (var out = e.getResponseBody()) {
+        if (n == 3) {
+          out.write(encoded, 0, encoded.length / 2); out.flush(); tail.countDown();
+          release.await();
+          out.write(encoded, encoded.length / 2, encoded.length - encoded.length / 2);
+        } else out.write(encoded);
+      } catch (IOException cancelled) {
+      } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+    });
+    server.start();
+    try (var decoder = JavaDecoderFactory.open(
+        "http://127.0.0.1:" + server.getAddress().getPort() + "/", Map.of(), false, true, true)) {
+      assertNotNull(decoder.readChunk(64));
+      Future<Boolean> seek = executor.submit(() -> decoder.seekToFrame(2400));
+      assertTrue(tail.await(3, TimeUnit.SECONDS));
+      assertTrue(seek.get(3, TimeUnit.SECONDS), "Target precedes the stalled compressed tail");
+      assertEquals(2400, decoder.getPositionFrames());
+      assertNotNull(decoder.readChunk(4096));
+      assertEquals(3, requests.get());
+    } finally { release.countDown(); server.stop(0); executor.shutdownNow(); }
+  }
+
+  @Test
+  @org.junit.jupiter.api.Timeout(20)
+  void cancelledOrSupersededRangeFallbackCannotCommitLateOpening() throws Exception {
+    byte[] encoded = fixture("seek-ignored-range.opus");
+    for (boolean close : List.of(false, true)) {
+      var executor = Executors.newCachedThreadPool();
+      CountDownLatch opening = new CountDownLatch(1), release = new CountDownLatch(1);
+      AtomicInteger requests = new AtomicInteger();
+      var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+      server.setExecutor(executor);
+      server.createContext("/", e -> {
+        int n = requests.incrementAndGet();
+        try {
+          if (n == 3) { opening.countDown(); release.await(); }
+          e.getResponseHeaders().set("ETag", "\"same\"");
+          e.sendResponseHeaders(200, encoded.length);
+          try (var out = e.getResponseBody()) { out.write(encoded); }
+        } catch (IOException cancelled) {
+        } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+      });
+      server.start();
+      try (var decoder = JavaDecoderFactory.open(
+          "http://127.0.0.1:" + server.getAddress().getPort() + "/", Map.of(), false, true, true)) {
+        assertNotNull(decoder.readChunk(64));
+        Future<Boolean> old = executor.submit(() -> decoder.seekToFrame(2400));
+        assertTrue(opening.await(3, TimeUnit.SECONDS));
+        if (close) decoder.close();
+        else { assertTrue(decoder.seekToFrame(4800)); assertEquals(4800, decoder.getPositionFrames()); }
+        assertFalse(old.get(3, TimeUnit.SECONDS));
+        release.countDown();
+        if (close) assertNull(decoder.readChunk(64));
+        else { assertEquals(4800, decoder.getPositionFrames()); assertNotNull(decoder.readChunk(64)); }
+      } finally { release.countDown(); server.stop(0); executor.shutdownNow(); }
     }
   }
 

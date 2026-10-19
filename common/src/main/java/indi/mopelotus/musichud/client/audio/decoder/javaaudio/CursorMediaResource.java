@@ -60,12 +60,22 @@ public final class CursorMediaResource implements AutoCloseable {
   }
 
   public Cursor newCursor() throws IOException {
+    return newCursor(null);
+  }
+
+  /** A fresh full response, never borrowed prefixes or parser metadata from ranged cursors. */
+  public Cursor newSequentialCursor(MediaTransport.ExpectedRepresentation expected)
+      throws IOException {
+    return newCursor(Objects.requireNonNull(expected));
+  }
+
+  private Cursor newCursor(MediaTransport.ExpectedRepresentation requiredWhole) throws IOException {
     Cursor cursor;
     synchronized (this) {
       check();
-      cursor = new Cursor();
+      cursor = new Cursor(requiredWhole);
       cursors.add(cursor);
-      if (pinned != null) {
+      if (pinned != null && requiredWhole == null) {
         cursor.cache = shared;
         cursor.identity = sharedIdentity;
         cursor.length = pinned.totalLength();
@@ -297,6 +307,7 @@ public final class CursorMediaResource implements AutoCloseable {
   }
 
   public final class Cursor extends InputStream {
+    private final MediaTransport.ExpectedRepresentation requiredWhole;
     private final AtomicBoolean live = new AtomicBoolean(true);
     private final AtomicLong epoch = new AtomicLong();
     private final AtomicReference<Attempt> active = new AtomicReference<>();
@@ -307,6 +318,10 @@ public final class CursorMediaResource implements AutoCloseable {
     private int icyMetaInt;
     private boolean streamingOnly;
     private final byte[] discardBuffer = new byte[8192];
+
+    private Cursor(MediaTransport.ExpectedRepresentation requiredWhole) {
+      this.requiredWhole = requiredWhole;
+    }
 
     private void checkCursor() throws IOException {
       if (!live.get()) throw new ClosedChannelException();
@@ -333,6 +348,8 @@ public final class CursorMediaResource implements AutoCloseable {
           current(generation);
           if (opened.status() != (first == null ? 200 : 206))
             throw new IOException("Unexpected media status; reopen a fresh parser session");
+          if (requiredWhole != null)
+            MediaTransport.validateWholeRepresentation(requiredWhole, opened.representation());
           if (cache == null) {
             var representation = opened.representation();
             if (opened.icyMetaInt() == 0 && representation.totalLength() > budget)
@@ -340,6 +357,7 @@ public final class CursorMediaResource implements AutoCloseable {
             // Only strong ETags share cache or parser metadata between responses/cursors.
             boolean strong =
                 !forceSingleResponse
+                    && requiredWhole == null
                     && representation.canRange()
                     && representation.expected().validator() instanceof MediaTransport.StrongETag;
             // File creation is outside the metadata monitor used by snapshot borrowing.
