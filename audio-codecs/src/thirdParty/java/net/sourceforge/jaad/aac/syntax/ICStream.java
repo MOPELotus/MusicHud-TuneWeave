@@ -246,7 +246,7 @@ public class ICStream implements HCB, ScaleFactorTable, IQTable {
 
                             // inverse quantization & scaling
                             for (int j = 0; j < num; j++) {
-                                iqData[off + k + j] = (buf[j] > 0) ? IQ_TABLE[buf[j]] : -IQ_TABLE[-buf[j]];
+                                iqData[off + k + j] = inverseQuantize(buf[j]);
                                 iqData[off + k + j] *= scaleFactors[idx];
                             }
                         }
@@ -255,6 +255,15 @@ public class ICStream implements HCB, ScaleFactorTable, IQTable {
             }
             groupOff += groupLen << 7;
         }
+    }
+
+    private static float inverseQuantize(int value) throws AACException {
+        if (value < -8191 || value > 8191)
+            throw new AACException("AAC spectral magnitude out of range: " + value);
+        int magnitude = Math.abs(value);
+        // The upstream table omits its documented final entry, 8191^(4/3).
+        float result = magnitude == 8191 ? 165113.4940829452f : IQ_TABLE[magnitude];
+        return value > 0 ? result : -result;
     }
 
     // getters

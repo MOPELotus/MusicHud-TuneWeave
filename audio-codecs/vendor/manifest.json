@@ -997,42 +997,42 @@
           "upstream_sha256": "aee52fbf0bff828741662bbc57dbf2843ed41263bd342ba769280c47f6265f60",
           "compiled_sha256": "ad1fd7b968ee7b66acdc760c36fa17d83643d60373360bf8e0ddc1a5463cb1a9",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "19bcd9918ebe2234aad215236d6ce191f7c94d88a0274108d882ccf807250c3e"
+          "patch_sha256": "fced009ddc4afb70d45255fb54ba722f5ccf6f2c33c56eb93013c7436fc71d3a"
         },
         {
           "source": "net/sourceforge/jaad/aac/ps/Filter.java",
           "upstream_sha256": "173506b3e598de83d79db6e6d130d3c0b787aee6eedb4f3715429176da1fc9a0",
           "compiled_sha256": "42f11701fe0ccbf56365b758dcbbcd6e643eb99a0fa37d84a398ce8f6ae5bad6",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "19bcd9918ebe2234aad215236d6ce191f7c94d88a0274108d882ccf807250c3e"
+          "patch_sha256": "fced009ddc4afb70d45255fb54ba722f5ccf6f2c33c56eb93013c7436fc71d3a"
         },
         {
           "source": "net/sourceforge/jaad/aac/ps/Filterbank.java",
           "upstream_sha256": "25917278d77b3d2d46f13b2cf007b30d2f052e72d29e99b41fa9fa7628dd00c9",
           "compiled_sha256": "6531d037fd462f516f6ea413f8fdd0e8fcacba336aead4f8c167ebbad9c17297",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "19bcd9918ebe2234aad215236d6ce191f7c94d88a0274108d882ccf807250c3e"
+          "patch_sha256": "fced009ddc4afb70d45255fb54ba722f5ccf6f2c33c56eb93013c7436fc71d3a"
         },
         {
           "source": "net/sourceforge/jaad/aac/sbr/SBR2.java",
           "upstream_sha256": "a27736c3ef04cef00dbfeb8a979fd048aae6f1b6fcfedc0fee1351dc9291a557",
           "compiled_sha256": "e3bcab08d67a33a2bf134b252e2a1cbc021052d612116d74492653a2ac3de4b8",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "19bcd9918ebe2234aad215236d6ce191f7c94d88a0274108d882ccf807250c3e"
+          "patch_sha256": "fced009ddc4afb70d45255fb54ba722f5ccf6f2c33c56eb93013c7436fc71d3a"
         },
         {
           "source": "net/sourceforge/jaad/aac/sbr/HFGeneration.java",
           "upstream_sha256": "aeb9cee2445af26baaf3523e0eb1db4b8856b4b503ab51c95706f3ca687ba504",
           "compiled_sha256": "d72f5220ab69dbadf5815ae85aa4ea8934952a0ad24140e9a6cab12674888453",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "19bcd9918ebe2234aad215236d6ce191f7c94d88a0274108d882ccf807250c3e"
+          "patch_sha256": "fced009ddc4afb70d45255fb54ba722f5ccf6f2c33c56eb93013c7436fc71d3a"
         },
         {
           "source": "net/sourceforge/jaad/aac/syntax/ICStream.java",
           "upstream_sha256": "ce67220c5e5f974ad28c143145fc1ccc606d3c6ce5ef4a1a6c0dde1d615caaa9",
-          "compiled_sha256": "f24bc0c9ed6a2888a9f9c6417e5852a23152f4d2f269c81b9f9240c74fee864b",
+          "compiled_sha256": "74033032c38a1a916f02ebb89ccaa7b60f806a1e08a0d7f98b91e1c50f8c77a8",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "19bcd9918ebe2234aad215236d6ce191f7c94d88a0274108d882ccf807250c3e"
+          "patch_sha256": "fced009ddc4afb70d45255fb54ba722f5ccf6f2c33c56eb93013c7436fc71d3a"
         },
         {
           "source": "net/sourceforge/jaad/aac/syntax/SyntacticElements.java",
@@ -1061,6 +1061,13 @@
           "upstream_sha256": "70976a7e1e99e054349c8a3a9761c33429c6042ada6938481819218166c2ed45",
           "compiled_sha256": "2eb403ddc444e1d271c8b5c80f81cac719481913c18814c976f07b1d972e0762",
           "patch_sha256": "b10a820f200ec416aa823df3d458cbfe0166e4dce6c65203d8169e0837d08ec2"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/huffman/Huffman.java",
+          "patch": "vendor/patches/aac/Huffman.java.patch",
+          "upstream_sha256": "b6841d1c1097c8c1c89c77f58cce174f47aa483af013dd9fc78723c57cace9cb",
+          "compiled_sha256": "d796ccfbc89f8ecd9a28939a4389d3fb5592c5b5928d52b64b9aeea89c06f54f",
+          "patch_sha256": "d053208a27555750586aa0036595266e77717b5f8c27a54e5901956e367617a0"
         }
       ],
       "sources": [
