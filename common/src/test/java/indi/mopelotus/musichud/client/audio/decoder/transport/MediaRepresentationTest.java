@@ -113,7 +113,7 @@ class MediaRepresentationTest {
 
   @Test
   void fullResponseAndPreconditionStatusesRequireWholeSourceReopen() throws Exception {
-    for (Mode mode : List.of(Mode.FULL, Mode.PRECONDITION, Mode.UNSATISFIABLE)) {
+    for (Mode mode : List.of(Mode.PRECONDITION, Mode.UNSATISFIABLE)) {
       try (var source = new Source();
           var transport = transport()) {
         var expected = initial(source, transport);
@@ -124,8 +124,43 @@ class MediaRepresentationTest {
                 () -> range(source, transport, expected));
         assertEquals(MediaTransport.ChangeReason.HTTP_STATUS, failure.reason());
         assertEquals(
-            mode == Mode.FULL ? 200 : mode == Mode.PRECONDITION ? 412 : 416, failure.status());
+            mode == Mode.PRECONDITION ? 412 : 416, failure.status());
       }
+    }
+  }
+
+  @Test
+  void explicitlyUnchangedFullResponseDeclinesRangeWithoutDeclaringEntityChanged() throws Exception {
+    try (var source = new Source(); var transport = transport()) {
+      var expected = initial(source, transport);
+      source.mode = Mode.FULL;
+      var failure = assertThrows(MediaTransport.RangeNotHonoredException.class,
+          () -> range(source, transport, expected));
+      assertEquals(expected, failure.expected());
+      for (String tag : Arrays.asList(null, "unquoted", "W/\"v1\"", "\"v2\"")) {
+        source.tag = tag;
+        assertThrows(MediaTransport.ResourceChangedException.class,
+            () -> range(source, transport, expected));
+      }
+    }
+  }
+
+  @Test
+  void fullResponseRequiresAllIdentityCoordinatesAndEligibleExplicitDate() {
+    URI uri = URI.create("https://media.test/a");
+    Instant date = Instant.parse("2026-01-01T00:00:00Z");
+    var expected = new MediaTransport.ExpectedRepresentation(uri, 10, new MediaTransport.ModifiedAt(date));
+    assertDoesNotThrow(() -> MediaTransport.validateWholeRepresentation(expected,
+        new MediaTransport.Representation(uri, 10, null, date, date.plusSeconds(60), true)));
+    for (var actual : List.of(
+        new MediaTransport.Representation(uri, 10, null, null, date.plusSeconds(60), true),
+        new MediaTransport.Representation(uri, 10, null, date, date.plusSeconds(59), true),
+        new MediaTransport.Representation(uri, 10, null, date.plusSeconds(1), date.plusSeconds(120), true),
+        new MediaTransport.Representation(uri, 11, null, date, date.plusSeconds(60), true),
+        new MediaTransport.Representation(uri.resolve("/b"), 10, null, date, date.plusSeconds(60), true),
+        new MediaTransport.Representation(uri, 10, null, date, date.plusSeconds(60), false))) {
+      assertThrows(MediaTransport.ResourceChangedException.class,
+          () -> MediaTransport.validateWholeRepresentation(expected, actual));
     }
   }
 
