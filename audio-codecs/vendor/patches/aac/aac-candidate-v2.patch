@@ -91,6 +91,31 @@
                              energy += iqData[off + k] * iqData[off + k];
                          }
  
+@@ -246,7 +246,7 @@
+ 
+                             // inverse quantization & scaling
+                             for (int j = 0; j < num; j++) {
+-                                iqData[off + k + j] = (buf[j] > 0) ? IQ_TABLE[buf[j]] : -IQ_TABLE[-buf[j]];
++                                iqData[off + k + j] = inverseQuantize(buf[j]);
+                                 iqData[off + k + j] *= scaleFactors[idx];
+                             }
+                         }
+@@ -255,6 +255,15 @@
+             }
+             groupOff += groupLen << 7;
+         }
++    }
++
++    private static float inverseQuantize(int value) throws AACException {
++        if (value < -8191 || value > 8191)
++            throw new AACException("AAC spectral magnitude out of range: " + value);
++        int magnitude = Math.abs(value);
++        // The upstream table omits its documented final entry, 8191^(4/3).
++        float result = magnitude == 8191 ? 165113.4940829452f : IQ_TABLE[magnitude];
++        return value > 0 ? result : -result;
+     }
+ 
+     // getters
 --- a/src/main/java/net/sourceforge/jaad/aac/Decoder.java
 +++ b/src/main/java/net/sourceforge/jaad/aac/Decoder.java
 @@ -98,8 +98,9 @@
