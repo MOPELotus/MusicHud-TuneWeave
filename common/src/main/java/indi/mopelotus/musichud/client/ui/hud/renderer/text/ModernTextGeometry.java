@@ -92,24 +92,48 @@ public final class ModernTextGeometry {
         // the GUI renderer is already recording this element's vertices, otherwise the UVs
         // written in that pass would no longer match the atlas texture bound for the draw
         // (visible as corrupted, diagonally clipped or entirely missing glyphs).
-        bakedGlyphs(layout, fontSize);
-
         int[] flags = layout.getGlyphFlags();
+        GLBakedGlyph[] glyphs = selectDrawableGlyphs(bakedGlyphs(layout, fontSize), flags);
         List<GradientTextRenderState> states = new ArrayList<>();
         int start = 0;
         RunKey currentKey = null;
         for (int i = 0; i <= flags.length; i++) {
             RunKey key = i == flags.length ? null : keyOf(layout, flags[i], i, preferredMode, directMask);
             if (i > start && (key == null || !key.equals(currentKey))) {
-                GradientTextRun run = new ModernTextRun(layout, start, i, fontSize, density, invDensity,
-                        directMask, currentKey.pipeline, currentKey.kind, currentKey.bitmapFont,
-                        currentKey.isColorEmoji, setup.originX(), setup.originY(), totalAdvance);
-                states.add(new GradientTextRenderState(setup.pose(), run, gradient, alpha, scissor));
+                // A font/texture boundary can isolate only spaces or unavailable glyphs.
+                // GuiRenderer records every submitted batch with BufferBuilder.buildOrThrow,
+                // so an element which emits no vertices must never open a batch.
+                if (hasDrawableGlyph(glyphs, start, i)) {
+                    GradientTextRun run = new ModernTextRun(layout, glyphs, start, i, density, invDensity,
+                            directMask, currentKey.pipeline, currentKey.kind, currentKey.bitmapFont,
+                            currentKey.isColorEmoji, setup.originX(), setup.originY(), totalAdvance);
+                    states.add(new GradientTextRenderState(setup.pose(), run, gradient, alpha, scissor));
+                }
                 start = i;
             }
             currentKey = key;
         }
         return states;
+    }
+
+    static GLBakedGlyph[] selectDrawableGlyphs(GLBakedGlyph[] baked, int[] flags) {
+        GLBakedGlyph[] selected = new GLBakedGlyph[baked.length];
+        for (int i = 0; i < baked.length; i++) {
+            GLBakedGlyph glyph = baked[i];
+            if (glyph != null && (flags[i] & CharacterStyle.OBFUSCATED_MASK) != 0) {
+                var choices = ((GlyphManager.FastCharSet) glyph).glyphs;
+                glyph = choices.isEmpty() ? null : choices.get(OBFUSCATED_RANDOM.nextInt(choices.size()));
+            }
+            if (glyph != null && glyph.x != Integer.MIN_VALUE) selected[i] = glyph;
+        }
+        return selected;
+    }
+
+    static boolean hasDrawableGlyph(GLBakedGlyph[] glyphs, int start, int end) {
+        for (int i = start; i < end; i++) {
+            if (glyphs[i] != null && glyphs[i].x != Integer.MIN_VALUE) return true;
+        }
+        return false;
     }
 
     /**
@@ -223,9 +247,9 @@ public final class ModernTextGeometry {
 
     private static final class ModernTextRun implements GradientTextRun {
         private final TextLayout layout;
+        private final GLBakedGlyph[] glyphs;
         private final int start;
         private final int end;
-        private final int fontSize;
         private final float density;
         private final float invDensity;
         private final boolean directMask;
@@ -238,14 +262,14 @@ public final class ModernTextGeometry {
         private final float originY;
         private final float totalAdvance;
 
-        ModernTextRun(TextLayout layout, int start, int end, int fontSize, float density, float invDensity,
+        ModernTextRun(TextLayout layout, GLBakedGlyph[] glyphs, int start, int end, float density, float invDensity,
                       boolean directMask, RenderPipeline pipeline, TextureKind kind,
                       @Nullable BitmapFont bitmapFont, boolean isColorEmoji,
                       float originX, float originY, float totalAdvance) {
             this.layout = layout;
+            this.glyphs = glyphs;
             this.start = start;
             this.end = end;
-            this.fontSize = fontSize;
             this.density = density;
             this.invDensity = invDensity;
             this.directMask = directMask;
@@ -275,11 +299,10 @@ public final class ModernTextGeometry {
 
         @Override
         public void writeVertices(VertexConsumer consumer, float z, Matrix3x2f pose, GradientSpec gradient, float alpha) {
-            GLBakedGlyph[] bakedGlyphs = bakedGlyphs(layout, fontSize);
             float[] positions = layout.getPositions();
             int[] flags = layout.getGlyphFlags();
             for (int i = start; i < end; i++) {
-                GLBakedGlyph glyph = glyphAt(bakedGlyphs, i, flags[i]);
+                GLBakedGlyph glyph = glyphs[i];
                 if (glyph == null || glyph.x == Integer.MIN_VALUE) {
                     continue;
                 }
@@ -364,20 +387,5 @@ public final class ModernTextGeometry {
             }
         }
 
-        @Nullable
-        private static GLBakedGlyph glyphAt(GLBakedGlyph[] bakedGlyphs, int index, int bits) {
-            GLBakedGlyph glyph = bakedGlyphs[index];
-            if (glyph == null) {
-                return null;
-            }
-            if ((bits & CharacterStyle.OBFUSCATED_MASK) != 0) {
-                GlyphManager.FastCharSet chars = (GlyphManager.FastCharSet) glyph;
-                if (chars.glyphs.isEmpty()) {
-                    return null;
-                }
-                return chars.glyphs.get(OBFUSCATED_RANDOM.nextInt(chars.glyphs.size()));
-            }
-            return glyph;
-        }
     }
 }
