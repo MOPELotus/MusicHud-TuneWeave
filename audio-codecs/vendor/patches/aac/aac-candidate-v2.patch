@@ -72,6 +72,15 @@
          this.frameLength = config.getFrameLength();
          info = new ICSInfo(config);
          sfbCB = new int[MAX_SECTIONS];
+@@ -81,7 +82,7 @@
+         tnsDataPresent = in.readBool();
+         if (tnsDataPresent && !er) {
+             if (tns == null) tns = new TNS();
+-            tns.decode(in, info);
++            tns.decode(in, info, conf.getProfile());
+         }
+ 
+         gainControlPresent = in.readBool();
 @@ -228,8 +229,7 @@
                          float energy = 0;
  
