@@ -38,6 +38,14 @@ public final class ClientGraphicsResources {
         UI.release(resource);
     }
 
+    public static boolean isUiStopped() { return UI.isStopped(); }
+
+    /** Short allocation by a UI resource already registered here; children retain their owner's lifetime. */
+    public static <T> T accessUiResources(java.util.function.Supplier<T> allocation) {
+        Core.checkUiThread();
+        return UI.access(allocation);
+    }
+
     public static Image createImage(Bitmap bitmap) {
         if (UI.isStopped()) return null;
         if (Core.isOnUiThread()) return UI.create(() -> Image.createTextureFromBitmap(bitmap));
