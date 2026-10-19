@@ -104,6 +104,8 @@ dependencies {
     api "dev.icyllis:modernui-core:$rootProject.modernui_version"
     api "icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version"
     compileOnly "icyllis.modernui:ModernUI-NeoForge:$rootProject.modernui_mc_version"
+    // Exercise the actual baked-glyph types without initializing a renderer; never shipped.
+    testImplementation "icyllis.modernui:ModernUI-NeoForge:$rootProject.modernui_mc_version"
 
     implementation project(path: ':metadata', configuration: 'shadowRuntimeElements')
     implementation project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')
