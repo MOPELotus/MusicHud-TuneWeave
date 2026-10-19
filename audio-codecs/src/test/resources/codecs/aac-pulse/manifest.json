@@ -1,0 +1,240 @@
+{
+  "license": "CC0-1.0",
+  "reference": "FFmpeg6.1.1-3ubuntu5+esm15, mono PCM16, all8 raw AUs including overlap/tail; <=1LSB expected",
+  "cases": [
+    {
+      "id": "pulse-zero-positive",
+      "quantized_initial": 0,
+      "pulses_offset_amplitude": [
+        [
+          0,
+          15
+        ]
+      ],
+      "raw_au_hex": [
+        "0140008428003c70",
+        "0140008428003c70",
+        "0140008428003c70",
+        "0140008428003c70",
+        "0140008428003c70",
+        "0140008428003c70",
+        "0140008428003c70",
+        "0140008428003c70"
+      ],
+      "packets_sha256": "c1f7777fb28e69d5be3d31e0c56a2aef5e8838ad21ffe61ec01e75ce7392892c",
+      "reference_sha256": "30896404b5ab16c2c75e97249b9d9bf2d24a3d23dad8a6be1fac4400fee3db1b"
+    },
+    {
+      "id": "pulse-positive-positive",
+      "quantized_initial": 1,
+      "pulses_offset_amplitude": [
+        [
+          0,
+          15
+        ]
+      ],
+      "raw_au_hex": [
+        "0140008428003c87",
+        "0140008428003c87",
+        "0140008428003c87",
+        "0140008428003c87",
+        "0140008428003c87",
+        "0140008428003c87",
+        "0140008428003c87",
+        "0140008428003c87"
+      ],
+      "packets_sha256": "94abb9135f6757e1b54c0ab7e1fa44ef2e41dd0efb5597614d7c986dce2473ab",
+      "reference_sha256": "675776f1f5ffdf0b5c65bd34767687c052d0b7171633fe7a0cc5c7c106442626"
+    },
+    {
+      "id": "pulse-negative-negative",
+      "quantized_initial": -1,
+      "pulses_offset_amplitude": [
+        [
+          0,
+          15
+        ]
+      ],
+      "raw_au_hex": [
+        "0140008428003c8f",
+        "0140008428003c8f",
+        "0140008428003c8f",
+        "0140008428003c8f",
+        "0140008428003c8f",
+        "0140008428003c8f",
+        "0140008428003c8f",
+        "0140008428003c8f"
+      ],
+      "packets_sha256": "1e30d4dbda4c97526cdb8fa9dbb983966cd83fcbd9f095ba18f6e506b64c99b7",
+      "reference_sha256": "c8da1c68f0eb4442bf5a8bd399afaca187055f2d4d6f2f005aa8e176ccfeba7e"
+    },
+    {
+      "id": "pulse-repeat-same-bin",
+      "quantized_initial": 0,
+      "pulses_offset_amplitude": [
+        [
+          1,
+          3
+        ],
+        [
+          0,
+          5
+        ]
+      ],
+      "raw_au_hex": [
+        "014000842a004c0a38",
+        "014000842a004c0a38",
+        "014000842a004c0a38",
+        "014000842a004c0a38",
+        "014000842a004c0a38",
+        "014000842a004c0a38",
+        "014000842a004c0a38",
+        "014000842a004c0a38"
+      ],
+      "packets_sha256": "b5b62d6dd5d003fb1880fc0e0194317c029d4fb492113214e338bd34d3db8036",
+      "reference_sha256": "72ed08db8fb77d81d9e8c07b57c64ac0c056b706f29394e8db1f7cc108e52e90"
+    },
+    {
+      "id": "pulse-cumulative-offsets",
+      "quantized_initial": 0,
+      "pulses_offset_amplitude": [
+        [
+          0,
+          2
+        ],
+        [
+          1,
+          4
+        ],
+        [
+          2,
+          6
+        ]
+      ],
+      "raw_au_hex": [
+        "014000842c000828261c",
+        "014000842c000828261c",
+        "014000842c000828261c",
+        "014000842c000828261c",
+        "014000842c000828261c",
+        "014000842c000828261c",
+        "014000842c000828261c",
+        "014000842c000828261c"
+      ],
+      "packets_sha256": "636048e99a4e113d3a5b9bec4eb670cf2411052eded048fbce71bb36405f0385",
+      "reference_sha256": "f9867e21efe177c1fd4354b9bd8e44e5a3a361d55447da7ba6c7e99d8dc55d10"
+    },
+    {
+      "id": "pulse-zero-amplitude",
+      "quantized_initial": 1,
+      "pulses_offset_amplitude": [
+        [
+          0,
+          0
+        ]
+      ],
+      "raw_au_hex": [
+        "0140008428000087",
+        "0140008428000087",
+        "0140008428000087",
+        "0140008428000087",
+        "0140008428000087",
+        "0140008428000087",
+        "0140008428000087",
+        "0140008428000087"
+      ],
+      "packets_sha256": "26ec9003202ae77fa45abb0a5195dabace51611e04735043fdb604babab638e0",
+      "reference_sha256": "a1723c62de6d8d24ffb8960cfd4ac773dc027ce7854a79aa0ff0e9e4dc6f31fc"
+    },
+    {
+      "id": "pulse-max-positive",
+      "quantized_initial": 8191,
+      "pulses_offset_amplitude": [
+        [
+          0,
+          15
+        ],
+        [
+          0,
+          15
+        ],
+        [
+          0,
+          15
+        ],
+        [
+          0,
+          15
+        ]
+      ],
+      "raw_au_hex": [
+        "00f000ac2e003c1e0f079c27fbffc380",
+        "00f000ac2e003c1e0f079c27fbffc380",
+        "00f000ac2e003c1e0f079c27fbffc380",
+        "00f000ac2e003c1e0f079c27fbffc380",
+        "00f000ac2e003c1e0f079c27fbffc380",
+        "00f000ac2e003c1e0f079c27fbffc380",
+        "00f000ac2e003c1e0f079c27fbffc380",
+        "00f000ac2e003c1e0f079c27fbffc380"
+      ],
+      "packets_sha256": "6620e98d5ca316de51aa6d1cda265d54e336c834819e9cb58dfa42ac999e7553",
+      "reference_sha256": "d85ab7be6438e59950268a12343014cfdb2b0f86596acf5fce15aaa6f8285b6e"
+    },
+    {
+      "id": "pulse-max-negative",
+      "quantized_initial": -8191,
+      "pulses_offset_amplitude": [
+        [
+          0,
+          15
+        ],
+        [
+          0,
+          15
+        ],
+        [
+          0,
+          15
+        ],
+        [
+          0,
+          15
+        ]
+      ],
+      "raw_au_hex": [
+        "00f000ac2e003c1e0f079c2ffbffc380",
+        "00f000ac2e003c1e0f079c2ffbffc380",
+        "00f000ac2e003c1e0f079c2ffbffc380",
+        "00f000ac2e003c1e0f079c2ffbffc380",
+        "00f000ac2e003c1e0f079c2ffbffc380",
+        "00f000ac2e003c1e0f079c2ffbffc380",
+        "00f000ac2e003c1e0f079c2ffbffc380",
+        "00f000ac2e003c1e0f079c2ffbffc380"
+      ],
+      "packets_sha256": "f14f59f406ae71f3cf07dab9fc58e072d619159fdb0a8f879bec05f19b21a75a",
+      "reference_sha256": "d4080e62a878ee960766d3326aea5448ae43f545bb311051af9c130ffc7231d1"
+    },
+    {
+      "id": "pulse-then-absent",
+      "quantized_initial": 0,
+      "pulses_offset_amplitude": [
+        [
+          0,
+          15
+        ]
+      ],
+      "raw_au_hex": [
+        "0140008428003c70",
+        "0140008428003c70",
+        "0140008428003c70",
+        "0140008420e0",
+        "0140008420e0",
+        "0140008420e0",
+        "0140008420e0",
+        "0140008420e0"
+      ],
+      "packets_sha256": "7846ad10cbeb3a6133b396ae44b9cb68c2e54d42e13f3213aa5879857fd0831b",
+      "reference_sha256": "57b91d0a9d940af55218648cb01ef57e2f0c68fb695c7d1d0f924872cf4505e3"
+    }
+  ]
+}
