@@ -1,0 +1,105 @@
+--- a/vendor/upstream/aac/src/net/sourceforge/jaad/aac/tools/TNS.java
++++ b/src/thirdParty/java/net/sourceforge/jaad/aac/tools/TNS.java
+@@ -1,7 +1,24 @@
++/*
++ * TNS filtering adapted from FFmpeg n9.0.2:
++ * libavcodec/aac/aacdec_dsp_template.c (apply_tns) and
++ * libavcodec/lpc_functions.h (compute_lpc_coefs, unnormalized recursion).
++ * https://github.com/FFmpeg/FFmpeg/tree/n9.0.2/libavcodec
++ * Copyright (c) 2005-2006 Oded Shimon
++ * Copyright (c) 2006-2007 Maxim Gavrilov
++ * Copyright (c) 2008-2013 Alex Converse
++ * Copyright (c) 2006 Justin Ruggles
++ *
++ * The added filtering code is free software: you can redistribute it and/or
++ * modify it under the GNU Lesser General Public License, version 2.1 or later.
++ * It is distributed without any warranty, including MERCHANTABILITY or FITNESS
++ * FOR A PARTICULAR PURPOSE. See the LGPL text distributed with this project.
++ * The original JAAD parsing code retains its upstream public-domain dedication.
++ */
+ package net.sourceforge.jaad.aac.tools;
+ 
+ import net.sourceforge.jaad.aac.AACException;
+ import net.sourceforge.jaad.aac.SampleFrequency;
++import net.sourceforge.jaad.aac.Profile;
+ import net.sourceforge.jaad.aac.syntax.BitStream;
+ import net.sourceforge.jaad.aac.syntax.ICSInfo;
+ import net.sourceforge.jaad.aac.syntax.ICStream;
+@@ -31,8 +48,11 @@
+         coef = new float[8][4][TNS_MAX_ORDER];
+     }
+ 
+-    public void decode(BitStream in, ICSInfo info) throws AACException {
++    public void decode(BitStream in, ICSInfo info, Profile profile) throws AACException {
+         int windowCount = info.getWindowCount();
++        int maxOrder = info.isEightShortFrame() ? 7 : profile == Profile.AAC_MAIN ? 20 : 12;
++        if (info.getMaxSFB() > info.getSWBCount())
++            throw new AACException("TNS scale factor bands out of range");
+         int[] bits = info.isEightShortFrame() ? SHORT_BITS : LONG_BITS;
+ 
+         int w, i, filt, coefLen, coefRes, coefCompress, tmp;
+@@ -43,7 +63,7 @@
+                 for (filt = 0; filt < nFilt[w]; filt++) {
+                     length[w][filt] = in.readBits(bits[1]);
+ 
+-                    if ((order[w][filt] = in.readBits(bits[2])) > 20)
++                    if ((order[w][filt] = in.readBits(bits[2])) > maxOrder)
+                         throw new AACException("TNS filter out of range: " + order[w][filt]);
+                     else if (order[w][filt] != 0) {
+                         direction[w][filt] = in.readBool();
+@@ -60,7 +80,54 @@
+         }
+     }
+ 
++    // This JAAD call convention is the reverse of FFmpeg's decode flag:
++    // false synthesizes the decoded spectrum (AR); true shapes LTP prediction (MA).
+     public void process(ICStream ics, float[] spec, SampleFrequency sf, boolean decode) {
+-        // TODO...
++        ICSInfo info = ics.getInfo();
++        int maxBand = Math.min(info.getSWBCount(),
++                Math.min(info.getMaxSFB(), sf.getMaximalTNS_SFB(info.isEightShortFrame())));
++        if (maxBand == 0) return;
++        int[] offsets = info.getSWBOffsets();
++        float[] lpc = new float[TNS_MAX_ORDER];
++        float[] history = new float[TNS_MAX_ORDER + 1];
++        for (int w = 0; w < info.getWindowCount(); w++) {
++            int bottom = info.getSWBCount();
++            for (int f = 0; f < nFilt[w]; f++) {
++                // Filter lengths descend from num_swb, even for zero-order filters.
++                int top = bottom;
++                bottom = Math.max(0, top - length[w][f]);
++                int sizeOrder = order[w][f];
++                if (sizeOrder == 0) continue;
++                int start = offsets[Math.min(bottom, maxBand)];
++                int end = offsets[Math.min(top, maxBand)];
++                int size = end - start;
++                if (size <= 0) continue;
++                // Reflection coefficients are negated by the unnormalized LPC recursion.
++                for (int i = 0; i < sizeOrder; i++) {
++                    float r = -coef[w][f][i];
++                    lpc[i] = r;
++                    for (int j = 0; j < (i + 1) / 2; j++) {
++                        float a = lpc[j], b = lpc[i - 1 - j];
++                        lpc[j] = a + r * b;
++                        lpc[i - 1 - j] = b + r * a;
++                    }
++                }
++                int increment = direction[w][f] ? -1 : 1;
++                start = (direction[w][f] ? end - 1 : start) + w * 128;
++                for (int m = 0; m < size; m++, start += increment) {
++                    if (!decode) {
++                        for (int i = 1; i <= Math.min(m, sizeOrder); i++)
++                            spec[start] -= spec[start - i * increment] * lpc[i - 1];
++                    } else {
++                        history[0] = spec[start];
++                        for (int i = 1; i <= Math.min(m, sizeOrder); i++)
++                            spec[start] += history[i] * lpc[i - 1];
++                        for (int i = sizeOrder; i > 0; i--) history[i] = history[i - 1];
++                    }
++                    if (!Float.isFinite(spec[start]))
++                        throw new IllegalArgumentException("Non-finite TNS spectrum");
++                }
++            }
++        }
+     }
+ }
