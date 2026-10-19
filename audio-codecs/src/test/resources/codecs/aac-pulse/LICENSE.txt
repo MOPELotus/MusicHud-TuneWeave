@@ -1,0 +1,8 @@
+SPDX-License-Identifier: CC0-1.0
+
+The original bitstream generator, AAC test frames and reference PCM are
+dedicated to the public domain under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No third-party recordings or test bitstreams were copied. FFmpeg is only the
+generation-time independent PCM oracle, and is not a runtime/test dependency.
