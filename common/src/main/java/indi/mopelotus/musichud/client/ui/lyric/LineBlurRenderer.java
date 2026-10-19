@@ -8,6 +8,8 @@ import icyllis.arc3d.sketch.Paint;
 import icyllis.arc3d.sketch.Surface;
 import icyllis.modernui.graphics.Canvas;
 import icyllis.modernui.graphics.pipeline.ArcCanvas;
+import indi.mopelotus.musichud.client.utils.text.EmojiAwareCanvas;
+import indi.mopelotus.musichud.client.utils.text.WidgetEmojiResources;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -85,6 +87,8 @@ public final class LineBlurRenderer {
             return false;
         }
 
+        // A retained blurred row must not keep the previous resource pack's image snapshot.
+        contentStamp = 31 * contentStamp + WidgetEmojiResources.currentEpoch();
         float downscale = chooseDownscale(radius);
         float sigma = radius * SIGMA_FACTOR * downscale;
         int halfTaps = Math.max(1, (int) Math.ceil(3f * sigma));
@@ -139,7 +143,7 @@ public final class LineBlurRenderer {
         canvas.save();
         canvas.translate(padding, padding);
         canvas.scale(downscale, downscale);
-        drawer.draw(new ArcCanvas(canvas));
+        drawer.draw(EmojiAwareCanvas.create(canvas));
         canvas.restore();
         res.replaceSourceImage(surface.makeImageSnapshot());
     }
