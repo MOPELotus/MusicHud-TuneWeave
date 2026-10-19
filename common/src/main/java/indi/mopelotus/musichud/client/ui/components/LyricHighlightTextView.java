@@ -18,6 +18,7 @@ import indi.mopelotus.musichud.client.utils.ui.SpringInterpolator;
 import lombok.NonNull;
 import lombok.Setter;
 
+import indi.mopelotus.musichud.client.utils.ui.GraphemeProgress;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -28,6 +29,8 @@ public class LyricHighlightTextView extends TextView {
     private static final SpringInterpolator SPRING = new SpringInterpolator(RAISE_ANIMATION_DURATION * 0.001f, 1);
     private static final SmoothBumpInterpolator SCALE_BUMP = new SmoothBumpInterpolator(1.6f, 2.4f);
     private final LyricLine lyricLine;
+    private CharSequence sweepText;
+    private GraphemeProgress sweepGraphemes;
     private final NowPlayingInfo nowPlayingInfo = NowPlayingInfo.getInstance();
     private final float phraseRaiseY = dp(2);
     private final Duration fadeAt;
@@ -256,23 +259,12 @@ public class LyricHighlightTextView extends TextView {
         }
     }
 
-    private static float logicalXAt(Layout layout, float[] lineLogicalStart, float offset) {
-        int textLength = layout.getText().length();
-        int floor = Math.clamp((int) Math.floor(offset), 0, textLength);
-        if (floor > 0 && floor < textLength && Character.isLowSurrogate(layout.getText().charAt(floor))
-                && Character.isHighSurrogate(layout.getText().charAt(floor - 1))) floor--;
-        int ceil = floor == textLength ? floor : Math.min(textLength, floor + Character.charCount(Character.codePointAt(layout.getText(), floor)));
-        float from = logicalXAtOffset(layout, lineLogicalStart, floor);
-        if (ceil == floor) {
-            return from;
+    private float logicalXAt(Layout layout, float[] lineLogicalStart, float offset) {
+        if (sweepText != layout.getText()) {
+            sweepText = layout.getText();
+            sweepGraphemes = new GraphemeProgress(sweepText);
         }
-        float to = logicalXAtOffset(layout, lineLogicalStart, ceil);
-        return from + (offset - floor) / (ceil - floor) * (to - from);
-    }
-
-    private static float logicalXAtOffset(Layout layout, float[] lineLogicalStart, int offset) {
-        int line = layout.getLineForOffset(offset);
-        return lineLogicalStart[line] + layout.getPrimaryHorizontal(offset);
+        return LyricTextGeometry.logicalXAt(layout, lineLogicalStart, offset, sweepGraphemes);
     }
 
     private void raisePhrase(LyricLine.Phrase phrase, Duration startAt, Duration now) {
