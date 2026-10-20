@@ -1,19 +1,14 @@
 package indi.mopelotus.musichud.client.ui.components;
 
+import indi.mopelotus.musichud.client.ui.QueueSubmissionFeedback;
+
 import icyllis.modernui.core.Context;
 import icyllis.modernui.view.View;
 import icyllis.modernui.view.ViewGroup;
-import icyllis.modernui.widget.Toast;
-import indi.mopelotus.musichud.MusicHud;
-import indi.mopelotus.musichud.beans.music.Artist;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
-import indi.mopelotus.musichud.client.services.music.MusicService;
-import indi.mopelotus.musichud.client.ui.ToastUtil;
 import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
-import net.minecraft.client.resources.language.I18n;
 
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class MusicListFactory {
     public static MusicListItem createItem(ViewGroup parent) {
@@ -37,10 +32,7 @@ public class MusicListFactory {
             if (clickFilter.apply(view)) return;
             MusicDetail musicDetail = item.getMusicDetail();
             if (musicDetail == null) return;
-            MusicService.getInstance().sendPushMusicToQueue(musicDetail);
-            String artistsName = musicDetail.getArtists().stream()
-                    .map(Artist::getName).collect(Collectors.joining(" / "));
-            ToastUtil.show(Toast.makeText(context, I18n.get(MusicHud.MOD_ID + ".text.pushedMusicToPlaylist") + "\n" + musicDetail.getName() + " - " + artistsName, Toast.LENGTH_SHORT));
+            QueueSubmissionFeedback.submit(view, musicDetail);
         });
         return item;
     }

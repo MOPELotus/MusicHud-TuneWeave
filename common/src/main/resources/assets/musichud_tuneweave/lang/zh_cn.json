@@ -573,5 +573,7 @@
   "musichud_tuneweave.modal.downloadApiServer.compatibilityUnknown": "此 TuneWeave 版本尚未声明与当前客户端兼容。请保留现有服务，更新模组或等待兼容服务发布后再试。",
   "musichud_tuneweave.update.service.modCompatibilityBlocked": "尚未确认新版模组与当前服务能够配套使用，将保留当前安装。请查看版本说明，退出游戏后按说明同时更新模组和服务；使用外部服务时，请先联系服务所有者确认所需版本。",
   "musichud_tuneweave.update.service.manualPairAction": "查看升级说明",
-  "musichud_tuneweave.update.service.portUnavailable": "服务端口已被占用，或其状态暂时无法确认。未切换当前服务，请稍后重试，并检查是否有其他程序占用端口。"
+  "musichud_tuneweave.update.service.portUnavailable": "服务端口已被占用，或其状态暂时无法确认。未切换当前服务，请稍后重试，并检查是否有其他程序占用端口。",
+  "musichud_tuneweave.text.queueRequestSubmitted": "已发送点歌请求",
+  "musichud_tuneweave.text.queueConnectionNotReady": "音乐连接尚未就绪，请重试。"
 }

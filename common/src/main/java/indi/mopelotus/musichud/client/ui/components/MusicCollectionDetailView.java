@@ -1,11 +1,11 @@
 package indi.mopelotus.musichud.client.ui.components;
 
-import icyllis.modernui.animation.LayoutTransition;
+import indi.mopelotus.musichud.client.ui.QueueSubmissionFeedback;
+
 import icyllis.modernui.core.Context;
 import icyllis.modernui.mc.ui.ClampingScrollView;
 import indi.mopelotus.musichud.client.ui.layouts.VirtualizedListLayout;
 import icyllis.modernui.graphics.Image;
-import icyllis.modernui.graphics.drawable.Drawable;
 import icyllis.modernui.graphics.drawable.InsetDrawable;
 import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.text.SpannableString;
@@ -547,10 +547,8 @@ public class MusicCollectionDetailView extends LinearLayout {
         musicLayout.setOnClickListener(view -> {
             MusicDetail musicDetail = musicLayout.getMusicDetail();
             if (musicDetail == null || detached) return;
-            String artistsName = musicDetail.getArtists().stream().map(Artist::getName).collect(Collectors.joining(" / "));
-            MusicService.getInstance().sendPushMusicToQueue(musicDetail.withPlaybackSource(PlaybackSource.from(this.musicCollection, "MANUAL")));
-            ToastUtil.show(Toast.makeText(context, I18n.get(MusicHud.MOD_ID + ".text.pushedMusicToPlaylist")
-                    + "\n" + musicDetail.getName() + " - " + artistsName, Toast.LENGTH_SHORT));
+            QueueSubmissionFeedback.submit(view,
+                    musicDetail.withPlaybackSource(PlaybackSource.from(this.musicCollection, "MANUAL")));
         });
         if (editablePlaylist && musicCollection instanceof Playlist) {
             musicLayout.getButtonsLayout().addView(trackOrderButton(context, 90, ".button.moveUp",

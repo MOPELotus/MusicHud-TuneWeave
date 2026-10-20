@@ -1,5 +1,15 @@
 package indi.mopelotus.musichud.client.services.music;
 
+import net.minecraft.client.Minecraft;
+
+import indi.mopelotus.musichud.interfaces.IConnectionManager.ConnectionMode;
+
+import indi.mopelotus.musichud.client.network.vanilla.VanillaClientNetworkService;
+
+import indi.mopelotus.musichud.client.services.ClientConnectionRouting;
+
+import indi.mopelotus.musichud.client.services.ConnectionManager;
+
 import icyllis.modernui.core.Context;
 import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.mc.UIManager;
@@ -14,7 +24,6 @@ import indi.mopelotus.musichud.beans.state.IMusicTrackState;
 import indi.mopelotus.musichud.beans.state.ISubscribeState;
 import indi.mopelotus.musichud.client.audio.NowPlayingInfo;
 import indi.mopelotus.musichud.client.audio.StreamAudioPlayer;
-import indi.mopelotus.musichud.client.interfaces.IClientEventService;
 import indi.mopelotus.musichud.client.services.LoginService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.services.music.states.*;
@@ -39,7 +48,6 @@ import lombok.*;
 import net.minecraft.client.resources.language.I18n;
 
 import java.time.Duration;
-import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -69,6 +77,7 @@ public class MusicService implements IClientMusicService {
     private final FavoriteIntelligenceState favoriteIntelligenceState = new FavoriteIntelligenceState();
     private volatile Playlist favoriteIntelligencePlaylist;
     private volatile boolean favoriteIntelligenceEnabled;
+    private QueueSubmissionGate.Scope favoriteIntelligenceConnection;
     private volatile boolean favoriteIntelligencePushPending;
     private volatile String favoriteIntelligenceLastReference = "";
     private final PublicPlaybackState publicPlayback = new PublicPlaybackState(this, new PublicPlaybackState.Output() {
@@ -207,6 +216,7 @@ public class MusicService implements IClientMusicService {
                     "Favorite intelligence is unavailable for this playlist"));
         }
         long generation = favoriteIntelligenceState.enable(playlist);
+        favoriteIntelligenceConnection = captureQueueSubmissionScope();
         synchronized (favoriteIntelligenceBuffer) {
             favoriteIntelligencePlaylist = playlist;
             favoriteIntelligenceEnabled = true;
@@ -216,7 +226,9 @@ public class MusicService implements IClientMusicService {
         }
         return refillFavoriteIntelligence(generation, playlist).thenApply(ignored -> {
             synchronized (this) {
-            if (!favoriteIntelligenceState.accepts(generation, playlist)) {
+            if (!favoriteIntelligenceState.accepts(generation, playlist)
+                    || favoriteIntelligenceConnection == null
+                    || !favoriteIntelligenceConnection.same(captureQueueSubmissionScope())) {
                 throw new java.util.concurrent.CancellationException("Favorite intelligence was superseded");
             }
             notifyFavoriteIntelligenceState(true);
@@ -271,6 +283,11 @@ public class MusicService implements IClientMusicService {
 
     private synchronized void queueNextFavoriteIntelligenceTrack() {
         if (!favoriteIntelligenceEnabled || favoriteIntelligencePushPending || !musicQueue.isEmpty()) return;
+        QueueSubmissionGate.Scope expectedConnection = favoriteIntelligenceConnection;
+        if (expectedConnection == null || !expectedConnection.same(captureQueueSubmissionScope())) {
+            disableFavoriteIntelligence();
+            return;
+        }
         MusicDetail next;
         synchronized (favoriteIntelligenceBuffer) {
             next = favoriteIntelligenceBuffer.pollFirst();
@@ -291,7 +308,15 @@ public class MusicService implements IClientMusicService {
         }
         favoriteIntelligenceLastReference = next.getSourceRef();
         favoriteIntelligencePushPending = true;
-        sendPushMusicToQueue(next.withPlaybackSource(PlaybackSource.from(favoriteIntelligencePlaylist, "INTELLIGENT")));
+        long generation = favoriteIntelligenceState.generation();
+        Playlist source = favoriteIntelligencePlaylist;
+        submitMusicToQueue(next.withPlaybackSource(PlaybackSource.from(source, "INTELLIGENT")),
+                () -> favoriteIntelligenceState.accepts(generation, source)
+                        && expectedConnection.same(captureQueueSubmissionScope()))
+                .result().whenComplete((result, error) -> {
+                    if (error != null || result == QueueSubmissionGate.Result.REJECTED)
+                        disableFavoriteIntelligenceIfCurrent(generation, source);
+                });
     }
 
     private synchronized void disableFavoriteIntelligenceIfCurrent(long generation, Playlist source) {
@@ -302,6 +327,7 @@ public class MusicService implements IClientMusicService {
         favoriteIntelligenceState.disable();
         favoriteIntelligenceEnabled = false;
         favoriteIntelligencePlaylist = null;
+        favoriteIntelligenceConnection = null;
         favoriteIntelligencePushPending = false;
         favoriteIntelligenceLastReference = "";
         synchronized (favoriteIntelligenceBuffer) {
@@ -455,7 +481,49 @@ public class MusicService implements IClientMusicService {
 
     @Override
     public void sendPushMusicToQueue(MusicDetail musicDetail) {
-        clientNetworkService.sendToServer(new ClientPushMusicToQueueMessage(musicDetail));
+        // Preserve the existing binary entry point; both APIs use the same final admission gate.
+        submitMusicToQueue(musicDetail).result().whenComplete((result, error) -> {
+            if (error != null || result == QueueSubmissionGate.Result.REJECTED)
+                MusicHud.LOGGER.warn("Queue request rejected: the client connection is not ready");
+        });
+    }
+
+    private QueueSubmissionGate.Scope captureQueueSubmissionScope() {
+        var minecraft = Minecraft.getInstance();
+        return new QueueSubmissionGate.Scope(minecraft.getConnection(), minecraft.player,
+                ConnectionManager.getInstance().getConnectionGeneration(),
+                MusicEntityCache.captureGeneration());
+    }
+
+    public QueueSubmissionGate.Submission submitMusicToQueue(MusicDetail musicDetail) {
+        return submitMusicToQueue(musicDetail, () -> true);
+    }
+
+    /** The caller may invalidate a prepared selection before it reaches the client thread. */
+    public QueueSubmissionGate.Submission submitMusicToQueue(MusicDetail musicDetail,
+                                                             java.util.function.BooleanSupplier currentAction) {
+        var minecraft = Minecraft.getInstance();
+        var manager = ConnectionManager.getInstance();
+        // Always enqueue, even on the MC thread: callers may hold MusicService's lock.
+        // The final action takes the existing connection owner lock, never service -> owner inline.
+        var gate = new QueueSubmissionGate(manager, minecraft::tell, this::captureQueueSubmissionScope, () -> {
+            var listener = minecraft.getConnection();
+            if (!currentAction.getAsBoolean() || !clientConfig.getEnable()
+                    || minecraft.player == null || minecraft.level == null
+                    || listener == null || !listener.getConnection().isConnected()) return false;
+            var mode = ConnectionManager.getInstance().getMode();
+            boolean remote = minecraft.getCurrentServer() != null;
+            var route = ClientConnectionRouting.route(true, remote,
+                    MusicHud.getConnectStatus(), false, clientConfig.getEnableIsolatedMode());
+            if (route == ClientConnectionRouting.Route.REMOTE)
+                return mode == ConnectionMode.EXTERNAL
+                        && ((VanillaClientNetworkService) clientNetworkService)
+                        .isNetworkChannelReady(new ClientPushMusicToQueueMessage(musicDetail));
+            return route == ClientConnectionRouting.Route.LOCAL
+                    && ClientConnectionRouting.usesLocalMembership(
+                    !remote, mode, MusicHud.getConnectStatus());
+        });
+        return gate.submit(() -> clientNetworkService.sendToServer(new ClientPushMusicToQueueMessage(musicDetail)));
     }
 
     @Override
