@@ -204,9 +204,12 @@ public class LoginService implements IClientLoginService {
         @Override
         public void register() {
             IClientEventService eventService = IClientEventService.getInstance();
-            ApiLoginLifecycle.register(() -> {
+            Runnable restoreAfterApiStart = ApiLoginLifecycle.register(() -> {
+                Minecraft minecraft = Minecraft.getInstance();
+                return minecraft != null && minecraft.player != null;
+            }, () -> {
                 LoginService loginService = LoginService.getInstance();
-                if (Minecraft.getInstance().player != null && loginService.hasStoredSession() && !loginService.isLogined()) {
+                if (loginService.hasStoredSession() && !loginService.isLogined()) {
                     loginService.restoreSession();
                 }
             });
@@ -235,7 +238,10 @@ public class LoginService implements IClientLoginService {
                 });
             });
             eventService.registerClientPlayerQuit(player -> ConnectionManager.getInstance().onPlayerQuit(player));
-            eventService.registerClientTickPost(() -> ConnectionManager.getInstance().onClientTick());
+            eventService.registerClientTickPost(() -> {
+                restoreAfterApiStart.run();
+                ConnectionManager.getInstance().onClientTick();
+            });
         }
     }
 
