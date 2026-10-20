@@ -573,5 +573,7 @@
   "musichud_tuneweave.modal.downloadApiServer.compatibilityUnknown": "This TuneWeave release has not declared compatibility with this client. Keep the current service and check again after updating the mod or after a compatible service release becomes available.",
   "musichud_tuneweave.update.service.modCompatibilityBlocked": "The target mod and the selected service have no confirmed compatible pairing. Your current installation will be kept. Open the release instructions, exit the game, and update the mod and service together as directed. For an external service, ask its owner to confirm the required version first.",
   "musichud_tuneweave.update.service.manualPairAction": "View upgrade instructions",
-  "musichud_tuneweave.update.service.portUnavailable": "The service port is occupied or its state could not be confirmed. The selected service has not been changed. Wait a moment and retry, and check for another program using the port."
+  "musichud_tuneweave.update.service.portUnavailable": "The service port is occupied or its state could not be confirmed. The selected service has not been changed. Wait a moment and retry, and check for another program using the port.",
+  "musichud_tuneweave.text.queueRequestSubmitted": "Queue request sent",
+  "musichud_tuneweave.text.queueConnectionNotReady": "Music connection is not ready. Please try again."
 }

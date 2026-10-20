@@ -1,10 +1,11 @@
 package indi.mopelotus.musichud.client.ui.pages;
 
+import indi.mopelotus.musichud.client.ui.QueueSubmissionFeedback;
+
 import indi.mopelotus.musichud.client.ui.ScopedViewTasks;
 import indi.mopelotus.musichud.client.ui.ClientViewTasks;
 
 import icyllis.modernui.core.Context;
-import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.view.Gravity;
 import icyllis.modernui.view.View;
 import icyllis.modernui.widget.Button;
@@ -20,7 +21,6 @@ import indi.mopelotus.musichud.utils.collections.ObservableSequencedSet;
 import java.util.*;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
-import indi.mopelotus.musichud.client.services.music.MusicService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeavePodcast;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeavePodcastEpisode;
@@ -232,7 +232,7 @@ public final class PodcastDetailView extends LinearLayout {
 
     private void play(TuneWeavePodcastEpisode episode) {
         try {
-            MusicService.getInstance().sendPushMusicToQueue(tuneWeave.podcastEpisodeTrack(podcast, episode));
+            QueueSubmissionFeedback.submit(this, tuneWeave.podcastEpisodeTrack(podcast, episode));
         } catch (RuntimeException error) { showStatus(message(error)); }
     }
 

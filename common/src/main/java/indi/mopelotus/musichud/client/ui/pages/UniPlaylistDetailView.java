@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.ui.pages;
 
+import indi.mopelotus.musichud.client.ui.QueueSubmissionFeedback;
+
 import indi.mopelotus.musichud.client.ui.ScopedViewTasks;
 import indi.mopelotus.musichud.client.ui.ClientViewTasks;
 
@@ -7,8 +9,6 @@ import icyllis.modernui.R;
 import icyllis.modernui.core.Context;
 import icyllis.modernui.graphics.Image;
 import icyllis.modernui.graphics.drawable.InsetDrawable;
-import icyllis.modernui.mc.MuiModApi;
-import icyllis.modernui.view.Gravity;
 import icyllis.modernui.view.View;
 import icyllis.modernui.widget.EditText;
 import icyllis.modernui.widget.ImageButton;
@@ -29,7 +29,6 @@ import indi.mopelotus.musichud.beans.music.*;
 import indi.mopelotus.musichud.utils.collections.ObservableSequencedSet;
 import java.util.*;
 import indi.mopelotus.musichud.MusicHud;
-import indi.mopelotus.musichud.client.services.music.MusicService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveUniItem;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveUniPlaylist;
@@ -288,7 +287,7 @@ public final class UniPlaylistDetailView extends LinearLayout {
 
     private void play(TuneWeaveUniItem item) {
         try {
-            MusicService.getInstance().sendPushMusicToQueue(tuneWeave.uniPlaylistItemTrack(item));
+            QueueSubmissionFeedback.submit(this, tuneWeave.uniPlaylistItemTrack(item));
         } catch (RuntimeException error) {
             String message = error.getMessage() == null || error.getMessage().isBlank()
                     ? I18n.get(MusicHud.MOD_ID + ".text.musicPushError") : error.getMessage();
