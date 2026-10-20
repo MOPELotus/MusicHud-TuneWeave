@@ -5,6 +5,8 @@ import io.netty.handler.codec.DecoderException;
 import lombok.NonNull;
 
 import java.nio.charset.StandardCharsets;
+import java.time.DateTimeException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -163,43 +165,31 @@ public class Codecs {
         }
     };
 
-    public static final ByteBufCodec<ZonedDateTime> ZONED_DATE_TIME =
-            new ByteBufCodec<>() {
-                @Override
-                @NonNull
-                public ZonedDateTime decode(ByteBuf byteBuf) {
-                    int year = byteBuf.readInt();
-                    int month = byteBuf.readInt();
-                    int dayOfMonth = byteBuf.readInt();
-                    int hour = byteBuf.readInt();
-                    int minute = byteBuf.readInt();
-                    int second = byteBuf.readInt();
-                    int zoneIdLength = byteBuf.readInt();
-                    return ZonedDateTime.of(
-                            year,
-                            month,
-                            dayOfMonth,
-                            hour,
-                            minute,
-                            second,
-                            0,
-                            ZoneId.of(byteBuf.readCharSequence(zoneIdLength, StandardCharsets.UTF_8).toString())
-                    );
-                }
+    /** Protocol 3: exact instant and original zone, including either side of a DST overlap. */
+    public static final ByteBufCodec<ZonedDateTime> ZONED_DATE_TIME = new ByteBufCodec<>() {
+        @Override
+        @NonNull
+        public ZonedDateTime decode(ByteBuf byteBuf) {
+            long epochSecond = byteBuf.readLong();
+            int nano = byteBuf.readInt();
+            if (nano < 0 || nano > 999_999_999) {
+                throw new DecoderException("Invalid time nanoseconds: " + nano);
+            }
+            String zoneId = STRING_UTF8.decode(byteBuf);
+            try {
+                return ZonedDateTime.ofInstant(Instant.ofEpochSecond(epochSecond, nano), ZoneId.of(zoneId));
+            } catch (DateTimeException invalid) {
+                throw new DecoderException("Invalid zoned instant", invalid);
+            }
+        }
 
-                @Override
-                public void encode(ByteBuf byteBuf, ZonedDateTime zonedDateTime) {
-                    byteBuf.writeInt(zonedDateTime.getYear());
-                    byteBuf.writeInt(zonedDateTime.getMonthValue());
-                    byteBuf.writeInt(zonedDateTime.getDayOfMonth());
-                    byteBuf.writeInt(zonedDateTime.getHour());
-                    byteBuf.writeInt(zonedDateTime.getMinute());
-                    byteBuf.writeInt(zonedDateTime.getSecond());
-                    String zoneId = zonedDateTime.getZone().getId();
-                    byteBuf.writeInt(zoneId.length());
-                    byteBuf.writeCharSequence(zoneId, StandardCharsets.UTF_8);
-                }
-            };
+        @Override
+        public void encode(ByteBuf byteBuf, ZonedDateTime value) {
+            byteBuf.writeLong(value.toEpochSecond());
+            byteBuf.writeInt(value.getNano());
+            STRING_UTF8.encode(byteBuf, value.getZone().getId());
+        }
+    };
 
     public static final ByteBufCodec<UUID> UUID = new ByteBufCodec<>() {
         @Override
