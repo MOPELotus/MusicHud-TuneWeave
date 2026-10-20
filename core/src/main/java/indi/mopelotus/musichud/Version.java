@@ -12,8 +12,8 @@ public record Version(long major, long minor, long patch, BuildType build) imple
             Codecs.ofEnum(BuildType.class), Version::build,
             Version::new
     );
-    public static final Version CURRENT = new Version(2, 0, 0, BuildType.Alpha);
-    public static final Version LEAST_COMPATIBLE = new Version(2, 0, 0, BuildType.Alpha);
+    public static final Version CURRENT = new Version(3, 0, 0, BuildType.Alpha);
+    public static final Version LEAST_COMPATIBLE = new Version(3, 0, 0, BuildType.Alpha);
 
     public Version {
         if (major < 0 || minor < 0 || patch < 0) {
