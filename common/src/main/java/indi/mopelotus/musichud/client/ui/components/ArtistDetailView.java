@@ -1,8 +1,9 @@
 package indi.mopelotus.musichud.client.ui.components;
 
+import indi.mopelotus.musichud.client.ui.QueueSubmissionFeedback;
+
 import icyllis.modernui.core.Context;
 import icyllis.modernui.graphics.Image;
-import icyllis.modernui.graphics.drawable.Drawable;
 import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.text.SpannableString;
 import icyllis.modernui.text.Spanned;
@@ -15,14 +16,12 @@ import indi.mopelotus.musichud.beans.music.Artist;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
 import indi.mopelotus.musichud.client.services.music.MusicService;
 import indi.mopelotus.musichud.client.ui.Theme;
-import indi.mopelotus.musichud.client.ui.ToastUtil;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
 import indi.mopelotus.musichud.client.utils.image.ImageUtils;
 import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import indi.mopelotus.musichud.interfaces.IClientMusicService;
 import net.minecraft.client.resources.language.I18n;
 
-import java.util.stream.Collectors;
 
 import static icyllis.modernui.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static icyllis.modernui.view.ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -282,12 +281,8 @@ public class ArtistDetailView extends LinearLayout {
         background.applyBackgroundTo(musicLayout);
 
         musicLayout.setClickable(true);
-        String artistsName = musicDetail.getArtists().stream()
-                .map(Artist::getName).collect(Collectors.joining(" / "));
-        musicLayout.setOnClickListener((view) -> {
-            MusicService.getInstance().sendPushMusicToQueue(musicDetail);
-            ToastUtil.show(Toast.makeText(context, I18n.get(MusicHud.MOD_ID + ".text.pushedMusicToPlaylist") + "\n" + musicDetail.getName() + " - " + artistsName, Toast.LENGTH_SHORT));
-        });
+        musicLayout.setOnClickListener(view ->
+                QueueSubmissionFeedback.submit(view, musicDetail));
         musicList.addView(musicLayout);
     }
 }

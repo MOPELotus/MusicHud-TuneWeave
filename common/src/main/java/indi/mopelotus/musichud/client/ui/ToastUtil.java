@@ -14,20 +14,24 @@ public class ToastUtil {
     static final int SHORT_DELAY = 2000;
 
     public static void show(Toast toast) {
-        MuiModApi.postToUiThread(() -> {
-            long currentTimeMillis = System.currentTimeMillis();
-            if (currentTimeMillis - lastToastTime < lastToastDuration && lastToast != null) {
-                lastToast.cancel();
-            }
-            lastToastTime = currentTimeMillis;
-            lastToastDuration = switch (toast.getDuration()) {
-                case Toast.LENGTH_LONG -> LONG_DELAY;
-                case Toast.LENGTH_SHORT -> SHORT_DELAY;
-                default -> 0;
-            };
-            toast.show();
-            lastToast = toast;
-        });
+        MuiModApi.postToUiThread(() -> showOnUiThread(toast));
+    }
+
+    /** Display inside the caller's guarded UI task, without posting a second unguarded callback. */
+    public static void showOnUiThread(Toast toast) {
+        icyllis.modernui.core.Core.checkUiThread();
+        long currentTimeMillis = System.currentTimeMillis();
+        if (currentTimeMillis - lastToastTime < lastToastDuration && lastToast != null) {
+            lastToast.cancel();
+        }
+        lastToastTime = currentTimeMillis;
+        lastToastDuration = switch (toast.getDuration()) {
+            case Toast.LENGTH_LONG -> LONG_DELAY;
+            case Toast.LENGTH_SHORT -> SHORT_DELAY;
+            default -> 0;
+        };
+        toast.show();
+        lastToast = toast;
     }
 
     public static void show(CharSequence message) {
