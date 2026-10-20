@@ -1,14 +1,14 @@
 package indi.mopelotus.musichud.client.ui.pages.account;
 
+import indi.mopelotus.musichud.client.ui.QueueSubmissionFeedback;
+
 import icyllis.modernui.core.Context;
 import icyllis.modernui.mc.ui.ClampingScrollView;
-import icyllis.modernui.view.View;
 import icyllis.modernui.view.ViewGroup;
 import icyllis.modernui.widget.*;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.beans.music.*;
 import indi.mopelotus.musichud.client.services.music.MusicEntityCache;
-import indi.mopelotus.musichud.client.services.music.MusicService;
 import indi.mopelotus.musichud.client.services.tuneweave.*;
 import indi.mopelotus.musichud.client.ui.*;
 import indi.mopelotus.musichud.client.ui.components.*;
@@ -111,7 +111,7 @@ public final class PersonalLibraryView extends LinearLayout {
             if (!entry.reference().isBlank()) card.setOnClickListener(v -> {
                 if (!tasks.isCurrent() || account != MusicEntityCache.captureGeneration()) return;
                 var router = RouterContainer.getInstance(); if (router == null) return;
-                if (entry.resource() instanceof MusicDetail track) MusicService.getInstance().sendPushMusicToQueue(track);
+                if (entry.resource() instanceof MusicDetail track) QueueSubmissionFeedback.submit(v, track);
                 else if (entry.resource() instanceof Album album) router.pushNavigate(new MusicCollectionDetailView(getContext(), album));
                 else router.pushNavigate(new PersonalLibraryView(getContext(), platform, kind, entry));
             });
