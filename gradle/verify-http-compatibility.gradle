@@ -1,9 +1,19 @@
 // These older hosts lack HTTP; package only the matching codec, never Netty itself.
+// These optional HTTP features/protocols have no callers in the supported clients.
+def unusedHttpPackages = ['io/netty/handler/codec/http/cors/',
+                          'io/netty/handler/codec/http/multipart/',
+                          'io/netty/handler/codec/http/websocketx/',
+                          'io/netty/handler/codec/rtsp/',
+                          'io/netty/handler/codec/spdy/']
+tasks.named('shadowJar').configure {
+    unusedHttpPackages.each { prefix -> exclude(prefix + '**') }
+}
 def httpDeploymentTask = tasks.named(tasks.findByName('remapJar') == null ? 'jar' : 'remapJar')
 def verifyHttpCompatibility = tasks.register('verifyHttpCompatibilityJar') {
     group = 'verification'
     dependsOn httpDeploymentTask
     inputs.file(httpDeploymentTask.flatMap { it.archiveFile })
+    inputs.property('unusedHttpPackages', unusedHttpPackages)
     doLast {
         def artifact = httpDeploymentTask.get().archiveFile.get().asFile
         new java.util.zip.ZipFile(artifact).withCloseable { zip ->
@@ -13,14 +23,39 @@ def verifyHttpCompatibility = tasks.register('verifyHttpCompatibilityJar') {
                           'META-INF/licenses/netty-http/SOURCE.txt']) {
                 if (zip.getEntry(path) == null) throw new GradleException("Missing HTTP compatibility component/license ${path}")
             }
-            def allowed = ['io/netty/handler/codec/http/', 'io/netty/handler/codec/rtsp/', 'io/netty/handler/codec/spdy/']
             if (zip.entries().any { entry ->
                 entry.name.startsWith('io/netty/') && entry.name.endsWith('.class') &&
-                    !allowed.any { prefix -> entry.name.startsWith(prefix) }
+                    !entry.name.startsWith('io/netty/handler/codec/http/')
             }) {
                 throw new GradleException('Host-owned Netty modules must not be bundled with the HTTP compatibility codec')
             }
         }
+        // ASCII package names appear verbatim in class UTF8 constants, including
+        // descriptors and reflective names. Scan callers and SPI registrations in nested JARs,
+        // so a dependency upgrade cannot silently introduce a missing protocol.
+        def references = unusedHttpPackages.collectMany { prefix -> [prefix, prefix.replace('/', '.')] }
+        Closure inspect
+        inspect = { byte[] bytes, String container, int depth ->
+            if (depth > 8) throw new GradleException("Excessive JAR nesting in ${container}")
+            new java.util.zip.ZipInputStream(new ByteArrayInputStream(bytes)).withCloseable { zip ->
+                for (def entry = zip.nextEntry; entry != null; entry = zip.nextEntry) {
+                    if (entry.directory) continue
+                    byte[] content = zip.readAllBytes()
+                    if (unusedHttpPackages.any { entry.name.startsWith(it) }) {
+                        throw new GradleException("Unused Netty HTTP package remains: ${container}!/${entry.name}")
+                    }
+                    if (entry.name.endsWith('.class') || entry.name.startsWith('META-INF/services/')) {
+                        String constants = new String(content, java.nio.charset.StandardCharsets.ISO_8859_1)
+                        def reference = references.find { constants.contains(it) || entry.name.contains(it) }
+                        if (reference != null) {
+                            throw new GradleException("Reference to excluded Netty HTTP package ${reference}: ${container}!/${entry.name}")
+                        }
+                    }
+                    if (entry.name.endsWith('.jar')) inspect(content, container + '!/' + entry.name, depth + 1)
+                }
+            }
+        }
+        inspect(artifact.bytes, artifact.name, 0)
     }
 }
 tasks.named('check') { dependsOn verifyHttpCompatibility }
