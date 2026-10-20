@@ -12,6 +12,8 @@
 
 Paper 会检查实际生效的代理转发配置并拒绝错误部署。Paper 插件及 Fabric / NeoForge 专用服模组会回应代理的存在性探测；客户端模组和单人内置服务器不回应此探测。代理会在进入后端和切服时检测冲突；发现双装后会提示并断开受影响的连接。请从所有后端移除本项目的插件或服务端模组，按服务器正常维护流程重新启动并连接。此检测不负责扫描离线后端，也不提供任意插件热重载支持。
 
+公共播放协议现为 `3.0.0-alpha`，完整保留共享时间线的纳秒精度。升级时须同时更新客户端及负责公共播放的服务器模组或代理插件；旧 `2.x` 协议端会在握手时被拒绝。
+
 ## 客户端
 
 安装与 Minecraft 版本及 Fabric/NeoForge 匹配的 ModernUI 和 MusicHud TuneWeave 模组；Fabric 还需要 Fabric API。完整版本表和三条 ModernUI 下载路线见 [README](../README.md#客户端依赖)。26.2 / 26.3 配套 ModernUI 不需要 Forge Config API Port；其余表列版本的官方 ModernUI / mVUS Fabric 构建仍需要对应版本的 API Port，NeoForge 无需另装。
