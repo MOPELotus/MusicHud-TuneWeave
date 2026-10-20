@@ -1,12 +1,13 @@
 package indi.mopelotus.musichud.client.ui.pages;
 
+import indi.mopelotus.musichud.client.ui.QueueSubmissionFeedback;
+
 import indi.mopelotus.musichud.client.ui.ScopedViewTasks;
 import indi.mopelotus.musichud.client.ui.ClientViewTasks;
 
 import icyllis.modernui.core.Context;
 import icyllis.modernui.graphics.Image;
 import icyllis.modernui.graphics.drawable.InsetDrawable;
-import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.view.Gravity;
 import icyllis.modernui.view.View;
 import icyllis.modernui.widget.ImageButton;
@@ -16,13 +17,11 @@ import icyllis.modernui.widget.ScrollView;
 import icyllis.modernui.widget.TextView;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
-import indi.mopelotus.musichud.client.services.music.MusicService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveClientService;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveVideo;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveVideoCreator;
 import indi.mopelotus.musichud.client.services.tuneweave.TuneWeaveVideoPart;
 import indi.mopelotus.musichud.client.ui.Theme;
-import indi.mopelotus.musichud.client.ui.components.Modal;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.components.UrlImageView;
 import indi.mopelotus.musichud.client.ui.drawable.ScaledImageDrawable;
@@ -157,7 +156,7 @@ public final class VideoDetailView extends LinearLayout {
 
     private void play(TuneWeaveVideoPart part) {
         if (video == null) return;
-        MusicService.getInstance().sendPushMusicToQueue(tuneWeave.videoPartTrack(video, part));
+        QueueSubmissionFeedback.submit(this, tuneWeave.videoPartTrack(video, part));
     }
 
     private ImageButton action(String key, View.OnClickListener listener) {

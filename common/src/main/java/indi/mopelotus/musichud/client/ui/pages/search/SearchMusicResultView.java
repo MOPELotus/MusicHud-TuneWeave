@@ -1,25 +1,19 @@
 package indi.mopelotus.musichud.client.ui.pages.search;
 
+import indi.mopelotus.musichud.client.ui.QueueSubmissionFeedback;
+
 import icyllis.modernui.core.Context;
 import icyllis.modernui.view.ViewGroup;
 import indi.mopelotus.musichud.client.ui.layouts.ViewportListLayout;
 import indi.mopelotus.musichud.client.ui.layouts.VirtualizedListLayout;
-import icyllis.modernui.widget.LinearLayout;
-import icyllis.modernui.widget.Toast;
-import indi.mopelotus.musichud.MusicHud;
-import indi.mopelotus.musichud.beans.music.Artist;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
-import indi.mopelotus.musichud.client.services.music.MusicService;
-import indi.mopelotus.musichud.client.ui.ToastUtil;
 import indi.mopelotus.musichud.client.ui.components.MusicListItem;
 import indi.mopelotus.musichud.client.ui.components.RouterContainer;
 import indi.mopelotus.musichud.client.ui.pages.VideoDetailView;
 import indi.mopelotus.musichud.client.utils.ui.InsetBackgroundFactory;
 import lombok.Getter;
-import net.minecraft.client.resources.language.I18n;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class SearchMusicResultView extends ViewportListLayout<MusicDetail, MusicListItem> {
     @Getter private static SearchMusicResultView instance;
@@ -45,10 +39,7 @@ public class SearchMusicResultView extends ViewportListLayout<MusicDetail, Music
                     if ("video".equals(music.getSourceKind())) {
                         RouterContainer.getInstance().pushNavigate(new VideoDetailView(context, music)); return;
                     }
-                    MusicService.getInstance().sendPushMusicToQueue(music);
-                    String artists = music.getArtists().stream().map(Artist::getName).collect(Collectors.joining(" / "));
-                    ToastUtil.show(Toast.makeText(context, I18n.get(MusicHud.MOD_ID + ".text.pushedMusicToPlaylist")
-                            + "\n" + music.getName() + " - " + artists, Toast.LENGTH_SHORT));
+                    QueueSubmissionFeedback.submit(view, music);
                 });
             }
         });
