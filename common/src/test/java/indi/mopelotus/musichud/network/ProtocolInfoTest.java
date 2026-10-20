@@ -48,7 +48,7 @@ class ProtocolInfoTest {
                 ProtocolInfo.CAPABILITIES));
         assertFalse(ProtocolInfo.isCompatible(
                 ProtocolInfo.PROJECT_ID,
-                new Version(3, 0, 0, Version.BuildType.Alpha),
+                new Version(2, 99, 99, Version.BuildType.Alpha),
                 ProtocolInfo.CAPABILITIES));
     }
 

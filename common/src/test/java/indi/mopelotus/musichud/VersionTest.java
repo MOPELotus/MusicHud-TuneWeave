@@ -11,9 +11,10 @@ class VersionTest {
     @Test
     void enforcesBreakingMajorAndMinimumCompatibleVersion() {
         assertTrue(Version.compatibleWith(Version.LEAST_COMPATIBLE));
-        assertTrue(Version.compatibleWith(new Version(2, 1, 0, Version.BuildType.Alpha)));
+        assertTrue(Version.compatibleWith(new Version(3, 1, 0, Version.BuildType.Alpha)));
         assertFalse(Version.compatibleWith(new Version(1, 99, 0, Version.BuildType.Stable)));
-        assertFalse(Version.compatibleWith(new Version(3, 0, 0, Version.BuildType.Alpha)));
+        assertFalse(Version.compatibleWith(new Version(2, 99, 99, Version.BuildType.Alpha)));
+        assertFalse(Version.compatibleWith(new Version(4, 0, 0, Version.BuildType.Alpha)));
     }
 
     @Test

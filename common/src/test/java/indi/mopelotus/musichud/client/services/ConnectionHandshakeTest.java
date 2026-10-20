@@ -38,6 +38,8 @@ class ConnectionHandshakeTest {
 
     @Test void explicitRefusalAndAcceptedButIncompatibleProtocolsHonorBothFallbackPolicies() {
         for (ConnectResponse response : List.of(ConnectResponse.current(false),
+                new ConnectResponse(true, ProtocolInfo.PROJECT_ID,
+                        new Version(2, 0, 0, Version.BuildType.Alpha), ProtocolInfo.CAPABILITIES),
                 new ConnectResponse(true, "music_hud", Version.CURRENT, ProtocolInfo.CAPABILITIES),
                 new ConnectResponse(true, ProtocolInfo.PROJECT_ID, Version.CURRENT, Set.of()))) {
             for (boolean allowIsolated : List.of(false, true)) {
