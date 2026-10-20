@@ -5,7 +5,6 @@ import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.mc.UIManager;
 import icyllis.modernui.widget.Toast;
 import indi.mopelotus.musichud.MusicHud;
-import indi.mopelotus.musichud.beans.music.MusicDetail;
 import indi.mopelotus.musichud.client.audio.NowPlayingInfo;
 import indi.mopelotus.musichud.client.audio.StreamAudioPlayer;
 import indi.mopelotus.musichud.client.network.vanilla.VanillaPlayerProxy;
@@ -15,7 +14,6 @@ import indi.mopelotus.musichud.interfaces.ClientConfig;
 import indi.mopelotus.musichud.interfaces.IClientLoginService;
 import indi.mopelotus.musichud.interfaces.IConnectionManager;
 import indi.mopelotus.musichud.network.IClientNetworkService;
-import indi.mopelotus.musichud.network.ProtocolInfo;
 import indi.mopelotus.musichud.network.RequestResponseManager;
 import indi.mopelotus.musichud.network.payloads.pushMessages.c2s.DisconnectMessage;
 import indi.mopelotus.musichud.network.payloads.requestResponseCycle.ConnectRequest;
@@ -147,6 +145,9 @@ public class ConnectionManager implements IConnectionManager {
         }
         return instance;
     }
+
+    /** Queue requests use the existing lifecycle generation, without changing playback membership. */
+    public int getConnectionGeneration() { return connectGeneration.get(); }
 
     @Override
     public synchronized void connectToExternalServer() {
