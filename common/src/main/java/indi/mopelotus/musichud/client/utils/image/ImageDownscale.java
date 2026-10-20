@@ -1,6 +1,10 @@
 package indi.mopelotus.musichud.client.utils.image;
 
+import icyllis.arc3d.core.ColorSpace;
 import icyllis.modernui.graphics.Bitmap;
+import org.lwjgl.system.MemoryUtil;
+
+import java.nio.ByteBuffer;
 
 /** Aspect-preserving box filtering, adapted from MusicHud's premultiplied-alpha downscale. */
 final class ImageDownscale {
@@ -14,17 +18,59 @@ final class ImageDownscale {
         if (maxWidth == 0 || maxHeight == 0 || (sw <= maxWidth && sh <= maxHeight)) return source;
         try (source) {
             int[] size = size(sw, sh, maxWidth, maxHeight);
-            int[] input = new int[Math.multiplyExact(sw, sh)];
-            source.getPixels(input, 0, sw, (originalWidth - sw) / 2, (originalHeight - sh) / 2, sw, sh);
+            int[] input = readPixels(source, (originalWidth - sw) / 2, (originalHeight - sh) / 2, sw, sh);
             int[] pixels = filter(input, sw, sh, size[0], size[1]);
             Bitmap target = Bitmap.createBitmap(size[0], size[1], Bitmap.Format.RGBA_8888);
             try {
-                target.setPixels(pixels, 0, size[0], 0, 0, size[0], size[1]);
+                writePixels(target, pixels);
                 return target;
             } catch (RuntimeException | Error error) {
                 target.close();
                 throw error;
             }
+        }
+    }
+
+    private static int[] readPixels(Bitmap source, int x, int y, int width, int height) {
+        // Buffer copies preserve storage format and alpha type. Normalize other inputs in
+        // one bitmap-to-bitmap copy so the filter always receives straight RGBA bytes.
+        if (source.getFormat() != Bitmap.Format.RGBA_8888 || source.isPremultiplied()
+                || (source.getColorSpace() != null && source.getColorSpace() != ColorSpace.get(ColorSpace.Named.SRGB))) {
+            try (Bitmap rgba = Bitmap.createBitmap(width, height, Bitmap.Format.RGBA_8888)) {
+                source.getPixels(rgba, 0, 0, x, y, width, height);
+                return readPixels(rgba, 0, 0, width, height);
+            }
+        }
+        int rowBytes = Math.multiplyExact(width, 4);
+        ByteBuffer buffer = MemoryUtil.memAlloc(Math.multiplyExact(rowBytes, height));
+        try {
+            if (!source.copyPixelsToBuffer(buffer, rowBytes, x, y, width, height))
+                throw new IllegalStateException("Cannot read bitmap pixels");
+            int[] pixels = new int[Math.multiplyExact(width, height)];
+            for (int i = 0; i < pixels.length; i++) {
+                int r = buffer.get() & 255, g = buffer.get() & 255;
+                int b = buffer.get() & 255, a = buffer.get() & 255;
+                pixels[i] = a << 24 | r << 16 | g << 8 | b;
+            }
+            return pixels;
+        } finally {
+            MemoryUtil.memFree(buffer);
+        }
+    }
+
+    private static void writePixels(Bitmap target, int[] pixels) {
+        int rowBytes = Math.multiplyExact(target.getWidth(), 4);
+        ByteBuffer buffer = MemoryUtil.memAlloc(Math.multiplyExact(rowBytes, target.getHeight()));
+        try {
+            for (int pixel : pixels) {
+                buffer.put((byte) (pixel >>> 16)).put((byte) (pixel >>> 8))
+                        .put((byte) pixel).put((byte) (pixel >>> 24));
+            }
+            buffer.flip();
+            if (!target.copyPixelsFromBuffer(buffer, rowBytes, 0, 0, target.getWidth(), target.getHeight()))
+                throw new IllegalStateException("Cannot write bitmap pixels");
+        } finally {
+            MemoryUtil.memFree(buffer);
         }
     }
 
