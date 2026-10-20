@@ -29,7 +29,7 @@ class PlaybackSessionCodecTest {
         resource.setResolvedTrackReference("netease:resolved:42");
         PlaybackSession source = new PlaybackSession(
                 UUID.randomUUID(), 9, 3, track, resource,
-                ZonedDateTime.of(2026, 8, 8, 12, 30, 15, 0, ZoneOffset.UTC));
+                ZonedDateTime.of(2026, 8, 8, 12, 30, 15, 987654321, ZoneOffset.UTC));
         ByteBuf buffer = Unpooled.buffer();
         try {
             PlaybackSession.CODEC.encode(buffer, source);
