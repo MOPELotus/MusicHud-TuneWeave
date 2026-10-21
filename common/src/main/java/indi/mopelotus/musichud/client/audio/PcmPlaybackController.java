@@ -48,7 +48,11 @@ final class PcmPlaybackController implements AutoCloseable {
             if (pcm.finished(token) && pcm.empty(token)) return Result.COMPLETED;
             if (!driver.available()) { align = true; return recovering(); }
             if (device == null) {
-                if (pcm.peek(token) == null) return Result.BUFFERING;
+                // Keep initial PCM in the pending queue until it is ready, so
+                // an authoritative public clock can still trim a stalled start.
+                pcm.align(token, Math.max(0, positionMillis - PcmPlaybackBuffer.MAX_CATCHUP_LAG_MILLIS));
+                if (pcm.finished(token) && pcm.empty(token)) return Result.COMPLETED;
+                if (pcm.peek(token) == null || (!hasPlayed && !pcm.readyToStart(token))) return Result.BUFFERING;
                 createDevice();
             }
             listening.observe(generation, device.offsetSeconds(), gain > 0);
