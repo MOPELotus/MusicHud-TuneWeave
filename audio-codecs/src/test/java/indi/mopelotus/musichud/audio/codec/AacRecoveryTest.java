@@ -11,12 +11,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class AacRecoveryTest {
+  // Deterministic PCM after TNS and inherited-short-envelope SBR gain corrections.
   static final Map<String, String> BASELINE =
       Map.of(
-          "he-period10-sig0", "1f7a2c82b378bda2822aaf392e4d641a60ccb74732f4be1fd35e2f66c3e555cf",
-          "hev2-period10-sig0", "5e43874c476c3d791e184a46ef0e72549f4eeda00d66db490f21413050198e51",
-          "he-period72-sig1", "e0b4151c8c96be7cb477a4358a1468785fcfd85b5735378171a1c7e94e7f7442",
-          "hev2-period72-sig1", "6109468731fd5fbf1aa9897d3d451b743cb45801b9fdfc17d2a3c7132bbcc538");
+          "he-period10-sig0", "7641768858b73b0fa90645652d0bfbd31c36850f166ba5f63314d560e4e45ec9",
+          "hev2-period10-sig0", "d6ee2db4c1db5bc04c042dcf8150d6c5b52b0c0fa84d68944495f96ef3ba385a",
+          "he-period72-sig1", "ce9226d856c4d9193690da6ae44c39bec18d654d807e7bc195749bb9a4ec58d8",
+          "hev2-period72-sig1", "bc16aee0f736c12264a7d56fbe8cbac08d09a6e2d4b15c452cf38372328c5567");
 
   record Bundle(PacketSource.Format format, List<byte[]> packets) {
     PacketSource.Packet packet(int index) {

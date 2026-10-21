@@ -1,0 +1,31 @@
+{
+  "license": "CC0-1.0",
+  "source_sha256": "070f6141593d93e201b940e7da91adf2b386f8e39b62e63917e12c55c27ba675",
+  "source_rate": 48000,
+  "source_channels": 2,
+  "source_frames": 144000,
+  "seed": 1729,
+  "asc_hex": "130856e59d4880",
+  "access_units": 54,
+  "reference_frames": 110592,
+  "reference_encoding": "PCM_S16_LE",
+  "reference_channels": 2,
+  "reference_rate": 48000,
+  "packet_sha256": "dbba56186941f45bab242fc8ebad2ed7be1be05d2acc4c098a8aafa3a420a2df",
+  "reference_pcm_sha256": "be80ed28fe91baf18ccf234a28e95f23eccc1c73c56c128084dc1f2290e77ce8",
+  "reference_gzip_sha256": "42df19c2cc8626fe18ef62ae9bd7d5f18816113c9992b7b6fd4b04498ffbf115",
+  "encoder_sha256": "452159d260bda8a0ab32117c6bf75806baf0450ec40bb2745f8d8ad4e8026f41",
+  "encoder_info": {
+    "aot": 29,
+    "sample_rate": 48000,
+    "channels": 2,
+    "requested_header_period": 10,
+    "signaling": 1,
+    "bitrate": 32000,
+    "frame_length": 2048,
+    "encoder_delay": 7106,
+    "packet_count": 74,
+    "asc_hex": "130856e59d4880"
+  },
+  "ffmpeg_version": "ffmpeg version 6.1.1-3ubuntu5+esm15 Copyright (c) 2000-2023 the FFmpeg developers"
+}
