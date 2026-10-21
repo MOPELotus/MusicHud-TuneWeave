@@ -1068,6 +1068,20 @@
           "upstream_sha256": "b6841d1c1097c8c1c89c77f58cce174f47aa483af013dd9fc78723c57cace9cb",
           "compiled_sha256": "d796ccfbc89f8ecd9a28939a4389d3fb5592c5b5928d52b64b9aeea89c06f54f",
           "patch_sha256": "d053208a27555750586aa0036595266e77717b5f8c27a54e5901956e367617a0"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/tools/ICPrediction.java",
+          "upstream_sha256": "9c2aecbb40684d11708fd2af5aa434d418bec38deec702dbb02572f33a9207ef",
+          "compiled_sha256": "70c292e8c22e910f5c8940572c428813d68395eb134500290266c98cd64a6192",
+          "patch": "vendor/patches/aac/main-prediction.patch",
+          "patch_sha256": "23980dd215ed3c3a657163a46bab09c69105a0c514c2eb1c4c4b36d2d21a913b"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/syntax/ICSInfo.java",
+          "upstream_sha256": "54de7154fe6187c06cf8837432812a9f4e02fc152e10c6560c41b4cf90589170",
+          "compiled_sha256": "6cadc9c777dcd959da720491e38c3357d85e1fb819d1d71c0ba1da29b43e148c",
+          "patch": "vendor/patches/aac/main-prediction.patch",
+          "patch_sha256": "23980dd215ed3c3a657163a46bab09c69105a0c514c2eb1c4c4b36d2d21a913b"
         }
       ],
       "sources": [
