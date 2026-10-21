@@ -123,6 +123,17 @@ final class PcmPlaybackBuffer {
     synchronized boolean finished(Token expected) { return current(expected) && ended; }
     synchronized boolean empty(Token expected) { return current(expected) && pending.isEmpty() && device.isEmpty(); }
     synchronized Throwable failure(Token expected) { return current(expected) ? failure : null; }
+    synchronized boolean readyToStart(Token expected) {
+        if (!current(expected) || pending.isEmpty()) return false;
+        // A short, complete track must not wait for a target it cannot reach.
+        // Capacity is in decoder chunks: a full queue must release backpressure
+        // even when tiny chunks at a high sample rate contain less than 100ms.
+        if (ended || pending.size() >= capacity) return true;
+        double millis = 0;
+        for (Chunk chunk : pending) millis += chunk.frames() * 1000.0 / chunk.sampleRate();
+        return millis >= DEVICE_CHUNK_MILLIS;
+    }
+
     synchronized boolean readyAfterUnderrun(Token expected, boolean waitExpired) {
         if (!current(expected)) return false;
         if (ended) return true;
