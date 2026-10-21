@@ -64,7 +64,7 @@ class PcmPlaybackStreamingTest {
             pcm.offer(token, chunk(40000, 800));
             assertEquals(PcmPlaybackController.Result.PLAYING, controller.tick(5000, AudioOutputMode.STEREO, 1));
             var seek = pcm.reset(1); assertNotEquals(token, seek);
-            pcm.offer(seek, chunk(80000, 80));
+            pcm.offer(seek, chunk(80000, 80)); pcm.finish(seek, null);
             assertEquals(PcmPlaybackController.Result.PLAYING, controller.tick(10000, AudioOutputMode.STEREO, 1));
             assertFalse(pcm.offer(token, chunk(0, 800)));
         }
