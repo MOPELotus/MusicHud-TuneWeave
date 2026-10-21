@@ -19,6 +19,14 @@ unnormalized compute_lpc_coefs recursion, LGPL 2.1 or later: copyright
 2006 Justin Ruggles. It uses the project LGPL text and preserves the public-domain
 JAAD parser. Reference: https://github.com/FFmpeg/FFmpeg/tree/n9.0.2/libavcodec
 
+
+The separate AAC Main prediction overlay corrects per-channel predictor history,
+common-window syntax copying, short-window resets and reset-group validation.
+State/reset behavior was checked against FFmpeg n9.0.2 aacdec_dsp_template.c and
+AAC float prediction code, LGPL 2.1 or later: copyright 2005-2006 Oded Shimon,
+2006-2007 Maxim Gavrilov, 2008-2013 Alex Converse. The original JAAD code retains
+its public-domain dedication. Reference: https://github.com/FFmpeg/FFmpeg/tree/n9.0.2/libavcodec/aac
+
 The separate WavPack integer precision adapter follows the scalar supplemental
 bit/CRC arithmetic of FFmpeg 9.0.2, LGPL-2.1-or-later. Its corresponding notice
 and license are retained alongside the adapter source. This module does not
