@@ -997,42 +997,42 @@
           "upstream_sha256": "aee52fbf0bff828741662bbc57dbf2843ed41263bd342ba769280c47f6265f60",
           "compiled_sha256": "ad1fd7b968ee7b66acdc760c36fa17d83643d60373360bf8e0ddc1a5463cb1a9",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "be1cce2b11d4d548577d8a78cb60eaab676dd569efaf672761bbfcbbb86224a7"
+          "patch_sha256": "6bd9e603b16463e9a02a11422f33f60767c65888d45df2162b7730906f0df6e1"
         },
         {
           "source": "net/sourceforge/jaad/aac/ps/Filter.java",
           "upstream_sha256": "173506b3e598de83d79db6e6d130d3c0b787aee6eedb4f3715429176da1fc9a0",
           "compiled_sha256": "42f11701fe0ccbf56365b758dcbbcd6e643eb99a0fa37d84a398ce8f6ae5bad6",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "be1cce2b11d4d548577d8a78cb60eaab676dd569efaf672761bbfcbbb86224a7"
+          "patch_sha256": "6bd9e603b16463e9a02a11422f33f60767c65888d45df2162b7730906f0df6e1"
         },
         {
           "source": "net/sourceforge/jaad/aac/ps/Filterbank.java",
           "upstream_sha256": "25917278d77b3d2d46f13b2cf007b30d2f052e72d29e99b41fa9fa7628dd00c9",
           "compiled_sha256": "6531d037fd462f516f6ea413f8fdd0e8fcacba336aead4f8c167ebbad9c17297",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "be1cce2b11d4d548577d8a78cb60eaab676dd569efaf672761bbfcbbb86224a7"
+          "patch_sha256": "6bd9e603b16463e9a02a11422f33f60767c65888d45df2162b7730906f0df6e1"
         },
         {
           "source": "net/sourceforge/jaad/aac/sbr/SBR2.java",
           "upstream_sha256": "a27736c3ef04cef00dbfeb8a979fd048aae6f1b6fcfedc0fee1351dc9291a557",
           "compiled_sha256": "e3bcab08d67a33a2bf134b252e2a1cbc021052d612116d74492653a2ac3de4b8",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "be1cce2b11d4d548577d8a78cb60eaab676dd569efaf672761bbfcbbb86224a7"
+          "patch_sha256": "6bd9e603b16463e9a02a11422f33f60767c65888d45df2162b7730906f0df6e1"
         },
         {
           "source": "net/sourceforge/jaad/aac/sbr/HFGeneration.java",
           "upstream_sha256": "aeb9cee2445af26baaf3523e0eb1db4b8856b4b503ab51c95706f3ca687ba504",
-          "compiled_sha256": "d72f5220ab69dbadf5815ae85aa4ea8934952a0ad24140e9a6cab12674888453",
+          "compiled_sha256": "596a2938f5e7779ca203d39d50a883af1f6b267e79b5285aac622cd751e7db8e",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "be1cce2b11d4d548577d8a78cb60eaab676dd569efaf672761bbfcbbb86224a7"
+          "patch_sha256": "6bd9e603b16463e9a02a11422f33f60767c65888d45df2162b7730906f0df6e1"
         },
         {
           "source": "net/sourceforge/jaad/aac/syntax/ICStream.java",
           "upstream_sha256": "ce67220c5e5f974ad28c143145fc1ccc606d3c6ce5ef4a1a6c0dde1d615caaa9",
           "compiled_sha256": "513113b13ff7d0bbe58c85537cc651c0be8669963ad403092280667f96daaca5",
           "patch": "vendor/patches/aac/aac-candidate-v2.patch",
-          "patch_sha256": "be1cce2b11d4d548577d8a78cb60eaab676dd569efaf672761bbfcbbb86224a7"
+          "patch_sha256": "6bd9e603b16463e9a02a11422f33f60767c65888d45df2162b7730906f0df6e1"
         },
         {
           "source": "net/sourceforge/jaad/aac/syntax/SyntacticElements.java",
