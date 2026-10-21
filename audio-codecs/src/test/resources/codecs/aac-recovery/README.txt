@@ -4,7 +4,9 @@ The project generated all signals and encoded them with official FDK AAC 2.0.3
 (commit716f4394641d53f0d79c9ddac3fa93b03a49f278). No downloaded music or
 conformance clips are included. The fixture manifest pins encoded input and the
 historical pre-observer JAAD PCM hashes and the corrected hashes after enabling
-TNS filtering. The tests pin deterministic recovery output; these hashes do not
+TNS filtering, followed by inherited-short-envelope SBR noise compensation.
+Historical hashes remain in the manifest alongside the latest corrected hashes.
+The tests pin deterministic recovery output; these hashes do not
 claim independent waveform equivalence of different AAC implementations.
 
 Each .packets file: BE32 ASC length, ASC, BE32 AU count, then repeated

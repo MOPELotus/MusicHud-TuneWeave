@@ -1082,6 +1082,13 @@
           "compiled_sha256": "6cadc9c777dcd959da720491e38c3357d85e1fb819d1d71c0ba1da29b43e148c",
           "patch": "vendor/patches/aac/main-prediction.patch",
           "patch_sha256": "23980dd215ed3c3a657163a46bab09c69105a0c514c2eb1c4c4b36d2d21a913b"
+        },
+        {
+          "source": "net/sourceforge/jaad/aac/sbr/HFAdjustment.java",
+          "upstream_sha256": "c349be54640bacd3519ffdf7d8bc9e7c7b9b1ae1de5ce0ae12a8185bf8388bc0",
+          "compiled_sha256": "3ecd619d2a70698d3a825a18e328ed84029848168a2f5685eb93a1bb8f74820f",
+          "patch": "vendor/patches/aac/sbr-no-noise-gain.patch",
+          "patch_sha256": "05939b8bfc77bac6ca508ece71ee4c3bca60b9ccf85c73242b56a02fe663db95"
         }
       ],
       "sources": [
