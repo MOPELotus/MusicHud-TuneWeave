@@ -9,28 +9,32 @@
       "sha256": "35aaa3908b777ea38abe75844b4550f499c89a31ef934751a059f3ce4c78bc16",
       "unchanged_baseline_pcm_bytes": 983040,
       "unchanged_baseline_pcm_sha256": "5acab0eef80d8fcaf4df35e4ec2d9bf59aaf67b36cf02445bf3691416f9ea852",
-      "tns_corrected_pcm_sha256": "1f7a2c82b378bda2822aaf392e4d641a60ccb74732f4be1fd35e2f66c3e555cf"
+      "tns_corrected_pcm_sha256": "1f7a2c82b378bda2822aaf392e4d641a60ccb74732f4be1fd35e2f66c3e555cf",
+      "sbr_no_noise_corrected_pcm_sha256": "7641768858b73b0fa90645652d0bfbd31c36850f166ba5f63314d560e4e45ec9"
     },
     {
       "file": "hev2-period10-sig0.packets",
       "sha256": "df2381cf9643ccfba59a0f9ea583eec8afce069636012f81d98f1d9ee836f80e",
       "unchanged_baseline_pcm_bytes": 991232,
       "unchanged_baseline_pcm_sha256": "a5ed5f6113a0cc8a2ce9ae70cc6f05eab703833b41f441da1bf05680d51e9108",
-      "tns_corrected_pcm_sha256": "5e43874c476c3d791e184a46ef0e72549f4eeda00d66db490f21413050198e51"
+      "tns_corrected_pcm_sha256": "5e43874c476c3d791e184a46ef0e72549f4eeda00d66db490f21413050198e51",
+      "sbr_no_noise_corrected_pcm_sha256": "d6ee2db4c1db5bc04c042dcf8150d6c5b52b0c0fa84d68944495f96ef3ba385a"
     },
     {
       "file": "he-period72-sig1.packets",
       "sha256": "42db87967c0a7ba91f50bdb257e01226cb9281788d5905d005d0b995f2fd34f4",
       "unchanged_baseline_pcm_bytes": 983040,
       "unchanged_baseline_pcm_sha256": "dea85ede61aee203c6958989a15a4546bebd7fcc8eca66095425d37c28a5900b",
-      "tns_corrected_pcm_sha256": "e0b4151c8c96be7cb477a4358a1468785fcfd85b5735378171a1c7e94e7f7442"
+      "tns_corrected_pcm_sha256": "e0b4151c8c96be7cb477a4358a1468785fcfd85b5735378171a1c7e94e7f7442",
+      "sbr_no_noise_corrected_pcm_sha256": "ce9226d856c4d9193690da6ae44c39bec18d654d807e7bc195749bb9a4ec58d8"
     },
     {
       "file": "hev2-period72-sig1.packets",
       "sha256": "e3cfe8f8ab73fb8d38d7b7d015f3d7bbb2e111e18f0ad6aa8add3384116af176",
       "unchanged_baseline_pcm_bytes": 991232,
       "unchanged_baseline_pcm_sha256": "4bc630bf27b923ec741ed598369dc06795bb98d49c62a5118991f804fc872717",
-      "tns_corrected_pcm_sha256": "6109468731fd5fbf1aa9897d3d451b743cb45801b9fdfc17d2a3c7132bbcc538"
+      "tns_corrected_pcm_sha256": "6109468731fd5fbf1aa9897d3d451b743cb45801b9fdfc17d2a3c7132bbcc538",
+      "sbr_no_noise_corrected_pcm_sha256": "bc16aee0f736c12264a7d56fbe8cbac08d09a6e2d4b15c452cf38372328c5567"
     },
     {
       "file": "lc-mono-period10-sig1.packets",
