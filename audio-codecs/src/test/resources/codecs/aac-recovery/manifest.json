@@ -10,7 +10,8 @@
       "unchanged_baseline_pcm_bytes": 983040,
       "unchanged_baseline_pcm_sha256": "5acab0eef80d8fcaf4df35e4ec2d9bf59aaf67b36cf02445bf3691416f9ea852",
       "tns_corrected_pcm_sha256": "1f7a2c82b378bda2822aaf392e4d641a60ccb74732f4be1fd35e2f66c3e555cf",
-      "sbr_no_noise_corrected_pcm_sha256": "7641768858b73b0fa90645652d0bfbd31c36850f166ba5f63314d560e4e45ec9"
+      "sbr_no_noise_corrected_pcm_sha256": "7641768858b73b0fa90645652d0bfbd31c36850f166ba5f63314d560e4e45ec9",
+      "sbr_double_covariance_corrected_pcm_sha256": "a711193da6fb18d863dad73bf7fedc34f970692585f05337ccee7e82b18ad473"
     },
     {
       "file": "hev2-period10-sig0.packets",
@@ -18,7 +19,8 @@
       "unchanged_baseline_pcm_bytes": 991232,
       "unchanged_baseline_pcm_sha256": "a5ed5f6113a0cc8a2ce9ae70cc6f05eab703833b41f441da1bf05680d51e9108",
       "tns_corrected_pcm_sha256": "5e43874c476c3d791e184a46ef0e72549f4eeda00d66db490f21413050198e51",
-      "sbr_no_noise_corrected_pcm_sha256": "d6ee2db4c1db5bc04c042dcf8150d6c5b52b0c0fa84d68944495f96ef3ba385a"
+      "sbr_no_noise_corrected_pcm_sha256": "d6ee2db4c1db5bc04c042dcf8150d6c5b52b0c0fa84d68944495f96ef3ba385a",
+      "sbr_double_covariance_corrected_pcm_sha256": "9bb5184695342bcdc7aad0dcb9cf76cd5d7e46873b79f7d3ecc49305dcd90131"
     },
     {
       "file": "he-period72-sig1.packets",
@@ -26,7 +28,8 @@
       "unchanged_baseline_pcm_bytes": 983040,
       "unchanged_baseline_pcm_sha256": "dea85ede61aee203c6958989a15a4546bebd7fcc8eca66095425d37c28a5900b",
       "tns_corrected_pcm_sha256": "e0b4151c8c96be7cb477a4358a1468785fcfd85b5735378171a1c7e94e7f7442",
-      "sbr_no_noise_corrected_pcm_sha256": "ce9226d856c4d9193690da6ae44c39bec18d654d807e7bc195749bb9a4ec58d8"
+      "sbr_no_noise_corrected_pcm_sha256": "ce9226d856c4d9193690da6ae44c39bec18d654d807e7bc195749bb9a4ec58d8",
+      "sbr_double_covariance_corrected_pcm_sha256": "43e8534cbcfb8fae3dd5cf1b2df9a1bf5449bc3562dcd0c839d8d45b06958415"
     },
     {
       "file": "hev2-period72-sig1.packets",
@@ -34,7 +37,8 @@
       "unchanged_baseline_pcm_bytes": 991232,
       "unchanged_baseline_pcm_sha256": "4bc630bf27b923ec741ed598369dc06795bb98d49c62a5118991f804fc872717",
       "tns_corrected_pcm_sha256": "6109468731fd5fbf1aa9897d3d451b743cb45801b9fdfc17d2a3c7132bbcc538",
-      "sbr_no_noise_corrected_pcm_sha256": "bc16aee0f736c12264a7d56fbe8cbac08d09a6e2d4b15c452cf38372328c5567"
+      "sbr_no_noise_corrected_pcm_sha256": "bc16aee0f736c12264a7d56fbe8cbac08d09a6e2d4b15c452cf38372328c5567",
+      "sbr_double_covariance_corrected_pcm_sha256": "8f305b6e56c2b34d7b3665d8fb86703aa3ba04e78a9e8f2b0c0296f4fe7edb8b"
     },
     {
       "file": "lc-mono-period10-sig1.packets",
@@ -52,5 +56,6 @@
       "scope": "Known unsupported single-rate SBR"
     }
   ],
-  "tns_corrected_baseline": "TNS filtering is now active. The original pre-observer hashes above remain historical; corrected hashes pin deterministic PCM with the same read-only recovery observations."
+  "tns_corrected_baseline": "TNS filtering is now active. The original pre-observer hashes above remain historical; corrected hashes pin deterministic PCM with the same read-only recovery observations.",
+  "sbr_double_covariance_corrected_baseline": "Higher-precision covariance/solve retains the original float relaxation value and stored-float clamp. The previous hashes remain historical. These current deterministic hashes check recovery-observer transparency, not independent audio quality; AacSbrPredictionTest separately checks the independent Decimal70 arithmetic oracle."
 }
