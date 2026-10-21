@@ -254,9 +254,22 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                             // Local playback starts its timeline with actual output,
                             // not with the first decoded fragment during prebuffering.
                             if (serverStartTime == null) serverStartTime = ZonedDateTime.now();
-                            if (!began) LOGGER.info("Audio output started: session={} revision={} trackId={} generation={} positionMs={}",
-                                    currentPlaybackSession.sessionId(), currentPlaybackSession.revision(),
-                                    currentMusicDetail.getId(), generation, position);
+                            if (!began) {
+                                String outputObservedAt = java.time.Instant.now().toString();
+                                String outputSessionId = currentPlaybackSession.sessionId().toString();
+                                long outputRevision = currentPlaybackSession.revision();
+                                long outputTrackId = currentMusicDetail.getId();
+                                long outputGeneration = generation;
+                                long outputPositionMillis = position;
+                                try {
+                                    MusicHud.EXECUTOR.execute(() -> LOGGER.info(
+                                            "Audio output started: session={} revision={} trackId={} generation={} positionMs={} outputObservedAt={}",
+                                            outputSessionId, outputRevision, outputTrackId,
+                                            outputGeneration, outputPositionMillis, outputObservedAt));
+                                } catch (RejectedExecutionException ignored) {
+                                    // A rejected diagnostic must not interrupt successful audio output.
+                                }
+                            }
                             setStatus(Status.PLAYING);
                             started.complete(serverStartTime);
                             if (!began && clientConfig.getDisableVanillaMusic()) {
