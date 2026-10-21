@@ -11,13 +11,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class AacRecoveryTest {
-  // Deterministic PCM after TNS and inherited-short-envelope SBR gain corrections.
+  // Deterministic PCM after TNS, SBR gain and stable covariance corrections.
+  // Observer transparency only; independent arithmetic is checked by AacSbrPredictionTest.
   static final Map<String, String> BASELINE =
       Map.of(
-          "he-period10-sig0", "7641768858b73b0fa90645652d0bfbd31c36850f166ba5f63314d560e4e45ec9",
-          "hev2-period10-sig0", "d6ee2db4c1db5bc04c042dcf8150d6c5b52b0c0fa84d68944495f96ef3ba385a",
-          "he-period72-sig1", "ce9226d856c4d9193690da6ae44c39bec18d654d807e7bc195749bb9a4ec58d8",
-          "hev2-period72-sig1", "bc16aee0f736c12264a7d56fbe8cbac08d09a6e2d4b15c452cf38372328c5567");
+          "he-period10-sig0", "a711193da6fb18d863dad73bf7fedc34f970692585f05337ccee7e82b18ad473",
+          "hev2-period10-sig0", "9bb5184695342bcdc7aad0dcb9cf76cd5d7e46873b79f7d3ecc49305dcd90131",
+          "he-period72-sig1", "43e8534cbcfb8fae3dd5cf1b2df9a1bf5449bc3562dcd0c839d8d45b06958415",
+          "hev2-period72-sig1", "8f305b6e56c2b34d7b3665d8fb86703aa3ba04e78a9e8f2b0c0296f4fe7edb8b");
 
   record Bundle(PacketSource.Format format, List<byte[]> packets) {
     PacketSource.Packet packet(int index) {
