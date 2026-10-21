@@ -1,0 +1,127 @@
+--- a/net/sourceforge/jaad/aac/tools/ICPrediction.java
++++ b/net/sourceforge/jaad/aac/tools/ICPrediction.java
+@@ -1,3 +1,16 @@
++/*
++ * Main prediction state handling checked against FFmpeg n9.0.2:
++ * libavcodec/aac/aacdec_dsp_template.c (apply_prediction) and
++ * libavcodec/aac/aacdec_float_prediction.h (reset_predict_state).
++ * https://github.com/FFmpeg/FFmpeg/tree/n9.0.2/libavcodec/aac
++ * Copyright (c) 2005-2006 Oded Shimon
++ * Copyright (c) 2006-2007 Maxim Gavrilov
++ * Copyright (c) 2008-2013 Alex Converse
++ *
++ * These changes are licensed under the GNU Lesser General Public License,
++ * version 2.1 or later, without any warranty. The original JAAD code retains
++ * its upstream public-domain dedication. See the distributed license texts.
++ */
+ package net.sourceforge.jaad.aac.tools;
+ 
+ import java.lang.System.Logger.Level;
+@@ -44,9 +57,12 @@
+     }
+ 
+     public void decode(BitStream in, int maxSFB, SampleFrequency sf) throws AACException {
+-        int predictorCount = sf.getPredictorCount();
+-
+-        if (predictorReset = in.readBool()) predictorResetGroup = in.readBits(5);
++        predictorReset = in.readBool();
++        if (predictorReset) {
++            predictorResetGroup = in.readBits(5);
++            if (predictorResetGroup < 1 || predictorResetGroup > 30)
++                throw new AACException("Invalid predictor reset group: " + predictorResetGroup);
++        }
+ 
+         int maxPredSFB = sf.getMaximalPredictionSFB();
+         int length = Math.min(maxSFB, maxPredSFB);
+@@ -54,22 +70,29 @@
+         for (int sfb = 0; sfb < length; sfb++) {
+             predictionUsed[sfb] = in.readBool();
+         }
+-        logger.log(Level.WARNING, "ICPrediction: maxSFB={0}, maxPredSFB={1}", maxSFB, maxPredSFB);
+     }
+ 
+-    public void process(ICSInfo info, float[] data) {
++    /** Copies common-window syntax, never the other channel's predictor history. */
++    public void copyPredictionData(ICPrediction source) {
++        predictorReset = source.predictorReset;
++        predictorResetGroup = source.predictorResetGroup;
++        predictionUsed = source.predictionUsed.clone();
++    }
++
++    public void process(ICSInfo info, float[] data, boolean predictionPresent, SampleFrequency sf) {
+ 
+         if (info.isEightShortFrame())
+             resetAllPredictors();
+         else {
+-            int len = info.getSFB();
++            // Even unused bands carry state into later frames with a larger maxSFB.
++            int len = sf.getMaximalPredictionSFB();
+             int[] swbOffsets = info.getSWBOffsets();
+             for (int sfb = 0; sfb < len; sfb++) {
+                 for (int k = swbOffsets[sfb]; k < swbOffsets[sfb + 1]; k++) {
+-                    predict(data, k, predictionUsed[sfb]);
++                    predict(data, k, predictionPresent && sfb < predictionUsed.length && predictionUsed[sfb]);
+                 }
+             }
+-            if (predictorReset)
++            if (predictionPresent && predictorReset)
+                 resetPredictorGroup(predictorResetGroup);
+         }
+     }
+@@ -80,8 +103,8 @@
+         states[index].r1 = 0;
+         states[index].cor0 = 0;
+         states[index].cor1 = 0;
+-        states[index].var0 = 0x3F80;
+-        states[index].var1 = 0x3F80;
++        states[index].var0 = 1.0f;
++        states[index].var1 = 1.0f;
+     }
+ 
+     private void resetAllPredictors() {
+--- a/net/sourceforge/jaad/aac/syntax/ICSInfo.java
++++ b/net/sourceforge/jaad/aac/syntax/ICSInfo.java
+@@ -1,3 +1,16 @@
++/*
++ * Main prediction state handling checked against FFmpeg n9.0.2:
++ * libavcodec/aac/aacdec_dsp_template.c (apply_prediction) and
++ * libavcodec/aac/aacdec_float_prediction.h (reset_predict_state).
++ * https://github.com/FFmpeg/FFmpeg/tree/n9.0.2/libavcodec/aac
++ * Copyright (c) 2005-2006 Oded Shimon
++ * Copyright (c) 2006-2007 Maxim Gavrilov
++ * Copyright (c) 2008-2013 Alex Converse
++ *
++ * These changes are licensed under the GNU Lesser General Public License,
++ * version 2.1 or later, without any warranty. The original JAAD code retains
++ * its upstream public-domain dedication. See the distributed license texts.
++ */
+ package net.sourceforge.jaad.aac.syntax;
+ 
+ import java.lang.System.Logger;
+@@ -174,9 +187,11 @@
+     }
+ 
+     public void processICP(float[] data) {
+-        if (config.getProfile().equals(Profile.AAC_MAIN))
+-            if (icPredict != null && predictionDataPresent)
+-                icPredict.process(this, data);
++        if (config.getProfile().equals(Profile.AAC_MAIN)) {
++            if (icPredict == null) icPredict = new ICPrediction();
++            // Every Main frame updates history; short windows reset it even without prediction data.
++            icPredict.process(this, data, predictionDataPresent, sf);
++        }
+     }
+ 
+     public void setCommonData(BitStream in, ICSInfo info) {
+@@ -187,7 +202,10 @@
+         maxSFB = info.maxSFB;
+ 
+         predictionDataPresent = info.predictionDataPresent;
+-        icPredict = null;
++        if (config.getProfile().equals(Profile.AAC_MAIN)) {
++            if (icPredict == null) icPredict = new ICPrediction();
++            if (predictionDataPresent) icPredict.copyPredictionData(info.icPredict);
++        }
+ 
+         windowCount = info.windowCount;
+         windowGroupCount = info.windowGroupCount;
