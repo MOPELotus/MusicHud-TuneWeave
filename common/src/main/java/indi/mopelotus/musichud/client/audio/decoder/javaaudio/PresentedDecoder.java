@@ -182,6 +182,7 @@ public final class PresentedDecoder implements PcmDecoder, PcmChannelConversion 
   }
 
   private void skip(PcmDecoder input, long target) throws IOException {
+    if (input.framePosition() >= target) return;
     byte[] scratch = new byte[4096 * format.frameBytes()];
     while (input.framePosition() < target) {
       if (closed) throw new IOException("Decoder closed");
