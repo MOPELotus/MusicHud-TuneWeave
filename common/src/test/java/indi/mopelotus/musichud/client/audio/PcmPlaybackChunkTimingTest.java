@@ -49,8 +49,15 @@ class PcmPlaybackChunkTimingTest {
         var driver = new ClockedDriver();
         var listening = new PlaybackListeningLedger(); listening.begin(1, UUID.randomUUID());
         try (var controller = new PcmPlaybackController(pcm, driver, listening, 1)) {
+            assertEquals(PcmPlaybackController.Result.BUFFERING, controller.tick(0, AudioOutputMode.MULTICHANNEL, 1));
+            assertEquals(0, driver.playCalls, "The initial sixteen variable chunks cover only 66ms");
+            while (pcm.queuedChunks() < 60 && next < frames.length) {
+                pcm.offer(token, new PcmPlaybackBuffer.Chunk(new byte[frames[next] * frameBytes],
+                        format, 44100, sourceFrame));
+                sourceFrame += frames[next++];
+            }
             assertEquals(PcmPlaybackController.Result.PLAYING, controller.tick(0, AudioOutputMode.MULTICHANNEL, 1));
-            assertEquals(2944 * frameBytes, driver.uploads.getFirst().bytes().length);
+            assertEquals(4410 * frameBytes, driver.uploads.getFirst().bytes().length);
             for (int tick = 1; tick <= 100; tick++) {
                 while (pcm.queuedChunks() < 60 && next < frames.length) {
                     pcm.offer(token, new PcmPlaybackBuffer.Chunk(new byte[frames[next] * frameBytes],
