@@ -21,6 +21,7 @@ final class PcmPlaybackController implements AutoCloseable {
     private boolean align;
     private boolean closed;
     private boolean hasPlayed;
+    private long underrunStarted = Long.MIN_VALUE;
     private int operationFailures;
 
     PcmPlaybackController(PcmPlaybackBuffer pcm, OpenAlPlaybackDevice.Driver driver,
@@ -37,6 +38,7 @@ final class PcmPlaybackController implements AutoCloseable {
         if (closed || pcm.token().generation() != generation) return Result.COMPLETED;
         if (!token.equals(pcm.token())) {
             releaseDevice(false); token = pcm.token(); align = true;
+            hasPlayed = false; underrunStarted = Long.MIN_VALUE;
         }
         Throwable failure = pcm.failure(token);
         if (failure != null) throw new IllegalStateException("Audio download failed", failure);
@@ -47,8 +49,7 @@ final class PcmPlaybackController implements AutoCloseable {
             if (!driver.available()) { align = true; return recovering(); }
             if (device == null) {
                 if (pcm.peek(token) == null) return Result.BUFFERING;
-                device = new OpenAlPlaybackDevice(driver, 8);
-                policy.device(device.context(), device.generation());
+                createDevice();
             }
             listening.observe(generation, device.offsetSeconds(), gain > 0);
             for (int buffer : device.processed()) {
@@ -57,9 +58,20 @@ final class PcmPlaybackController implements AutoCloseable {
             listening.observe(generation, device.offsetSeconds(), gain > 0);
             if (device.queued() == 0) listening.discardQueued(generation);
             // Bound stale playback after stalls; every trim is an entire interleaved frame.
-            pcm.align(token, Math.max(0, positionMillis - 500));
-            if (hasPlayed && device.queued() == 0 && !pcm.readyAfterUnderrun(token))
-                return Result.BUFFERING;
+            pcm.align(token, Math.max(0, positionMillis - PcmPlaybackBuffer.MAX_CATCHUP_LAG_MILLIS));
+            if (hasPlayed && device.queued() == 0) {
+                long now = nanoTime.getAsLong();
+                if (underrunStarted == Long.MIN_VALUE) underrunStarted = now;
+                boolean waitExpired = now - underrunStarted >=
+                        PcmPlaybackBuffer.MAX_CATCHUP_LAG_MILLIS * 1_000_000L;
+                if (!pcm.readyAfterUnderrun(token, waitExpired)) return Result.BUFFERING;
+                if (device.stopped()) {
+                    // The old queue was fully reconciled above. Start its new
+                    // PCM on INITIAL, without replaying a stopped source.
+                    releaseDevice(false);
+                    createDevice();
+                }
+            }
             while (device.hasSpace()) {
                 PcmPlaybackBuffer.Chunk next = pcm.peek(token);
                 if (next == null) break;
@@ -77,8 +89,16 @@ final class PcmPlaybackController implements AutoCloseable {
                         (long) claimed.sampleRate() * OpenAlFormatSelector.frameSize(format), true);
             }
             if (device.queued() > 0) {
-                device.play(Math.clamp(gain, 0f, 1f));
+                if (!device.play(Math.clamp(gain, 0f, 1f))) {
+                    // No second processed() query: STOPPED includes newly queued
+                    // buffers whose playback is unconfirmed. Retain their PCM;
+                    // the next source aligns to the current authoritative clock.
+                    releaseDevice(true);
+                    recovering = false;
+                    return Result.BUFFERING;
+                }
                 hasPlayed = true;
+                underrunStarted = Long.MIN_VALUE;
                 policy.accepted(device.format());
                 operationFailures = 0;
                 recovering = false;
@@ -107,7 +127,12 @@ final class PcmPlaybackController implements AutoCloseable {
         }
         return Result.RECOVERING;
     }
+    private void createDevice() {
+        device = new OpenAlPlaybackDevice(driver, 8);
+        policy.device(device.context(), device.generation());
+    }
     private void releaseDevice(boolean recover) {
+        underrunStarted = Long.MIN_VALUE;
         if (recover) { pcm.recover(token); align = true; }
         listening.discardQueued(generation);
         if (device != null) { device.close(); device = null; }

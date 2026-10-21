@@ -27,10 +27,10 @@ class PcmPlaybackControllerTest {
             assertEquals(token, pcm.token(), "Recovery must not replace the decoder generation");
             assertEquals(0, driver.deletions, "Old epoch must not delete reused source IDs");
             var first = driver.uploads.getFirst();
-            assertEquals(400 * 4, first.bytes.length);
+            assertEquals(800 * 4, first.bytes.length, "Trimmed tail joins the next contiguous chunk up to 100ms");
             var samples = ByteBuffer.wrap(first.bytes).order(ByteOrder.LITTLE_ENDIAN);
             assertEquals(1200, samples.getShort()); assertEquals(-1200, samples.getShort());
-            assertEquals(10, pcm.queuedChunks() + 1, "Only the elapsed first chunk was removed");
+            assertEquals(10, pcm.queuedChunks() + 1, "Elapsed frames are removed without losing the retained tail");
         }
         assertEquals(1, driver.deletions);
     }
@@ -213,7 +213,7 @@ class PcmPlaybackControllerTest {
         return new PcmPlaybackBuffer.Chunk(bytes.array(), AL10.AL_FORMAT_STEREO16, 8000, start);
     }
 
-    @Test void underrunWaitsForThreeSecondsButSmallQueuesAndEofRemainReachable() throws Exception {
+    @Test void underrunUsesRetainedDurationButSmallQueuesRemainReachable() throws Exception {
         for (int capacity : new int[]{4, 60}) {
             var pcm = new PcmPlaybackBuffer(capacity); var token = pcm.reset(1);
             pcm.offer(token, stereo(0, 800));
@@ -222,12 +222,12 @@ class PcmPlaybackControllerTest {
                 assertEquals(PcmPlaybackController.Result.PLAYING, controller.tick(0, AudioOutputMode.STEREO, 1));
                 driver.processed = 1;
                 assertEquals(PcmPlaybackController.Result.BUFFERING, controller.tick(100, AudioOutputMode.STEREO, 1));
-                pcm.offer(token, stereo(800, 8000));
+                pcm.offer(token, stereo(800, 1600));
                 assertEquals(PcmPlaybackController.Result.BUFFERING, controller.tick(100, AudioOutputMode.STEREO, 1));
-                pcm.offer(token, stereo(8800, 8000));
+                pcm.offer(token, stereo(2400, 1600));
                 if (capacity == 60) {
                     assertEquals(PcmPlaybackController.Result.BUFFERING, controller.tick(100, AudioOutputMode.STEREO, 1));
-                    pcm.offer(token, stereo(16800, 8000));
+                    pcm.offer(token, stereo(4000, 800));
                 }
                 assertEquals(PcmPlaybackController.Result.PLAYING, controller.tick(100, AudioOutputMode.STEREO, 1));
             }
@@ -245,16 +245,21 @@ class PcmPlaybackControllerTest {
         }
     }
 
-    static final class FakeDriver implements OpenAlPlaybackDevice.Driver {
+    static class FakeDriver implements OpenAlPlaybackDevice.Driver {
         record Upload(int format, byte[] bytes) {}
         long generation = 1;
         boolean available = true, capability = true, invalidSources;
         int error, creations, deletions, rejections, nextBuffer, processed, state = AL10.AL_STOPPED;
         int rejectionCode = AL10.AL_INVALID_ENUM;
+        float offsetSeconds;
+        Runnable onUpload = () -> {}, afterQueue = () -> {}, afterStateQuery = () -> {};
+        int playCalls;
+        final List<Upload> firstPlayed = new ArrayList<>();
+        final java.util.Map<Integer, Upload> bufferUploads = new java.util.HashMap<>();
         IntPredicate reject = ignored -> false;
         final ArrayDeque<Integer> queue = new ArrayDeque<>();
         final List<Upload> uploads = new ArrayList<>();
-        void reload() { generation++; queue.clear(); state = AL10.AL_STOPPED; }
+        void reload() { generation++; queue.clear(); state = AL10.AL_STOPPED; offsetSeconds = 0; }
         public long context() { return 17; }
         public long generation() { return generation; }
         public boolean available() { return available; }
@@ -262,28 +267,31 @@ class PcmPlaybackControllerTest {
         public boolean multichannel() { return capability; }
         public boolean directChannels() { return true; }
         public int error() { int previous = error; error = 0; return previous; }
-        public int createSource() { creations++; nextBuffer = 0; if (invalidSources) error = AL10.AL_INVALID_NAME; return 77; }
+        public int createSource() { creations++; nextBuffer = 0; processed = 0; state = AL10.AL_INITIAL; if (invalidSources) error = AL10.AL_INVALID_NAME; return 77; }
         public int createBuffer() { return ++nextBuffer; }
         public void deleteSource(int source) { deletions++; queue.clear(); }
         public void deleteBuffer(int buffer) {}
         public void sourceInt(int source, int property, int value) {}
         public void sourceFloat(int source, int property, float value) {}
         public int sourceInt(int source, int property) {
-            return switch (property) {
+            int result = switch (property) {
                 case AL10.AL_BUFFERS_QUEUED -> queue.size();
                 case AL10.AL_BUFFERS_PROCESSED -> processed;
                 case AL10.AL_SOURCE_STATE -> state;
                 default -> 0;
             };
+            if (property == AL10.AL_SOURCE_STATE) afterStateQuery.run();
+            return result;
         }
-        public float sourceFloat(int source, int property) { return 0; }
-        public void play(int source) { state = AL10.AL_PLAYING; }
+        public float sourceFloat(int source, int property) { return offsetSeconds; }
+        public void play(int source) { playCalls++; firstPlayed.add(bufferUploads.get(queue.getFirst())); state = AL10.AL_PLAYING; processed = 0; }
         public void stop(int source) { state = AL10.AL_STOPPED; }
         public int unqueue(int source) { processed--; return queue.removeFirst(); }
-        public void queue(int source, int buffer) { queue.addLast(buffer); }
+        public void queue(int source, int buffer) { queue.addLast(buffer); if (state == AL10.AL_STOPPED) processed++; afterQueue.run(); }
+        void exhaust() { processed = queue.size(); state = AL10.AL_STOPPED; offsetSeconds = 0; }
         public void upload(int buffer, int format, byte[] pcm, int sampleRate) {
             if (reject.test(format)) { error = rejectionCode; rejections++; }
-            else uploads.add(new Upload(format, pcm.clone()));
+            else { var upload = new Upload(format, pcm.clone()); uploads.add(upload); bufferUploads.put(buffer, upload); onUpload.run(); }
         }
     }
 }
