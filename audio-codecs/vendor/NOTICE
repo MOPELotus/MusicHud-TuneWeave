@@ -41,3 +41,6 @@ finite sign/overlap/input-boundary corrections; no Lavaplayer dependency/JAR.
 APE: controlled FFmpeg9.0.2 scalar Java translation, LGPL2.1+; original C
 references and finite namespace integration diffs are retained with the source.
 AIFF/AIFC/AU: project-owned bounded PCM container reader, no third-party DSP.
+
+The SBR no-noise-envelope gain compensation overlay is checked against FFmpeg
+n9.0.2 aacsbr.c, LGPL-2.1-or-later, retaining its author attribution in source.

@@ -1,0 +1,6 @@
+SPDX-License-Identifier: CC0-1.0
+
+The original synthetic signal, generator, encoded test access units and reference
+PCM in this directory are dedicated to the public domain under CC0 1.0.
+Generation tools retain their separate licenses and are not runtime dependencies.
+https://creativecommons.org/publicdomain/zero/1.0/
