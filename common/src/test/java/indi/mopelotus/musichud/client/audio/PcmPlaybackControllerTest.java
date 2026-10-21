@@ -68,6 +68,7 @@ class PcmPlaybackControllerTest {
             byte[] data = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN).putFloat(.5f)
                     .putFloat(0).putFloat(0).putFloat(0).putFloat(0).putFloat(0).array();
             pcm.offer(token, new PcmPlaybackBuffer.Chunk(data, OpenAlFormatSelector.select(6, true), 48000, 0));
+            pcm.finish(token, null);
             var driver = new FakeDriver(); driver.capability = capability;
             try (var controller = controller(pcm, driver)) {
                 controller.tick(0, AudioOutputMode.STEREO, 1);
@@ -82,6 +83,7 @@ class PcmPlaybackControllerTest {
     @Test void oldAlErrorIsClearedAndContextLossDoesNotCountTowardFormatFallback() throws Exception {
         var pcm = new PcmPlaybackBuffer(2); var token = pcm.reset(1);
         pcm.offer(token, new PcmPlaybackBuffer.Chunk(new byte[24], OpenAlFormatSelector.select(6, true), 8000, 0));
+        pcm.finish(token, null);
         var driver = new FakeDriver(); driver.error = AL10.AL_INVALID_ENUM;
         try (var controller = controller(pcm, driver)) {
             assertEquals(PcmPlaybackController.Result.PLAYING, controller.tick(0, AudioOutputMode.MULTICHANNEL, 1));
@@ -157,6 +159,7 @@ class PcmPlaybackControllerTest {
     @Test void falseFloatCapabilityFallsBackAfterFormatRejectionAndKeepsFrameCount() throws Exception {
         var pcm = new PcmPlaybackBuffer(2); var token = pcm.reset(1);
         pcm.offer(token, new PcmPlaybackBuffer.Chunk(new byte[240], OpenAlFormatSelector.select(6, true), 8000, 0));
+        pcm.finish(token, null);
         var driver = new FakeDriver(); driver.reject = OpenAlFormatSelector::floating;
         try (var controller = controller(pcm, driver)) {
             for (int i = 0; i < 6; i++) assertEquals(PcmPlaybackController.Result.RECOVERING,

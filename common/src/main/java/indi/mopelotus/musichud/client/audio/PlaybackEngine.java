@@ -235,7 +235,6 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                 PcmPlaybackController.Result result;
                 synchronized (this) {
                     if (generation != playbackGeneration.get() || playing != playingFuture || disposed) return;
-                    if (serverStartTime == null && pcm.peek(pcm.token()) != null) serverStartTime = ZonedDateTime.now();
                     long position = serverStartTime == null ? 0 : Math.max(0, Duration.between(serverStartTime, ZonedDateTime.now()).toMillis());
                     float gain = PlaybackGain.calculate((float)clientConfig.getSoundVolume(),
                             clientConfig.getMixWithVanillaSoundVolume(), clientConfig.getMuted(),
@@ -252,6 +251,9 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                     result = controller.tick(position, outputMode, gain);
                     switch (result) {
                         case PLAYING -> {
+                            // Local playback starts its timeline with actual output,
+                            // not with the first decoded fragment during prebuffering.
+                            if (serverStartTime == null) serverStartTime = ZonedDateTime.now();
                             if (!began) LOGGER.info("Audio output started: session={} revision={} trackId={} generation={} positionMs={}",
                                     currentPlaybackSession.sessionId(), currentPlaybackSession.revision(),
                                     currentMusicDetail.getId(), generation, position);
