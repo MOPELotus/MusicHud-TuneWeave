@@ -8,12 +8,12 @@ class HFGeneration {
 
     private static class acorr_coef {
 
-        final float[] r01 = new float[2];
-        final float[] r02 = new float[2];
-        final float[] r11 = new float[2];
-        final float[] r12 = new float[2];
-        final float[] r22 = new float[2];
-        float det;
+        final double[] r01 = new double[2];
+        final double[] r02 = new double[2];
+        final double[] r11 = new double[2];
+        final double[] r12 = new double[2];
+        final double[] r22 = new double[2];
+        double det;
     }
 
     public static void hf_generation(float[][][] Xlow, float[][][] Xhigh, Channel ch, boolean reset) {
@@ -103,9 +103,10 @@ class HFGeneration {
 
     private static void auto_correlation(SBR sbr, acorr_coef ac, float[][][] buffer,
                                          int bd, int len) {
-        float r01r = 0, r01i = 0, r02r = 0, r02i = 0, r11r = 0;
-        float temp1_r, temp1_i, temp2_r, temp2_i, temp3_r, temp3_i, temp4_r, temp4_i, temp5_r, temp5_i;
-        float rel = 1.0f / (1 + 1e-6f);
+        double r01r = 0, r01i = 0, r02r = 0, r02i = 0, r11r = 0;
+        double temp1_r, temp1_i, temp2_r, temp2_i, temp3_r, temp3_i, temp4_r, temp4_i, temp5_r, temp5_i;
+        // Near-singular covariance needs double precision; preserve the original float regularizer.
+        double rel = 1.0f / (1.0f + 1e-6f);
         int j;
         int offset = sbr.tHFAdj;
 
@@ -166,28 +167,22 @@ class HFGeneration {
     /** calculate linear prediction coefficients using the covariance method */
     private static void calc_prediction_coef(SBR sbr, float[][][] Xlow,
                                              float[][] alpha_0, float[][] alpha_1, int k) {
-        float tmp;
         acorr_coef ac = new acorr_coef();
-
         auto_correlation(sbr, ac, Xlow, k, sbr.numTimeSlotsRate + 6);
-
-        if (ac.det == 0) {
-            alpha_1[k][0] = 0;
-            alpha_1[k][1] = 0;
-        } else {
-            tmp = 1.0f / ac.det;
-            alpha_1[k][0] = ((ac.r01[0] * ac.r12[0]) - (ac.r01[1] * ac.r12[1]) - (ac.r02[0] * ac.r11[0])) * tmp;
-            alpha_1[k][1] = ((ac.r01[1] * ac.r12[0]) + (ac.r01[0] * ac.r12[1]) - (ac.r02[1] * ac.r11[0])) * tmp;
+        double a1r = 0, a1i = 0, a0r = 0, a0i = 0;
+        if (ac.det != 0) {
+            a1r = (ac.r01[0] * ac.r12[0] - ac.r01[1] * ac.r12[1] - ac.r02[0] * ac.r11[0]) / ac.det;
+            a1i = (ac.r01[1] * ac.r12[0] + ac.r01[0] * ac.r12[1] - ac.r02[1] * ac.r11[0]) / ac.det;
+        }
+        if (ac.r11[0] != 0) {
+            a0r = -(ac.r01[0] + a1r * ac.r12[0] + a1i * ac.r12[1]) / ac.r11[0];
+            a0i = -(ac.r01[1] + a1i * ac.r12[0] - a1r * ac.r12[1]) / ac.r11[0];
         }
 
-        if (ac.r11[0] == 0) {
-            alpha_0[k][0] = 0;
-            alpha_0[k][1] = 0;
-        } else {
-            tmp = 1.0f / ac.r11[0];
-            alpha_0[k][0] = -(ac.r01[0] + (alpha_1[k][0] * ac.r12[0]) + (alpha_1[k][1] * ac.r12[1])) * tmp;
-            alpha_0[k][1] = -(ac.r01[1] + (alpha_1[k][1] * ac.r12[0]) - (alpha_1[k][0] * ac.r12[1])) * tmp;
-        }
+        alpha_0[k][0] = (float) a0r;
+        alpha_0[k][1] = (float) a0i;
+        alpha_1[k][0] = (float) a1r;
+        alpha_1[k][1] = (float) a1i;
 
         if (((alpha_0[k][0] * alpha_0[k][0]) + (alpha_0[k][1] * alpha_0[k][1]) >= 16.0f)
                 || ((alpha_1[k][0] * alpha_1[k][0]) + (alpha_1[k][1] * alpha_1[k][1]) >= 16.0f)) {
