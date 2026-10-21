@@ -122,10 +122,20 @@ final class OpenAlPlaybackDevice implements AutoCloseable {
     }
     float offsetSeconds() { return call("sample offset", () -> driver.sourceFloat(source, AL11.AL_SEC_OFFSET)); }
     int queued() { return call("queued buffers", () -> driver.sourceInt(source, AL10.AL_BUFFERS_QUEUED)); }
-    void play(float gain) {
+    boolean stopped() { return call("source state", () -> driver.sourceInt(source, AL10.AL_SOURCE_STATE)) == AL10.AL_STOPPED; }
+    boolean play(float gain) {
         run("gain", () -> driver.sourceFloat(source, AL10.AL_GAIN, gain));
-        if (call("source state", () -> driver.sourceInt(source, AL10.AL_SOURCE_STATE)) != AL10.AL_PLAYING)
+        int state = call("source state", () -> driver.sourceInt(source, AL10.AL_SOURCE_STATE));
+        // A streaming source may exhaust during upload/refill. Playing STOPPED
+        // restarts its entire attached queue, including already consumed music.
+        // Newly appended buffers may also be reported as processed in this
+        // state, so let the controller recover their PCM without crediting it.
+        if (state == AL10.AL_STOPPED) return false;
+        if (state != AL10.AL_PLAYING && state != AL10.AL_INITIAL && state != AL10.AL_PAUSED)
+            throw new OpenAlFailure(OpenAlFailure.Kind.DEVICE_LOST, "source state", 0, context, generation);
+        if (state != AL10.AL_PLAYING)
             run("alSourcePlay", () -> driver.play(source));
+        return true;
     }
     private void run(String operation, Runnable action) { call(operation, () -> { action.run(); return null; }); }
     private <T> T call(String operation, Supplier<T> action) {
