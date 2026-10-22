@@ -208,7 +208,9 @@ jobs:
 
   cf-update-assets:
     needs: [dispatch, publish]
-    if: inputs.mode == 'publish' && (inputs.target == 'all' || inputs.target == 'curseforge')
+    if: >-
+      always() && needs.dispatch.result == 'success' && needs.publish.result == 'success' &&
+      inputs.mode == 'publish' && (inputs.target == 'all' || inputs.target == 'curseforge')
     runs-on: ubuntu-latest
     permissions:
       contents: write
