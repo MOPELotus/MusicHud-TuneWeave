@@ -16,6 +16,7 @@
     "ReactiveMusicCompatMixin",
     "SoundEngineMixin",
     "SoundEngineSppCompatMixin",
+    "SoundEngineDynamicFpsCompatMixin",
     "SpanSetMixin"
   ],
   "injectors": {
