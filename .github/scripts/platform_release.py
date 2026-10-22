@@ -295,7 +295,7 @@ def multipart(metadata_name, metadata, files):
 
 
 def changelog(row, module):
-    text = (f"MusicHud TuneWeave {row['version']} beta for {module}. "
+    text = (f"MusicHud TuneWeave {row['version']} for {module}. "
             'Shared playback, music queues, lyrics and HUD improvements.\n\n')
     if module in ('fabric', 'neoforge'):
         modern = ('https://github.com/MOPELotus/ModernUI-MC/releases/tag/' + MODERNUI_FORKS[row['branch']]
@@ -314,12 +314,10 @@ def changelog(row, module):
             if row['branch'] not in MODERNUI_FORKS:
                 text += 'ModernUI also requires Forge Config API Port on Fabric. '
         if row.get('distribution') == 'cf':
-            text += ('\n\nCF edition: TuneWeave download/update functionality is removed. '
-                     'Connect to an existing service or explicitly configure an existing local executable. '
-                     'Fresh configurations leave the executable path empty and autostart disabled. '
-                     '\n\nCF packaging revision 1 removes the unused LavaPlayer YouTube source implementation '
-                     'and its automatic source-registration helper. HTTP stream and local audio decoding are retained '
-                     'and tested against the final deployment JAR. This corrects the blacklisted-class processing rejection. ')
+            text += ('\n\nCF edition: connect to an existing TuneWeave service. '
+                     'Install and start TuneWeave separately, then configure its service URL. '
+                     'TuneWeave download/update functionality is not included. '
+                     'Audio decoding is tested against the final deployment JAR. ')
     else:
         text += ('Requires matching MusicHud TuneWeave clients for music features. '
                  'Install Paper only on a standalone Paper server; on Velocity/BungeeCord networks install '

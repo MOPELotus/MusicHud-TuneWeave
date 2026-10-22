@@ -55,6 +55,15 @@ class PlatformContracts(unittest.TestCase):
             platform.ensure_hangar_channel(Mock(token='test'), {'id': 7059}, 'Release')
         self.assertEqual([], json.loads(internal.request.call_args_list[1].kwargs['data'])['flags'])
 
+    def test_release_changelog_matches_service_connection_instructions(self):
+        row = {'version': '1.3.1', 'branch': '26.3', 'range': '26.3', 'distribution': 'cf'}
+        text = platform.changelog(row, 'fabric')
+        self.assertIn('MusicHud TuneWeave 1.3.1 for fabric.', text)
+        self.assertNotIn('beta for', text)
+        self.assertIn('Install and start TuneWeave separately, then configure its service URL.', text)
+        self.assertNotIn('local executable', text)
+        self.assertNotIn('autostart', text)
+
     def test_release_classification_uses_source_tag_not_cf_suffix(self):
         for version, expected in [('1.3.0', 'release'), ('1.3.0-beta-3', 'beta')]:
             self.assertEqual(expected, platform.release_type({'version': version}))

@@ -328,8 +328,8 @@ def bundle(downloads, output):
              '', '| Branch | Commit |', '| --- | --- |']
     notes += [f'| {b} | `{next(r["sha"] for r in rows if r["branch"] == b)}` |' for b in sorted(BRANCHES)]
     if rows[0].get('distribution') == 'cf':
-        notes += ['', 'CF review edition: no TuneWeave downloader or updater. Install TuneWeave separately and configure its local executable or service URL.',
-                  'Fresh client configurations leave automatic startup disabled. Existing explicit user settings are preserved.',
+        notes += ['', 'CF review edition: connect to an existing TuneWeave service; no TuneWeave downloader or updater.',
+                  'Install and start TuneWeave separately, then configure its service URL.',
                   'This build has not been approved by CurseForge. Plugin behavior is unchanged; the suffix identifies the review bundle.']
     (output / 'RELEASE_NOTES.md').write_text('\n'.join(notes) + '\n')
     for name in ('license', 'LICENSE', 'COPYING', 'COPYING.LESSER'):
