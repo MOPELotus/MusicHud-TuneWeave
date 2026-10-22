@@ -236,10 +236,12 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
                 synchronized (this) {
                     if (generation != playbackGeneration.get() || playing != playingFuture || disposed) return;
                     long position = serverStartTime == null ? 0 : Math.max(0, Duration.between(serverStartTime, ZonedDateTime.now()).toMillis());
+                    // Read the configured sliders: Dynamic FPS modifies getSoundSourceVolume
+                    // with focus/idle multipliers, which must not duck our independent music.
                     float gain = PlaybackGain.calculate((float)clientConfig.getSoundVolume(),
                             clientConfig.getMixWithVanillaSoundVolume(), clientConfig.getMuted(),
-                            Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MASTER),
-                            Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC), mixGain);
+                            Minecraft.getInstance().options.getSoundSourceOptionInstance(SoundSource.MASTER).get().floatValue(),
+                            Minecraft.getInstance().options.getSoundSourceOptionInstance(SoundSource.MUSIC).get().floatValue(), mixGain);
                     if (Float.compare(lastGain, gain) != 0) {
                         lastGain = gain;
                         PlayingStatusRenderer.getInstance().updateStatus(null);
