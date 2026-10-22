@@ -14,6 +14,29 @@ import test_build_release as fixtures
 
 
 class PlatformContracts(unittest.TestCase):
+    def test_all_targets_include_only_remaining_publishers(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / 'output'
+            for target, expected in [('all', ['curseforge', 'hangar']),
+                                     ('curseforge', ['curseforge']), ('hangar', ['hangar'])]:
+                with self.subTest(target=target), patch.dict(os.environ, {'GITHUB_OUTPUT': str(output)}):
+                    output.write_text('')
+                    platform.validate_dispatch('v1.3.1', target, '')
+                    matrix = json.loads(output.read_text().removeprefix('matrix='))
+                    self.assertEqual(expected, matrix['platform'])
+
+    def test_removed_platform_is_rejected_before_network_or_artifact_access(self):
+        with patch.object(release, 'api') as api, patch.object(platform, 'verify_platform_bundle') as verify:
+            with self.assertRaisesRegex(ValueError, 'Unsupported publishing target'):
+                platform.validate_dispatch('v1.3.1', 'modrinth', '123')
+            with self.assertRaisesRegex(ValueError, 'Missing publishing platform'):
+                platform.publish_platform('modrinth', Path('missing'), 'v1.3.1', {}, Path('missing'))
+            for endpoint in ('modrinth', 'modrinth_v3'):
+                with self.assertRaisesRegex(ValueError, 'Missing or invalid platform credential'):
+                    platform.Client(endpoint, 'test-token')
+            api.assert_not_called()
+            verify.assert_not_called()
+
     def test_hangar_creates_missing_beta_channel_as_unstable(self):
         client = Mock(token='test-session')
         internal = Mock()
@@ -127,7 +150,7 @@ class PlatformContracts(unittest.TestCase):
                 platform.validate_tag(tag)
 
     def test_api_paths_cannot_replace_origin_or_traverse(self):
-        client = platform.Client('modrinth', 'test-token')
+        client = platform.Client('curseforge', 'test-token')
         for path in ('https://other.example/', '//other.example/', '../version', 'project/../version',
                      'project\\version', None):
             with self.subTest(path=path), self.assertRaisesRegex(ValueError, 'Invalid API path'):
@@ -135,14 +158,14 @@ class PlatformContracts(unittest.TestCase):
 
     def test_control_characters_in_credential_are_rejected_without_echoing_it(self):
         with self.assertRaisesRegex(ValueError, '^Missing or invalid platform credential$'):
-            platform.Client('modrinth', 'private-token\r\nInjected: value')
+            platform.Client('curseforge', 'private-token\r\nInjected: value')
 
     def test_upload_failure_is_not_automatically_retried_or_logged(self):
-        client = platform.Client('modrinth', 'test-token')
+        client = platform.Client('curseforge', 'test-token')
         client.opener = Mock()
-        client.opener.open.side_effect = HTTPError('https://api.modrinth.com/v2/version', 503,
+        client.opener.open.side_effect = HTTPError('https://minecraft.curseforge.com/api/version', 503,
             'sensitive upstream text', {}, io.BytesIO(b'private-token'))
-        with self.assertRaisesRegex(platform.ApiError, '^modrinth API returned HTTP 503$'):
+        with self.assertRaisesRegex(platform.ApiError, '^curseforge API returned HTTP 503$'):
             client.request('version', method='POST', data=b'file')
         self.assertEqual(1, client.opener.open.call_count)
 
@@ -167,9 +190,9 @@ class PlatformContracts(unittest.TestCase):
         self.assertIsNone(platform.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://other.example/'))
 
     def test_temporary_read_failure_is_bounded(self):
-        client = platform.Client('modrinth', 'test-token')
+        client = platform.Client('curseforge', 'test-token')
         client.opener = Mock()
-        client.opener.open.side_effect = HTTPError('https://api.modrinth.com/v2/project/example',
+        client.opener.open.side_effect = HTTPError('https://minecraft.curseforge.com/api/project/example',
             503, 'Unavailable', {}, io.BytesIO())
         with patch.object(platform.time, 'sleep'), self.assertRaises(platform.ApiError):
             client.request('project/example')
@@ -220,16 +243,8 @@ class RuntimeArtifactContracts(unittest.TestCase):
         for current in (False, True):
             context = self.helper.manifest if current else manifest
             games = platform.PLUGIN_GAMES if current else platform.LEGACY_PLUGIN_GAMES
-            data = platform.modrinth_metadata(row, 'paper', 'project', {}, context)
-            self.assertEqual(games, data['game_versions'])
             cf = platform.curseforge_metadata(row, 'paper', available, context)
             self.assertEqual(games + ['Paper', 'Server'], cf['gameVersionNames'])
-        path = self.helper.output / release.filename(row, 'paper')
-        remote = {'id': 'old', 'loaders': ['paper'], 'game_versions': platform.LEGACY_PLUGIN_GAMES,
-                  'files': [{'filename': path.name, 'primary': True, 'hashes': {'sha512': platform.file_hash(path)}}]}
-        self.assertIs(remote, platform.existing_modrinth_version([remote], path, row, 'paper', {}, manifest))
-        with self.assertRaisesRegex(ValueError, 'metadata conflict'):
-            platform.existing_modrinth_version([remote], path, row, 'paper', {}, self.helper.manifest)
 
     def test_current_and_historical_cf_bundles_require_every_client_jar(self):
         original_cf_rows = platform.cf_rows
@@ -271,16 +286,14 @@ class RuntimeArtifactContracts(unittest.TestCase):
         row = next(r for r in self.helper.rows if r['branch'] == '26.3') | {'version': '1.3.0'}
         for distribution in ['standard', 'cf']:
             current = row | {'distribution': distribution}
-            self.assertEqual('release', platform.modrinth_metadata(current, 'fabric', 'project', {'fabric-api':'fabric'})['version_type'])
             self.assertEqual('release', platform.curseforge_metadata(current, 'fabric', {'26.3','Fabric','Client'})['releaseType'])
 
     def test_26_3_metadata_links_fork_without_incorrect_external_dependencies(self):
         row = next(r for r in self.helper.rows if r['branch'] == '26.3')
         available = set(platform.PLUGIN_GAMES) | {'Fabric', 'NeoForge', 'Client'}
         for module in ('fabric', 'neoforge'):
-            data = platform.modrinth_metadata(row, module, 'project', {'fabric-api': 'fabric'})
-            self.assertEqual(['26.3'], data['game_versions'])
-            self.assertEqual([{'project_id': 'fabric', 'dependency_type': 'required'}] if module == 'fabric' else [], data['dependencies'])
+            data = platform.curseforge_metadata(row, module, available)
+            self.assertIn('26.3', data['gameVersionNames'])
             self.assertIn('ModernUI-MC/releases/tag/26.3-3.13.0.9', data['changelog'])
             self.assertIn('standard (-universal.jar) or MiSans (-universal-misans.jar)', data['changelog'])
             self.assertIn('never install both', data['changelog'])
@@ -348,41 +361,6 @@ class RuntimeArtifactContracts(unittest.TestCase):
                                  if line.endswith('  build-manifest.json') else line for line in lines) + '\n')
         with self.assertRaisesRegex(ValueError, 'provenance mismatch'):
             platform.verify_standard(self.helper.output, 'v1.3.0-beta-3')
-
-    def test_modrinth_keeps_matching_file_and_rejects_unrecognized_collision(self):
-        row = next(r for r in self.helper.rows if r['id'] == '26.2')
-        path = self.helper.output / release.filename(row, 'fabric')
-        remote = {'id': 'version', 'loaders': ['fabric'], 'game_versions': ['26.2'],
-                  'files': [{'filename': path.name, 'primary': True, 'hashes': {'sha512': platform.file_hash(path)}}]}
-        self.assertIs(remote, platform.existing_modrinth_version([remote], path, row, 'fabric', {}))
-        remote['files'][0]['hashes']['sha512'] = 'a' * 128
-        with self.assertRaisesRegex(ValueError, 'differs from verified'):
-            platform.existing_modrinth_version([remote], path, row, 'fabric', {})
-        config = {'existing_modrinth_files': {path.name: {'version_id': 'version', 'sha512': 'a' * 128}}}
-        self.assertIs(remote, platform.existing_modrinth_version([remote], path, row, 'fabric', config))
-        remote['loaders'] = ['neoforge']
-        with self.assertRaisesRegex(ValueError, 'metadata conflict'):
-            platform.existing_modrinth_version([remote], path, row, 'fabric', config)
-
-    def test_client_and_plugin_dependencies_are_not_confused(self):
-        deps = {'modern-ui': 'modern', 'modernui-mc-mvus': 'mvus', 'fabric-api': 'fabric', 'forge-config-api-port': 'port'}
-        plugin = next(r for r in self.helper.rows if r['id'] == 'plugin')
-        data = platform.modrinth_metadata(plugin, 'paper', 'project', deps)
-        self.assertEqual([], data['dependencies'])
-        self.assertNotIn('environment', data)
-        row = next(r for r in self.helper.rows if r['id'] == '26.2')
-        data = platform.modrinth_metadata(row, 'fabric', 'project', deps)
-        self.assertEqual('client_only_server_optional', data['environment'])
-        self.assertEqual([{'project_id': 'fabric', 'dependency_type': 'required'}], data['dependencies'])
-        self.assertIn('ModernUI-MC/releases/tag/26.2-3.13.0.9', data['changelog'])
-        row = next(r for r in self.helper.rows if r['id'] == '1.21.11')
-        data = platform.modrinth_metadata(row, 'neoforge', 'project', deps)
-        self.assertEqual([{'project_id': 'mvus', 'dependency_type': 'required'}], data['dependencies'])
-        for row in self.helper.rows:
-            for module in row['modules']:
-                data = platform.modrinth_metadata(row, module, 'project', deps)
-                self.assertLessEqual(len(data['version_number']), 32)
-                self.assertLessEqual(len(data['name']), 64)
 
     def test_curseforge_metadata_is_beta_auto_release_and_correct_loader(self):
         row = next(r for r in self.helper.rows if r['id'] == '1.21.8') | {'distribution': 'cf'}

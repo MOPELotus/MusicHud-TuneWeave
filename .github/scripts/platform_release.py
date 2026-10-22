@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Inspect platform projects and publish verified deployment artifacts."""
 import argparse
-import hashlib
 import io
 import json
 import os
@@ -19,12 +18,11 @@ from urllib.request import Request, HTTPRedirectHandler, build_opener
 import build_release as release
 
 BASES = {
-    'modrinth': 'https://api.modrinth.com/v2/',
-    'modrinth_v3': 'https://api.modrinth.com/v3/',
     'curseforge': 'https://minecraft.curseforge.com/api/',
     'hangar': 'https://hangar.papermc.io/api/v1/',
     'hangar_internal': 'https://hangar.papermc.io/api/internal/',
 }
+PLATFORMS = ('curseforge', 'hangar')
 REPOSITORY = 'MOPELotus/MusicHud-TuneWeave'
 GAME_VERSIONS = {
     '1.21.1': ['1.21.1'],
@@ -235,7 +233,7 @@ class Client:
                         detail = next((problem[k] for k in ('errorMessage', 'description', 'message', 'error')
                                        if isinstance(problem.get(k), str)), '')
                     secrets = [self.token, self.token.removeprefix('HangarAuth ')] + [
-                        os.environ.get(k, '') for k in ('MODRINTH_TOKEN', 'CURSEFORGE_TOKEN', 'HANGAR_API_TOKEN')]
+                        os.environ.get(k, '') for k in ('CURSEFORGE_TOKEN', 'HANGAR_API_TOKEN')]
                     for secret in secrets:
                         if secret:
                             detail = detail.replace(secret, '[redacted]')
@@ -254,17 +252,10 @@ def inspect_projects(config, output):
     output.mkdir(parents=True, exist_ok=True)
     report = {}
     # Initialize independently so one unavailable platform does not hide the others.
-    for platform, secret in (('modrinth', 'MODRINTH_TOKEN'), ('curseforge', 'CURSEFORGE_TOKEN'), ('hangar', 'HANGAR_API_TOKEN')):
+    for platform, secret in (('curseforge', 'CURSEFORGE_TOKEN'), ('hangar', 'HANGAR_API_TOKEN')):
         try:
             client = Client(platform, os.environ.get(secret, ''))
-            if platform == 'modrinth':
-                project = client.request('project/' + config['modrinth'])
-                versions = client.request('project/' + project['id'] + '/version')
-                report[platform] = {'project': {k: project.get(k) for k in (
-                    'id', 'slug', 'title', 'status', 'requested_status', 'loaders', 'game_versions')},
-                    'versions': [{k: v.get(k) for k in ('id', 'name', 'version_number', 'status',
-                        'loaders', 'game_versions', 'environment', 'files', 'dependencies')} for v in versions]}
-            elif platform == 'curseforge':
+            if platform == 'curseforge':
                 versions = client.request('game/versions')
                 report[platform] = {'upload_api_authenticated': True, 'game_version_count': len(versions),
                                     'mods_project': config['curseforge_mods'], 'plugins_project': config['curseforge_plugins']}
@@ -301,11 +292,6 @@ def multipart(metadata_name, metadata, files):
         add(f'Content-Disposition: form-data; name="{field}"; filename="{path.name}"\r\n'
             'Content-Type: application/java-archive', path.read_bytes())
     return b''.join(parts) + ('--' + boundary + '--\r\n').encode(), 'multipart/form-data; boundary=' + boundary
-
-
-def file_hash(path, algorithm='sha512'):
-    with path.open('rb') as stream:
-        return hashlib.file_digest(stream, algorithm).hexdigest()
 
 
 def changelog(row, module):
@@ -346,125 +332,6 @@ def changelog(row, module):
 def release_type(row, manifest=None):
     version = manifest['tag'].removeprefix('v') if manifest and 'tag' in manifest else row['version']
     return 'beta' if '-' in version else 'release'
-
-
-def modrinth_metadata(row, module, project, dependency_ids, manifest=None):
-    dependencies = []
-    if module in ('fabric', 'neoforge'):
-        # Modrinth does not persist manually supplied file_name dependencies on
-        # JAR uploads. The external ModernUI fork requirement is linked explicitly
-        # in the changelog instead of inventing a project/version relation.
-        if row['branch'] not in MODERNUI_FORKS:
-            dep = 'modernui-mc-mvus' if row['branch'] in ('1.21.9-1.21.10', '1.21.11') else 'modern-ui'
-            dependencies.append({'project_id': dependency_ids[dep], 'dependency_type': 'required'})
-        if module == 'fabric':
-            dependencies.append({'project_id': dependency_ids['fabric-api'], 'dependency_type': 'required'})
-            if row['branch'] not in MODERNUI_FORKS:
-                dependencies.append({'project_id': dependency_ids['forge-config-api-port'], 'dependency_type': 'required'})
-    number = release.artifact_version(row) if row['range'] else row['version'] + '+' + module
-    release.require(len(number) <= 32, 'Modrinth version number exceeds 32 characters')
-    data = {'project_id': project, 'name': f"{row['version']} · {module} · {row['range'] or 'server/proxy'}",
-            'version_number': number,
-            'version_type': release_type(row, manifest), 'loaders': [module],
-            'game_versions': game_versions(row, manifest),
-            'dependencies': dependencies, 'changelog': changelog(row, module),
-            'featured': True, 'file_parts': ['file'], 'primary_file': 'file'}
-    if row['range']:
-        data['environment'] = 'client_only_server_optional'
-    return data
-
-
-def existing_modrinth_version(versions, path, row, module, config, manifest=None):
-    accepted = config.get('existing_modrinth_files', {}).get(path.name)
-    wanted = file_hash(path)
-    matches = []
-    for version in versions:
-        for remote in version['files']:
-            if remote['filename'] != path.name:
-                continue
-            seeded = (accepted and version['id'] == accepted['version_id'] and
-                      remote['hashes'].get('sha512') == accepted['sha512'])
-            release.require(remote['hashes'].get('sha512') == wanted or seeded,
-                            'Existing Modrinth file differs from verified artifact: ' + path.name)
-            release.require(version['loaders'] == [module] and set(version['game_versions']) ==
-                            set(game_versions(row, manifest)),
-                            'Existing Modrinth loader/game metadata conflict')
-            release.require(len(version['files']) == 1 and remote.get('primary'), 'Unexpected additional Modrinth files')
-            matches.append(version)
-    release.require(len(matches) <= 1, 'Duplicate existing Modrinth versions')
-    return matches[0] if matches else None
-
-
-def dependency_signature(dependencies):
-    return sorted(json.dumps({k: v for k, v in d.items() if v is not None}, sort_keys=True) for d in dependencies)
-
-
-def modrinth_versions(client, project):
-    versions = []
-    for offset in range(0, 10000, 100):
-        page = client.request('project/' + project + '/version?' + urlencode({'limit': 100, 'offset': offset}))
-        release.require(isinstance(page, list), 'Invalid Modrinth version list')
-        versions.extend(page)
-        release.require(len({v['id'] for v in versions}) == len(versions), 'Duplicate Modrinth pagination results')
-        if len(page) < 100:
-            return versions
-    raise ValueError('Too many Modrinth versions to reconcile safely')
-
-
-def verify_modrinth_metadata(version, expected):
-    release.require(version['loaders'] == expected['loaders'] and
-                    set(version['game_versions']) == set(expected['game_versions']) and
-                    version['version_type'] == expected['version_type'] and
-                    ('environment' not in expected or version['environment'] == expected['environment']) and
-                    dependency_signature(version['dependencies']) == dependency_signature(expected['dependencies']),
-                    'Modrinth version metadata was not applied correctly')
-
-
-def publish_modrinth(client, manifest, folder, config, report):
-    writer = Client('modrinth_v3', client.token)
-    project = client.request('project/' + config['modrinth'])
-    release.require(project['id'] == config['modrinth'] and project['slug'] == 'musichud-tuneweave', 'Wrong Modrinth project')
-    versions = modrinth_versions(client, project['id'])
-    dependency_ids = {}
-    for slug in ('modern-ui', 'modernui-mc-mvus', 'fabric-api', 'forge-config-api-port'):
-        dep = client.request('project/' + slug)
-        release.require(dep['slug'] == slug and dep['status'] in ('approved', 'unlisted'), 'Unavailable dependency: ' + slug)
-        dependency_ids[slug] = dep['id']
-    for row in manifest['entries']:
-        if not row['publish']:
-            continue
-        for module in row['modules']:
-            path = folder / release.filename(row, module)
-            data = modrinth_metadata(row, module, project['id'], dependency_ids, manifest)
-            try:
-                existing = existing_modrinth_version(versions, path, row, module, config, manifest)
-                if existing:
-                    updates = {key: data[key] for key in ('version_type', 'dependencies', 'environment', 'changelog')
-                               if key in data and existing.get(key) != data[key]}
-                    if dependency_signature(existing['dependencies']) == dependency_signature(data['dependencies']):
-                        updates.pop('dependencies', None)
-                    if updates:
-                        writer.request('version/' + existing['id'], method='PATCH', data=json.dumps(updates).encode(),
-                                       content_type='application/json')
-                    current = client.request('version/' + existing['id'])
-                    verify_modrinth_metadata(current, data)
-                    report.record(path.name, 'retained', version_id=current['id'],
-                                  sha512=current['files'][0]['hashes']['sha512'], release_sha256=release.digest(path))
-                    continue
-                body, content_type = multipart('data', data, [('file', path)])
-                report.record(path.name, 'pending', sha256=release.digest(path))
-                created = writer.request('version', method='POST', data=body, content_type=content_type)
-                result = client.request('version/' + created['id'])
-                release.require(result['project_id'] == project['id'] and result['loaders'] == [module], 'Modrinth upload target mismatch')
-                release.require(len(result['files']) == 1 and result['files'][0]['filename'] == path.name and
-                                result['files'][0]['hashes']['sha512'] == file_hash(path), 'Modrinth uploaded file hash mismatch')
-                verify_modrinth_metadata(result, data)
-                versions.append(result)
-                report.record(path.name, 'uploaded', version_id=result['id'], sha256=release.digest(path))
-            except (ApiError, RuntimeError, ValueError) as error:
-                report.failure(path.name, error)
-    report.data['project_status'] = client.request('project/' + project['id'])['status']
-    report.save()
 
 
 def curseforge_metadata(row, module, available, manifest=None):
@@ -657,19 +524,17 @@ def previous_receipts(platform, tag):
 
 
 def publish_platform(platform, folder, tag, config, output):
-    release.require(platform in ('modrinth', 'curseforge', 'hangar'), 'Missing publishing platform')
+    release.require(platform in PLATFORMS, 'Missing publishing platform')
     release.require(os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' and
                     os.environ.get('GITHUB_REF') == 'refs/heads/' + release.DEFAULT_BRANCH and
                     os.environ.get('GITHUB_REPOSITORY') == REPOSITORY, 'Platform publishing requires default-branch dispatch')
     manifest, cf = verify_platform_bundle(folder, tag)
     previous = previous_receipts(platform, tag) if platform == 'curseforge' else {}
     report = Receipt(platform, tag, output, previous)
-    secret = {'modrinth': 'MODRINTH_TOKEN', 'curseforge': 'CURSEFORGE_TOKEN', 'hangar': 'HANGAR_API_TOKEN'}[platform]
+    secret = {'curseforge': 'CURSEFORGE_TOKEN', 'hangar': 'HANGAR_API_TOKEN'}[platform]
     client = Client(platform, os.environ.get(secret, ''))
     try:
-        if platform == 'modrinth':
-            publish_modrinth(client, manifest, folder / 'standard', config, report)
-        elif platform == 'curseforge':
+        if platform == 'curseforge':
             publish_curseforge(client, manifest, cf, folder, config, report)
         else:
             publish_hangar(client, manifest, folder / 'standard', config, report)
@@ -680,14 +545,14 @@ def publish_platform(platform, folder, tag, config, output):
 
 def validate_dispatch(tag, target, prepared_run):
     validate_tag(tag)
-    release.require(target in ('all', 'modrinth', 'curseforge', 'hangar'), 'Unsupported publishing target')
+    release.require(target == 'all' or target in PLATFORMS, 'Unsupported publishing target')
     if prepared_run:
         release.require(re.fullmatch(r'[1-9][0-9]*', prepared_run), 'Invalid prepared workflow run')
         run = release.api(REPOSITORY, 'actions/runs/' + prepared_run)
         release.require(run['event'] == 'workflow_dispatch' and run['head_branch'] in PREPARATION_BRANCHES and
                         run['path'] == '.github/workflows/platforms.yml' and run['conclusion'] == 'success',
                         'Prepared bundle must come from a successful default-branch platform workflow')
-    platforms = ['modrinth', 'curseforge', 'hangar'] if target == 'all' else [target]
+    platforms = list(PLATFORMS) if target == 'all' else [target]
     if os.environ.get('GITHUB_OUTPUT'):
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
             stream.write('matrix=' + json.dumps({'platform': platforms}, separators=(',', ':')) + '\n')
@@ -698,8 +563,8 @@ if __name__ == '__main__':
     parser.add_argument('command', choices=['inspect', 'prepare', 'assemble', 'publish', 'validate-dispatch'])
     parser.add_argument('--tag', default='')
     parser.add_argument('--input', type=Path, default=Path('cf-builds'))
-    parser.add_argument('--platform', choices=['modrinth', 'curseforge', 'hangar'])
-    parser.add_argument('--target', default='all')
+    parser.add_argument('--platform', choices=PLATFORMS)
+    parser.add_argument('--target', choices=('all', *PLATFORMS), default='all')
     parser.add_argument('--prepared-run', default='')
     parser.add_argument('--output', type=Path, default=Path('platform-report'))
     args = parser.parse_args()

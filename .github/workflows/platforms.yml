@@ -15,7 +15,7 @@ on:
       target:
         description: 'Platforms to publish to'
         type: choice
-        options: [all, modrinth, curseforge, hangar]
+        options: [all, curseforge, hangar]
         default: all
       prepared_run:
         description: 'Optional successful prepare run ID; reuse its identical artifacts'
@@ -60,7 +60,6 @@ jobs:
         run: python -m unittest discover -s .github/scripts -p 'test_*.py'
       - name: Inspect authenticated project metadata
         env:
-          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
           HANGAR_API_TOKEN: ${{ secrets.HANGAR_API_TOKEN }}
         run: python .github/scripts/platform_release.py inspect
@@ -121,7 +120,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
           PLATFORM: ${{ matrix.platform }}
-          MODRINTH_TOKEN: ${{ matrix.platform == 'modrinth' && secrets.MODRINTH_TOKEN || '' }}
           CURSEFORGE_TOKEN: ${{ matrix.platform == 'curseforge' && secrets.CURSEFORGE_TOKEN || '' }}
           HANGAR_API_TOKEN: ${{ matrix.platform == 'hangar' && secrets.HANGAR_API_TOKEN || '' }}
         run: python .github/scripts/platform_release.py publish --tag "$RELEASE_TAG" --platform "$PLATFORM" --input bundle --output platform-report
