@@ -231,6 +231,7 @@ class ReleaseContracts(unittest.TestCase):
                 self.assertEqual(13, len(manifest['entries']))
                 self.assertEqual(ref.startswith('refs/tags/'), manifest['publish'])
                 self.assertEqual('c' * 40, manifest['controller'])
+                self.assertEqual(3, sum('modernui_host' in row for row in manifest['entries']))
                 for row in manifest['entries']:
                     self.assertEqual(event_sha if row['branch'] == source else shas[row['branch']], row['sha'])
 
@@ -298,6 +299,150 @@ class ReleaseContracts(unittest.TestCase):
                 [{'ref': 'refs/tags/v1.3.0-beta-3'}], {'sha': 'b' * 40}]), patch.object(release.subprocess, 'run') as run:
             with self.assertRaises(ValueError): release.publish(self.output)
             run.assert_not_called()
+
+
+class ModernUIContracts(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.source = self.root / 'source'
+        self.source.mkdir()
+        self.row = {'id': '1.21.9', 'branch': '1.21.9-1.21.10', 'properties': {
+            'modernui_fork_version': '1.21.9-3.13.0.9'}}
+        self.row['modernui_host'] = release.modernui_host(self.row)
+        (self.source / 'gradle.properties').write_text('modernui_fork_version=1.21.10-3.13.0.9')
+        self.java = self.root / 'jdk21'
+        (self.java / 'bin').mkdir(parents=True)
+        (self.java / 'bin/java').touch()
+        (self.java / 'release').write_text('JAVA_VERSION="21.0.9"')
+        self.env = patch.dict(os.environ, {'JAVA_HOME_21_X64': str(self.java), 'JAVA_HOME': '/jdk25'})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+
+    def jar(self, folder, loader, *, endpoint='1.21.9', version='3.13.0.9', variant='standard', lower=None):
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f'ModernUI-{loader}-{endpoint}-3.13.0.9-universal.jar'
+        upper = {'1.21.9': '1.21.10', '1.21.10': '1.21.11', '1.21.11': '1.21.12'}[endpoint]
+        lower = lower or endpoint
+        with zipfile.ZipFile(path, 'w') as jar:
+            jar.writestr('META-INF/MANIFEST.MF', f'Manifest-Version: 1.0\nModernUI-Font-Variant: {variant}\n')
+            if loader == 'Fabric':
+                jar.writestr('fabric.mod.json', json.dumps({'id': 'modernui', 'version': version,
+                    'depends': {'minecraft': f'>={lower} <{upper}'}}))
+            else:
+                jar.writestr('META-INF/neoforge.mods.toml', f'[[mods]]\nmodId="modernui"\nversion="{version}"\n'
+                    f'[[dependencies.modernui]]\nmodId="minecraft"\nversionRange="[{lower}, {upper})"\n')
+        return path
+
+    def test_all_endpoints_use_reviewed_immutable_sources(self):
+        rows = release.load_json(Path(__file__).parent.parent / 'build-matrix.json')
+        for endpoint in ('1.21.9', '1.21.10', '1.21.11'):
+            row = next(r for r in rows if r['id'] == endpoint)
+            host = release.modernui_host(row)
+            self.assertRegex(host['sha'], r'^[0-9a-f]{40}$')
+            self.assertEqual(endpoint + '-3.13.0.9', host['revision'])
+            release.validate_row(row | {'modernui_host': host})
+            with self.assertRaisesRegex(ValueError, 'Unreviewed'):
+                release.validate_row(row | {'modernui_host': host | {'sha': 'f' * 40}})
+        nine = next(r for r in rows if r['id'] == '1.21.9')
+        self.assertEqual('1.21.9-3.13.0.9', nine['properties']['modernui_fork_version'])
+        self.assertNotIn('modernui_fabric_version', nine['properties'])
+        self.assertIsNone(release.modernui_host(next(r for r in rows if r['id'] == '26.3')))
+
+    def test_build_uses_pinned_checkout_jdk21_and_reuses_verified_jars(self):
+        calls = []
+        def execute(command, **kwargs):
+            calls.append((command, kwargs))
+            if command[:2] == ['git', 'init']:
+                Path(command[2]).mkdir()
+            if command[0] == './gradlew':
+                for loader in ('Fabric', 'NeoForge'):
+                    self.jar(kwargs['cwd'] / loader.lower() / 'build/libs', loader)
+        with patch.object(release.subprocess, 'run', side_effect=execute), \
+             patch.object(release, 'run', return_value=self.row['modernui_host']['sha']):
+            jars = release.prepare_modernui(self.source, self.row)
+            self.assertTrue(jars.is_absolute())
+            self.assertEqual(jars, release.prepare_modernui(self.source, self.row))
+        builds = [(cmd, kw) for cmd, kw in calls if cmd[0] == './gradlew']
+        self.assertEqual(1, len(builds))
+        command, kwargs = builds[0]
+        self.assertIn('-Pfont_variant=standard', command)
+        self.assertIn('--rerun-tasks', command)
+        self.assertEqual(str(self.java), kwargs['env']['JAVA_HOME'])
+        self.assertTrue(kwargs['env']['PATH'].startswith(str(self.java / 'bin') + os.pathsep))
+        self.assertEqual('/jdk25', os.environ['JAVA_HOME'])
+        fetch = next(cmd for cmd, kw in calls if cmd[:2] == ['git', 'fetch'])
+        self.assertEqual(release.MODERNUI_REPOSITORY, fetch[-2])
+        self.assertEqual(self.row['modernui_host']['sha'], fetch[-1])
+
+    def test_client_build_receives_absolute_host_directory(self):
+        row = next(r for r in release.load_json(Path(__file__).parent.parent / 'build-matrix.json') if r['id'] == '1.21.9')
+        row.update(sha='a' * 40, version='1.3.1', range='1.21.9-1.21.10', modernui_host=self.row['modernui_host'])
+        (self.source / 'gradle.properties').write_text('mod_version=1.3.1')
+        jars = self.root / 'host jars'
+        with patch.dict(os.environ, {'BUILD_ENTRY': json.dumps(row)}), \
+             patch.object(release, 'run', return_value='a' * 40), \
+             patch.object(release, 'prepare_modernui', return_value=jars), \
+             patch.object(release, 'verify_jar'), patch.object(release, 'digest', return_value='b' * 64), \
+             patch.object(release.shutil, 'copy2'), patch.object(release.subprocess, 'run') as run:
+            release.build(self.source, self.root / 'artifacts')
+        command = run.call_args.args[0]
+        self.assertIn('-PmodernuiForkDirectory=' + str(jars), command)
+        self.assertIn('-Pmodernui_fork_version=1.21.9-3.13.0.9', command)
+        self.assertNotIn('-Pmodernui_fabric_version=PSsIJDQD', command)
+
+    def test_wrong_checkout_or_incomplete_cache_is_never_reused(self):
+        host = self.row['modernui_host']
+        folder = self.root / '.modernui-hosts' / (host['revision'] + '-' + host['sha'])
+        (folder / 'source').mkdir(parents=True)
+        with patch.object(release, 'run', return_value='f' * 40):
+            with self.assertRaisesRegex(ValueError, 'checkout mismatch'):
+                release.prepare_modernui(self.source, self.row)
+        with patch.object(release, 'run', return_value=host['sha']), patch.object(release.subprocess, 'run') as run:
+            with self.assertRaisesRegex(ValueError, 'Missing or unsafe'):
+                release.prepare_modernui(self.source, self.row)
+            run.assert_not_called()
+
+    def test_wrong_dependency_or_jdk_fails_before_any_network(self):
+        for wrong in ('revision', 'jdk', 'missing_jdk'):
+            with self.subTest(wrong=wrong):
+                row = copy.deepcopy(self.row)
+                if wrong == 'revision':
+                    row['properties']['modernui_fork_version'] = '1.21.10-3.13.0.9'
+                (self.java / 'release').write_text('JAVA_VERSION="25"' if wrong == 'jdk' else 'JAVA_VERSION="21"')
+                with patch.dict(os.environ, {'JAVA_HOME_21_X64': '' if wrong == 'missing_jdk' else str(self.java)}), \
+                     patch.object(release.subprocess, 'run') as run:
+                    with self.assertRaises(ValueError):
+                        release.prepare_modernui(self.source, row)
+                    run.assert_not_called()
+
+    def test_failed_host_build_propagates_without_old_host_fallback(self):
+        def execute(command, **kwargs):
+            if command[:2] == ['git', 'init']:
+                Path(command[2]).mkdir()
+            if command[0] == './gradlew':
+                raise release.subprocess.CalledProcessError(1, command)
+        with patch.object(release.subprocess, 'run', side_effect=execute), \
+             patch.object(release, 'run', return_value=self.row['modernui_host']['sha']):
+            with self.assertRaises(release.subprocess.CalledProcessError):
+                release.prepare_modernui(self.source, self.row)
+        self.assertFalse(list(self.root.glob('.modernui-hosts/*/jars')))
+
+    def test_metadata_rejects_wrong_loader_version_range_variant_and_unsafe_paths(self):
+        for loader in ('Fabric', 'NeoForge'):
+            for endpoint in ('1.21.9', '1.21.10', '1.21.11'):
+                release.verify_modernui_jar(self.jar(self.root, loader, endpoint=endpoint), endpoint, loader)
+            for invalid in ({'version': '3.12.0'}, {'variant': 'misans'}, {'lower': '1.21.10'}):
+                with self.subTest(loader=loader, invalid=invalid), self.assertRaises(ValueError):
+                    release.verify_modernui_jar(self.jar(self.root, loader, **invalid), '1.21.9', loader)
+            missing = self.root / 'missing.jar'
+            with self.assertRaises(ValueError):
+                release.verify_modernui_jar(missing, '1.21.9', loader)
+            link = self.root / ('link-' + loader + '.jar')
+            link.symlink_to(self.jar(self.root, loader))
+            with self.assertRaises(ValueError):
+                release.verify_modernui_jar(link, '1.21.9', loader)
 
 
 if __name__ == '__main__':

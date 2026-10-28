@@ -22,6 +22,21 @@ MODULES = {'fabric', 'neoforge', 'paper', 'velocity', 'bungeecord'}
 VERSION = re.compile(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?\Z')
 SHA = re.compile(r'[0-9a-f]{40}\Z')
 
+# Independent ports are built from reviewed immutable source, never a moving branch.
+MODERNUI_REPOSITORY = 'https://github.com/MOPELotus/ModernUI-MC.git'
+MODERNUI_HOSTS = {
+    '1.21.9': '27d9e8da3cf005515f8345608077608dd9c98f0c',
+    '1.21.10': 'a52dbcb619dcd0f5bc111da4cae591a4e7fc1311',
+    '1.21.11': 'f390f2b5d353e8c64471e2297577a34d42c011b1',
+}
+
+
+def modernui_host(row):
+    if row['branch'] not in {'1.21.9-1.21.10', '1.21.11'}:
+        return None
+    require(row['id'] in MODERNUI_HOSTS, 'Unsupported ModernUI endpoint')
+    return {'sha': MODERNUI_HOSTS[row['id']], 'revision': row['id'] + '-3.13.0.9'}
+
 
 def require(condition, message):
     if not condition:
@@ -71,10 +86,12 @@ def validate_row(row):
     require(set(row['modules']) == expected, 'Incomplete loader/plugin set')
     require(isinstance(row['publish'], bool), 'publish must be boolean')
     allowed = {'minecraft_version', 'fabric_api_version', 'neoforge_version', 'fancymodloader_version',
-               'modernui_mc_version', 'modernui_fabric_version', 'modernui_neoforge_version'}
+               'modernui_mc_version', 'modernui_fabric_version', 'modernui_neoforge_version', 'modernui_fork_version'}
     require(set(row['properties']) <= allowed, 'Unrecognized build property')
     for value in row['properties'].values():
         require(isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9.+_-]+', value), 'Invalid property value')
+    if 'modernui_host' in row:
+        require(modernui_host(row) is not None and row['modernui_host'] == modernui_host(row), 'Unreviewed ModernUI source')
     if 'sha' in row:
         require(SHA.fullmatch(row['sha']) and VERSION.fullmatch(row['version']), 'Invalid revision/version')
         require(not re.search(r'-cf(?:\.[0-9]+)?$', row['version']), 'Base version must not include the distribution suffix')
@@ -144,6 +161,9 @@ def plan():
     for row in rows:
         row.update(revisions[row['branch']])
         row['distribution'] = distribution
+        host = modernui_host(row)
+        if host:
+            row['modernui_host'] = host
     validate_matrix(rows)
     version = revisions[DEFAULT_BRANCH]['version']
     tag = 'v' + version + ('-cf' if distribution == 'cf' else '')
@@ -269,6 +289,58 @@ def verify_cf_source(source, row):
             'CF source override must contain only the reviewed packaging fix and automation')
 
 
+def verify_modernui_jar(path, endpoint, loader):
+    require(path.is_file() and not path.is_symlink(), 'Missing or unsafe ModernUI artifact')
+    require(path.name == f'ModernUI-{loader}-{endpoint}-3.13.0.9-universal.jar', 'ModernUI filename mismatch')
+    upper = {'1.21.9': '1.21.10', '1.21.10': '1.21.11', '1.21.11': '1.21.12'}[endpoint]
+    with zipfile.ZipFile(path) as jar:
+        require(jar.testzip() is None, 'Corrupt ModernUI artifact')
+        manifest = jar.read('META-INF/MANIFEST.MF').decode()
+        require('ModernUI-Font-Variant: standard' in manifest.splitlines(), 'Wrong ModernUI font variant')
+        if loader == 'Fabric':
+            meta = json.loads(jar.read('fabric.mod.json'))
+            require(meta['id'] == 'modernui' and meta['version'] == '3.13.0.9', 'ModernUI metadata mismatch')
+            require(meta['depends']['minecraft'] == f'>={endpoint} <{upper}', 'ModernUI Minecraft range mismatch')
+        else:
+            meta = tomllib.loads(jar.read('META-INF/neoforge.mods.toml').decode())
+            require(any(m['modId'] == 'modernui' and m['version'] == '3.13.0.9' for m in meta['mods']),
+                    'ModernUI metadata mismatch')
+            dependencies = meta['dependencies']['modernui']
+            require(any(d['modId'] == 'minecraft' and d['versionRange'].replace(' ', '') == f'[{endpoint},{upper})'
+                        for d in dependencies), 'ModernUI Minecraft range mismatch')
+
+
+def prepare_modernui(source, row):
+    host = row['modernui_host']
+    require(host == modernui_host(row), 'Unreviewed ModernUI source')
+    props = properties((source / 'gradle.properties').read_text()) | row['properties']
+    require(props.get('modernui_fork_version') == host['revision'], 'ModernUI dependency revision mismatch')
+    java = Path(os.environ.get('JAVA_HOME_21_X64', ''))
+    require(java.is_absolute() and (java / 'bin/java').is_file() and (java / 'release').is_file() and
+            re.search(r'^JAVA_VERSION="21(?:[."])', (java / 'release').read_text(), re.M), 'JDK 21 is required for ModernUI')
+    folder = source.resolve().parent / '.modernui-hosts' / (host['revision'] + '-' + host['sha'])
+    checkout, jars = folder / 'source', folder / 'jars'
+    if not folder.exists():
+        folder.mkdir(parents=True)
+        subprocess.run(['git', 'init', str(checkout)], check=True)
+        subprocess.run(['git', 'fetch', '--depth=1', MODERNUI_REPOSITORY, host['sha']], cwd=checkout, check=True)
+        subprocess.run(['git', 'checkout', '--detach', 'FETCH_HEAD'], cwd=checkout, check=True)
+        require(run('git', 'rev-parse', 'HEAD', cwd=checkout) == host['sha'], 'ModernUI checkout mismatch')
+        env = os.environ | {'JAVA_HOME': str(java), 'PATH': str(java / 'bin') + os.pathsep + os.environ.get('PATH', '')}
+        subprocess.run(['./gradlew', 'build', '--rerun-tasks', '--no-daemon', '--no-parallel', '--max-workers=2',
+                        '-Dorg.gradle.jvmargs=-Xmx3G', '-Pfont_variant=standard'], cwd=checkout, env=env, check=True)
+        jars.mkdir()
+        for loader in ('Fabric', 'NeoForge'):
+            name = f"ModernUI-{loader}-{host['revision']}-universal.jar"
+            artifact = checkout / loader.lower() / 'build/libs' / name
+            verify_modernui_jar(artifact, row['id'], loader)
+            shutil.copy2(artifact, jars / name)
+    require(run('git', 'rev-parse', 'HEAD', cwd=checkout) == host['sha'], 'ModernUI checkout mismatch')
+    for loader in ('Fabric', 'NeoForge'):
+        verify_modernui_jar(jars / f"ModernUI-{loader}-{host['revision']}-universal.jar", row['id'], loader)
+    return jars
+
+
 def build(source, output):
     row = json.loads(os.environ['BUILD_ENTRY'])
     validate_row(row)
@@ -280,6 +352,8 @@ def build(source, output):
     command = ['./gradlew', *tasks, '--rerun-tasks', '--no-daemon', '--no-parallel', '--max-workers=2',
                '-Dorg.gradle.jvmargs=-Xmx4G', '--console=plain']
     command += [f'-P{k}={v}' for k, v in sorted(row['properties'].items())]
+    if 'modernui_host' in row:
+        command += ['-PmodernuiForkDirectory=' + str(prepare_modernui(source, row))]
     command += ['-Pdistribution=' + row.get('distribution', 'standard')]
     subprocess.run(command, cwd=source, check=True)
     output.mkdir(parents=True, exist_ok=False)

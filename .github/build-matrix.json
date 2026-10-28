@@ -68,8 +68,7 @@
       "minecraft_version": "1.21.9",
       "fabric_api_version": "0.134.1+1.21.9",
       "neoforge_version": "21.9.16-beta",
-      "modernui_fabric_version": "PSsIJDQD",
-      "modernui_neoforge_version": "TLSeGO7Q"
+      "modernui_fork_version": "1.21.9-3.13.0.9"
     },
     "publish": false
   },
