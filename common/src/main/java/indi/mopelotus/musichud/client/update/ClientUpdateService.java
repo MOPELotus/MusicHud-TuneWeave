@@ -110,7 +110,7 @@ public final class ClientUpdateService {
                 try { ClientUpdateCatalog.assetUri(tag, "catalog.json"); } catch (IllegalArgumentException ignored) { continue; }
                 ReleaseVersion target = ReleaseVersion.parse(tag.substring(1)), current = ReleaseVersion.parse(installed.version());
                 // Equal base versions can still contain a newer CF packaging revision.
-                if (target.compareTo(new ReleaseVersion(current.major(), current.minor(), current.patch(), current.pre(), 0)) < 0) continue;
+                if (target.compareTo(current.withoutCfRevision()) < 0) continue;
                 String catalogName = "client-updates-" + installed.distribution() + ".json";
                 boolean published = false;
                 for (JsonElement asset : release.getAsJsonArray("assets")) if (catalogName.equals(ClientUpdateCatalog.string(asset.getAsJsonObject(), "name"))) published = true;

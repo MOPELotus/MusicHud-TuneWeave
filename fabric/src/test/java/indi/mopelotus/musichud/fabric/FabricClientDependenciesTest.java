@@ -16,10 +16,33 @@ class FabricClientDependenciesTest {
     @Test void clientRejectsMissingOldAndMalformedVersionsBeforeUiInitialization() throws Exception {
         var required = VersionPredicate.parse(">=3.13.0.9");
         assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(true, null, required));
-        for (String version : new String[]{"3.12.0", "3.13.0.8", "not-a-version"}) {
+        for (String version : new String[]{"3.12.0", "3.12.0.5-build.4+mc1.21.10", "3.12.0.5-build.4+mc1.21.11", "3.13.0.8", "not-a-version"}) {
             assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(true, Version.parse(version), required));
         }
         FabricClientDependencies.requireModernUi(true, Version.parse("3.13.0.9"), required);
+        FabricClientDependencies.requireModernUi(true, Version.parse("3.13.0.10"), required);
+    }
+
+    @Test void oldVersionExplainsRequiredVersionAndDownloadInBothLanguages() throws Exception {
+        String installed = "3.12.0.5-build.4+mc1.21.10";
+        var error = assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(
+                true, Version.parse(installed), VersionPredicate.parse(">=3.13.0.9")));
+        String message = error.getMessage();
+        assertTrue(message.contains("ModernUI 版本过低"));
+        assertTrue(message.contains("ModernUI version is too old"));
+        assertTrue(message.contains("需要 / Required: ModernUI >=3.13.0.9"));
+        assertTrue(message.contains("当前安装 / Installed: " + installed));
+        assertTrue(message.contains("请使用适配当前 Minecraft 版本的新版 ModernUI"));
+        assertTrue(message.contains("Please use an updated ModernUI build for your Minecraft version."));
+        assertTrue(message.contains("https://github.com/MOPELotus/ModernUI-MC/releases"));
+    }
+
+    @Test void missingHostIsDistinguishedFromAnOldVersion() throws Exception {
+        var error = assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(
+                true, null, VersionPredicate.parse(">=3.13.0.9")));
+        assertTrue(error.getMessage().contains("未安装 ModernUI / ModernUI is missing"));
+        assertTrue(error.getMessage().contains("当前安装 / Installed: 未安装 / missing"));
+        assertTrue(error.getMessage().contains("https://github.com/MOPELotus/ModernUI-MC/releases"));
     }
 
     @Test void packagedMetadataKeepsUiRequirementClientOnly() throws Exception {

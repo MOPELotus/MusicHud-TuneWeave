@@ -36,12 +36,11 @@ public final class ClientUpdateCatalog {
         return URI.create("https://github.com/" + REPOSITORY + "/releases/tag/" + encode(tag));
     }
     private static void validateTag(String tag) {
-        if (tag == null || !tag.matches("v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?")) throw new IllegalArgumentException("Invalid tag");
+        if (tag == null || !tag.matches("v[0-9]+\\.[0-9]+\\.[0-9]+(?:\\.[0-9]+)?(?:-[A-Za-z0-9.-]+)?")) throw new IllegalArgumentException("Invalid tag");
         ReleaseVersion.parse(tag.substring(1));
     }
     public static URI assetUri(String tag, String file) {
-        if (!tag.matches("v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?")) throw new IllegalArgumentException("Invalid tag");
-        ReleaseVersion.parse(tag.substring(1));
+        validateTag(tag);
         if (!file.matches("[A-Za-z0-9_.+-]{1,180}")) throw new IllegalArgumentException("Invalid asset name");
         return URI.create("https://github.com/" + REPOSITORY + "/releases/download/" + encode(tag) + "/" + encode(file));
     }
