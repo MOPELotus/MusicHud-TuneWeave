@@ -133,6 +133,94 @@ class VirtualizedListLayoutTest {
         assertTrue(list.getChildCount() < 30, "the settled viewport remains virtualized");
     }
 
+    @Test void nonzeroIntrinsicWidthProbesKeepFinalViewportImageBindings() {
+        var adapter = new Rows(); adapter.wrapAtNarrowWidth = true;
+        var list = new TestList(adapter); list.updateWindow(0, 200);
+        list.resetItems(IntStream.range(0, 1000).mapToObj(i -> new Row(i, 20)).toList());
+        measure(list);
+        var visible = IntStream.range(0, list.getChildCount()).mapToObj(list::getChildAt).toList();
+        int cleared = adapter.cleared;
+        for (int pass = 0; pass < 5; pass++) {
+            // Weighted ancestor baseline/intrinsic measurement can reach the list as
+            // a nonzero EXACT width, followed by its wider final weighted allocation.
+            list.measure(MeasureSpec.makeMeasureSpec(100, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            measure(list);
+        }
+        assertEquals(cleared, adapter.cleared,
+                "temporary narrow probes must not clear/rebind the final visible image rows");
+        assertTrue(visible.stream().allMatch(view -> view.getParent() == list));
+        assertTrue(list.getChildCount() < 30, "preserving probe bindings must remain virtualized");
+    }
+
+    @Test void settledNarrowResizeStillRecyclesRowsOutsideTheFinalWindow() {
+        var adapter = new Rows(); adapter.wrapAtNarrowWidth = true;
+        var list = new TestList(adapter); list.updateWindow(0, 200);
+        list.resetItems(IntStream.range(0, 1000).mapToObj(i -> new Row(i, 20)).toList());
+        measure(list);
+        int cleared = adapter.cleared;
+        list.measure(MeasureSpec.makeMeasureSpec(100, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+        list.layout(0, 0, 100, list.getMeasuredHeight());
+        assertTrue(adapter.cleared > cleared, "a committed resize must prune the retained probe union");
+        long bound = IntStream.range(0, list.getChildCount()).mapToObj(i -> (Cell) list.getChildAt(i))
+                .filter(cell -> cell.row != null).count();
+        assertTrue(bound < 10, "narrow final rows must not accumulate outside the viewport");
+        list.updateWindow(10000, 200);
+        measure(list);
+        assertTrue(list.getChildCount() < 30, "scrolling must continue to recycle a bounded window");
+    }
+
+    @Test void repeatedCommittedResizesAndLateDetachKeepOnlyTheActiveWindow() {
+        var adapter = new Rows(); adapter.wrapAtNarrowWidth = true;
+        var list = new TestList(adapter); list.updateWindow(0, 200);
+        list.resetItems(IntStream.range(0, 1000).mapToObj(i -> new Row(i, 20)).toList());
+        measure(list);
+        for (int width : new int[]{100, 500, 120, 700, 100, 300}) {
+            list.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            list.layout(0, 0, width, list.getMeasuredHeight());
+            var bound = IntStream.range(0, list.getChildCount()).mapToObj(i -> (Cell) list.getChildAt(i))
+                    .filter(cell -> cell.row != null).toList();
+            assertTrue(bound.size() <= 12, "committed resize must bound the active window");
+            assertTrue(bound.stream().mapToInt(Cell::getBottom).max().orElse(0) >= 200,
+                    "widening must refill the entire viewport before another scroll event");
+        }
+        list.measure(MeasureSpec.makeMeasureSpec(100, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+        list.layout(0, 0, 100, list.getMeasuredHeight());
+        // Removal is posted: detach must flush it even if that post never ran.
+        list.detach();
+        assertTrue(IntStream.range(0, list.getChildCount()).mapToObj(i -> (Cell) list.getChildAt(i))
+                .allMatch(cell -> cell.row != null), "late detached recycle must not retain cleared children");
+        assertTrue(list.getChildCount() < 10);
+        measure(list);
+        assertTrue(list.getChildCount() < 30, "reattaching/reusing the settled rows stays bounded");
+    }
+
+    @Test void finalLayoutDoesNotRecycleARowOwnedByAnAnimation() throws Exception {
+        var adapter = new Rows(); adapter.wrapAtNarrowWidth = true;
+        var list = new TestList(adapter); list.updateWindow(0, 200);
+        list.resetItems(IntStream.range(0, 1000).mapToObj(i -> new Row(i, 20)).toList());
+        measure(list);
+        Cell retained = IntStream.range(0, list.getChildCount()).mapToObj(i -> (Cell) list.getChildAt(i))
+                .max(java.util.Comparator.comparingLong(cell -> cell.row.id())).orElseThrow();
+        retained.getLayoutParams().height = retained.getMeasuredHeight();
+        var field = VirtualizedListLayout.class.getDeclaredField("runningAnimations"); field.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        var animations = (java.util.Map<Long, icyllis.modernui.animation.AnimatorSet>) field.get(list);
+        animations.put(retained.row.id(), new icyllis.modernui.animation.AnimatorSet());
+        list.measure(MeasureSpec.makeMeasureSpec(100, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+        list.layout(0, 0, 100, list.getMeasuredHeight());
+        assertNotNull(retained.row, "final-window pruning must preserve an animation's owned row");
+        assertSame(list, retained.getParent());
+        // This ownership fixture was never started on a Looper; normal detach is
+        // exercised separately after removing the stand-in animation owner.
+        animations.clear();
+        list.detach();
+    }
+
     private static void measure(View view) {
         view.measure(MeasureSpec.makeMeasureSpec(300, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
@@ -143,16 +231,21 @@ class VirtualizedListLayoutTest {
     private final class Cell extends View {
         Row row;
         final boolean wrapAtZeroWidth;
-        Cell(boolean wrapAtZeroWidth) { super(context); this.wrapAtZeroWidth = wrapAtZeroWidth; }
+        final boolean wrapAtNarrowWidth;
+        Cell(boolean wrapAtZeroWidth, boolean wrapAtNarrowWidth) {
+            super(context); this.wrapAtZeroWidth = wrapAtZeroWidth; this.wrapAtNarrowWidth = wrapAtNarrowWidth;
+        }
         @Override protected void onMeasure(int width, int height) {
-            setMeasuredDimension(MeasureSpec.getSize(width), resolveSize(row == null ? 0 : row.height() * (wrapAtZeroWidth && MeasureSpec.getSize(width) == 0 ? 2 : 1), height));
+            setMeasuredDimension(MeasureSpec.getSize(width), resolveSize(row == null ? 0 : row.height() * ((wrapAtZeroWidth && MeasureSpec.getSize(width) == 0)
+                    || (wrapAtNarrowWidth && MeasureSpec.getSize(width) < 200) ? 2 : 1), height));
         }
     }
     private final class Rows implements VirtualizedListLayout.Adapter<Row, Cell> {
         int created, cleared;
         boolean wrapAtZeroWidth;
+        boolean wrapAtNarrowWidth;
         public long idOf(Row row) { return row.id(); }
-        public Cell createItem(ViewGroup parent) { created++; return new Cell(wrapAtZeroWidth); }
+        public Cell createItem(ViewGroup parent) { created++; return new Cell(wrapAtZeroWidth, wrapAtNarrowWidth); }
         public void clearItem(Cell view) { cleared++; view.row = null; view.requestLayout(); }
         public void bindItem(Cell view, Row row) { view.row = row; view.requestLayout(); }
         public long boundIdOf(Cell view) { return view.row == null ? -1 : view.row.id(); }
