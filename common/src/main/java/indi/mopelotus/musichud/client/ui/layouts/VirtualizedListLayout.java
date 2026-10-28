@@ -178,7 +178,9 @@ public class VirtualizedListLayout<T, V extends View> extends FrameLayout {
 
     private void rebuildWindow() { rebuildWindow(true); }
 
-    private void rebuildWindow(boolean requestMeasure) {
+    private void rebuildWindow(boolean requestMeasure) { rebuildWindow(requestMeasure, true); }
+
+    private void rebuildWindow(boolean requestMeasure, boolean recycleOutsideWindow) {
         List<Long> ids = layoutIds();
         int buffer = defaultItemHeight * 2;
         int top = scrollY - buffer;
@@ -210,7 +212,8 @@ public class VirtualizedListLayout<T, V extends View> extends FrameLayout {
         }
         for (var it = activeViews.entrySet().iterator(); it.hasNext(); ) {
             var entry = it.next();
-            if (!needed.contains(entry.getKey()) && !runningAnimations.containsKey(entry.getKey())) {
+            if (recycleOutsideWindow && !needed.contains(entry.getKey())
+                    && !runningAnimations.containsKey(entry.getKey())) {
                 recycleView(entry.getValue());
                 it.remove();
             }
@@ -481,7 +484,10 @@ public class VirtualizedListLayout<T, V extends View> extends FrameLayout {
                 }
             }
             Set<Long> measuredIds = Set.copyOf(activeViews.keySet());
-            rebuildWindow(false);
+            // A weighted ancestor can measure us at a nonzero intrinsic width and then
+            // at the final width. Keep existing bindings through all those probes: a
+            // temporarily taller row must not cancel an image that is visible at layout.
+            rebuildWindow(false, false);
             if (measuredIds.equals(activeViews.keySet())) break;
             if (pass == 7) {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec);
@@ -497,6 +503,9 @@ public class VirtualizedListLayout<T, V extends View> extends FrameLayout {
 
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
+        // Layout follows the final measure. Prune the union retained during probes now,
+        // so real viewport shrink/resize still recycles rows and keeps the list bounded.
+        rebuildWindow(false);
         if (needsWindowRemeasure) {
             needsWindowRemeasure = false;
             removeCallbacks(remeasureRunnable);
