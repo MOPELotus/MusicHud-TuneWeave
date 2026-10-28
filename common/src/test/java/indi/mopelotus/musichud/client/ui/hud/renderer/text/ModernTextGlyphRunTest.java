@@ -1,7 +1,7 @@
 package indi.mopelotus.musichud.client.ui.hud.renderer.text;
 
 import icyllis.modernui.mc.text.CharacterStyle;
-import icyllis.modernui.mc.text.GLBakedGlyph;
+import icyllis.modernui.mc.text.ModernBakedGlyph;
 import icyllis.modernui.mc.text.GlyphManager;
 import org.junit.jupiter.api.Test;
 
@@ -9,19 +9,19 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ModernTextGlyphRunTest {
     @Test void spacesUnavailableGlyphsAndEmptyObfuscatedSetsCannotOpenABatch() {
-        GLBakedGlyph unavailable = glyph();
+        ModernBakedGlyph unavailable = glyph();
         unavailable.x = Integer.MIN_VALUE;
-        GLBakedGlyph[] selected = ModernTextGeometry.selectDrawableGlyphs(
-                new GLBakedGlyph[]{null, unavailable, new GlyphManager.FastCharSet()},
+        ModernBakedGlyph[] selected = ModernTextGeometry.selectDrawableGlyphs(
+                new ModernBakedGlyph[]{null, unavailable, new GlyphManager.FastCharSet()},
                 new int[]{0, 0, CharacterStyle.OBFUSCATED_MASK});
-        assertArrayEquals(new GLBakedGlyph[]{null, null, null}, selected);
+        assertArrayEquals(new ModernBakedGlyph[]{null, null, null}, selected);
         assertFalse(ModernTextGeometry.hasDrawableGlyph(selected, 0, selected.length));
     }
 
     @Test void fontAndEmojiBoundariesDoNotTurnAWhitespaceOnlySubrunIntoAnElement() {
-        GLBakedGlyph outline = glyph(), emoji = glyph();
-        GLBakedGlyph[] selected = ModernTextGeometry.selectDrawableGlyphs(
-                new GLBakedGlyph[]{outline, null, emoji, null}, new int[4]);
+        ModernBakedGlyph outline = glyph(), emoji = glyph();
+        ModernBakedGlyph[] selected = ModernTextGeometry.selectDrawableGlyphs(
+                new ModernBakedGlyph[]{outline, null, emoji, null}, new int[4]);
         assertTrue(ModernTextGeometry.hasDrawableGlyph(selected, 0, 1));
         assertFalse(ModernTextGeometry.hasDrawableGlyph(selected, 1, 2));
         assertTrue(ModernTextGeometry.hasDrawableGlyph(selected, 2, 3));
@@ -31,11 +31,11 @@ class ModernTextGlyphRunTest {
     }
 
     @Test void selectionRetainsPositionsAndChoosesObfuscatedGlyphOnlyOnceForThisSubmission() {
-        GLBakedGlyph drawable = glyph();
+        ModernBakedGlyph drawable = glyph();
         var choices = new GlyphManager.FastCharSet();
         choices.glyphs.add(drawable);
-        GLBakedGlyph[] baked = {null, choices, null};
-        GLBakedGlyph[] selected = ModernTextGeometry.selectDrawableGlyphs(baked,
+        ModernBakedGlyph[] baked = {null, choices, null};
+        ModernBakedGlyph[] selected = ModernTextGeometry.selectDrawableGlyphs(baked,
                 new int[]{0, CharacterStyle.OBFUSCATED_MASK, 0});
         choices.glyphs.clear();
         baked[1] = null;
@@ -48,8 +48,8 @@ class ModernTextGlyphRunTest {
         assertEquals(.25f, selected[1].u1);
     }
 
-    private static GLBakedGlyph glyph() {
-        GLBakedGlyph glyph = new GLBakedGlyph();
+    private static ModernBakedGlyph glyph() {
+        ModernBakedGlyph glyph = new ModernBakedGlyph();
         glyph.x = 0;
         glyph.width = 8;
         glyph.height = 8;

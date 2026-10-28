@@ -9,7 +9,7 @@ import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import icyllis.modernui.mc.text.BitmapFont;
 import icyllis.modernui.mc.text.CharacterStyle;
-import icyllis.modernui.mc.text.GLBakedGlyph;
+import icyllis.modernui.mc.text.ModernBakedGlyph;
 import icyllis.modernui.mc.text.GlyphManager;
 import icyllis.modernui.mc.text.ModernTextRenderer;
 import icyllis.modernui.mc.text.TextLayout;
@@ -54,7 +54,7 @@ public final class ModernTextGeometry {
      * cached text and evicted by the engine's LRU cache, so weak keys follow the same lifetime
      * as the engine's own baked glyph caches. Only accessed on the render thread.
      */
-    private static final Map<TextLayout, Map<Integer, GLBakedGlyph[]>> GLYPH_CACHE = new WeakHashMap<>();
+    private static final Map<TextLayout, Map<Integer, ModernBakedGlyph[]>> GLYPH_CACHE = new WeakHashMap<>();
 
     /** Frame-owned references must not survive font resource reloads. */
     public static void endFrame() {
@@ -101,7 +101,7 @@ public final class ModernTextGeometry {
         // written in that pass would no longer match the atlas texture bound for the draw
         // (visible as corrupted, diagonally clipped or entirely missing glyphs).
         int[] flags = layout.getGlyphFlags();
-        GLBakedGlyph[] glyphs = selectDrawableGlyphs(bakedGlyphs(layout, fontSize), flags);
+        ModernBakedGlyph[] glyphs = selectDrawableGlyphs(bakedGlyphs(layout, fontSize), flags);
         List<GradientTextRenderState> states = new ArrayList<>();
         int start = 0;
         RunKey currentKey = null;
@@ -125,10 +125,10 @@ public final class ModernTextGeometry {
         return states;
     }
 
-    static GLBakedGlyph[] selectDrawableGlyphs(GLBakedGlyph[] baked, int[] flags) {
-        GLBakedGlyph[] selected = new GLBakedGlyph[baked.length];
+    static ModernBakedGlyph[] selectDrawableGlyphs(ModernBakedGlyph[] baked, int[] flags) {
+        ModernBakedGlyph[] selected = new ModernBakedGlyph[baked.length];
         for (int i = 0; i < baked.length; i++) {
-            GLBakedGlyph glyph = baked[i];
+            ModernBakedGlyph glyph = baked[i];
             if (glyph != null && (flags[i] & CharacterStyle.OBFUSCATED_MASK) != 0) {
                 var choices = ((GlyphManager.FastCharSet) glyph).glyphs;
                 glyph = choices.isEmpty() ? null : choices.get(OBFUSCATED_RANDOM.nextInt(choices.size()));
@@ -138,7 +138,7 @@ public final class ModernTextGeometry {
         return selected;
     }
 
-    static boolean hasDrawableGlyph(GLBakedGlyph[] glyphs, int start, int end) {
+    static boolean hasDrawableGlyph(ModernBakedGlyph[] glyphs, int start, int end) {
         for (int i = start; i < end; i++) {
             if (glyphs[i] != null && glyphs[i].x != Integer.MIN_VALUE) return true;
         }
@@ -272,14 +272,14 @@ public final class ModernTextGeometry {
      * Bakes (once per layout and font size) every glyph of the layout, exactly like
      * {@code TextLayout.prepareGlyphs}: obfuscated code points bake to their fast char set.
      */
-    private static GLBakedGlyph[] bakedGlyphs(TextLayout layout, int fontSize) {
+    private static ModernBakedGlyph[] bakedGlyphs(TextLayout layout, int fontSize) {
         return GLYPH_CACHE
                 .computeIfAbsent(layout, k -> new HashMap<>())
                 .computeIfAbsent(fontSize, size -> {
                     int[] glyphIds = layout.getGlyphs();
                     int[] flags = layout.getGlyphFlags();
                     GlyphManager manager = GlyphManager.getInstance();
-                    GLBakedGlyph[] glyphs = new GLBakedGlyph[glyphIds.length];
+                    ModernBakedGlyph[] glyphs = new ModernBakedGlyph[glyphIds.length];
                     for (int i = 0; i < glyphs.length; i++) {
                         glyphs[i] = (flags[i] & CharacterStyle.OBFUSCATED_MASK) != 0
                                 ? manager.lookupFastChars(layout.getFont(i), size, glyphIds[i])
@@ -291,7 +291,7 @@ public final class ModernTextGeometry {
 
     private static final class ModernTextRun implements GradientTextRun {
         private final TextLayout layout;
-        private final GLBakedGlyph[] glyphs;
+        private final ModernBakedGlyph[] glyphs;
         private final int start;
         private final int end;
         private final float density;
@@ -307,7 +307,7 @@ public final class ModernTextGeometry {
         private final float originY;
         private final float totalAdvance;
 
-        ModernTextRun(TextLayout layout, GLBakedGlyph[] glyphs, int start, int end, float density, float invDensity,
+        ModernTextRun(TextLayout layout, ModernBakedGlyph[] glyphs, int start, int end, float density, float invDensity,
                       boolean directMask, RenderPipeline pipeline, TextureKind kind,
                       @Nullable BitmapFont bitmapFont, boolean isColorEmoji, GpuSampler sampler,
                       float originX, float originY, float totalAdvance) {
@@ -336,11 +336,11 @@ public final class ModernTextGeometry {
         @Override
         public GpuTextureView texture() {
             GlyphManager manager = GlyphManager.getInstance();
-            return switch (kind) {
+            return (switch (kind) {
                 case FONT -> manager.getFontTexture();
                 case EMOJI -> manager.getEmojiTexture();
                 case BITMAP -> manager.getCurrentTexture(bitmapFont);
-            };
+            }).getTextureView();
         }
 
         @Override
@@ -353,7 +353,7 @@ public final class ModernTextGeometry {
             float[] positions = layout.getPositions();
             int[] flags = layout.getGlyphFlags();
             for (int i = start; i < end; i++) {
-                GLBakedGlyph glyph = glyphs[i];
+                ModernBakedGlyph glyph = glyphs[i];
                 if (glyph == null || glyph.x == Integer.MIN_VALUE) {
                     continue;
                 }

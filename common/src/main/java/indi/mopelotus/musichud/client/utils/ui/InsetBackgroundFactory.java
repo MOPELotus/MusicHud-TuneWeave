@@ -2,6 +2,7 @@ package indi.mopelotus.musichud.client.utils.ui;
 
 import icyllis.modernui.animation.ObjectAnimator;
 import icyllis.modernui.animation.StateListAnimator;
+import icyllis.modernui.graphics.Color;
 import icyllis.modernui.graphics.drawable.InsetDrawable;
 import icyllis.modernui.graphics.drawable.RippleDrawable;
 import icyllis.modernui.graphics.drawable.ShapeDrawable;
@@ -51,17 +52,17 @@ public class InsetBackgroundFactory {
 
             @Override
             public Integer get(View target) {
-                return background.getColor().getDefaultColor();
+                return Color.toArgb(background.getColor().getDefaultColor());
             }
         };
         StateListAnimator stateListAnimator = new StateListAnimator();
         //noinspection UnstableApiUsage
         int[][] states = backgroundColor.getStates();
         //noinspection UnstableApiUsage
-        int[] colors = backgroundColor.getColors();
+        long[] colors = backgroundColor.getColors();
         for (int i = 0; i < states.length; i++) {
             ObjectAnimator animator = ObjectAnimator.ofArgb(null, colorProperty,
-                            colors[i])
+                            Color.toArgb(colors[i]))
                     .setDuration(transitionDuration);
             stateListAnimator.addState(states[i], animator);
         }

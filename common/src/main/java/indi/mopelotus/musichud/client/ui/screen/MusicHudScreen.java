@@ -216,8 +216,6 @@ public class MusicHudScreen extends Screen implements MuiScreen {
         if (getFocused() != null && getFocused().charTyped(event)) {
             return true;
         }
-        boolean handled = false;
-        for (char character : Character.toChars(event.codepoint())) handled |= mHost.onCharTyped(character);
-        return handled;
+        return mHost.onCharTyped(event.codepoint());
     }
 }

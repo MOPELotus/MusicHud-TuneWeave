@@ -96,7 +96,7 @@ final class EmojiImages implements AutoCloseable {
         byte[] bytes = stream.readNBytes(MAX_PNG_BYTES + 1);
         if (bytes.length > MAX_PNG_BYTES) throw new java.io.IOException("Emoji PNG exceeds 1 MiB");
         var options = new BitmapFactory.Options();
-        BitmapFactory.decodeStreamInfo(new java.io.ByteArrayInputStream(bytes), options);
+        BitmapFactory.decodeByteArrayInfo(bytes, 0, bytes.length, options);
         if (options.outWidth != GlyphManager.EMOJI_SIZE || options.outHeight != GlyphManager.EMOJI_SIZE) {
             throw new IllegalArgumentException("Expected a " + GlyphManager.EMOJI_SIZE + "px emoji image");
         }

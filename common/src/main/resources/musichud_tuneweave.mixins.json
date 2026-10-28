@@ -10,7 +10,6 @@
     "ModernUiEmojiCanvasMixin",
     "ModernUiEmojiResourcesMixin",
     "ModernUiEmojiTextLineMixin",
-    "ModernUiEmojiTextUtilsMixin",
     "ModernUiGlTextureLifecycleMixin",
     "GuiRendererHudMixin",
     "GuiFrameHudMixin",

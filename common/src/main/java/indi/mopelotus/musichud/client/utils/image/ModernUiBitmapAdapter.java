@@ -5,7 +5,7 @@ import icyllis.modernui.graphics.BitmapFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
-/** The Modern UI 3.12 API copies a bounded region instead of exposing subImage. */
+/** Copies a bounded bitmap region without sharing the source storage. */
 public final class ModernUiBitmapAdapter {
     private ModernUiBitmapAdapter() {}
 

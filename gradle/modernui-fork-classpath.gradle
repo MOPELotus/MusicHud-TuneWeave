@@ -1,0 +1,83 @@
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import java.util.zip.ZipFile
+
+// Keep the original dependency graph: only remove its duplicate artifact files.
+// Fabric supplies arc3d-compiler as a nested JAR, so ordinary compile/test JVMs
+// still need the separately resolved compiler. NeoForge supplies it at the root.
+def bundledArcModules = [
+        'modernui-core', 'arc3d-core', 'arc3d-sketch', 'arc3d-engine',
+        'arc3d-granite', 'arc3d-opengl', 'arc3d-vulkan'
+] as Set
+if (project.name != 'fabric') bundledArcModules.add('arc3d-compiler')
+
+def suppliedByFork = { id ->
+    id instanceof ModuleComponentIdentifier && (
+            (id.group == 'dev.icyllis' && bundledArcModules.contains(id.module)) ||
+            (id.group == 'icyllis.modernui' && id.module == 'ModernUI-Markflow'))
+}
+def standaloneArtifacts = { String configurationName ->
+    configurations.getByName(configurationName).incoming.artifactView {
+        componentFilter(suppliedByFork)
+    }.files
+}
+
+sourceSets.configureEach { sourceSet ->
+    sourceSet.compileClasspath = sourceSet.compileClasspath.minus(
+            standaloneArtifacts(sourceSet.compileClasspathConfigurationName))
+    sourceSet.runtimeClasspath = sourceSet.runtimeClasspath.minus(
+            standaloneArtifacts(sourceSet.runtimeClasspathConfigurationName))
+    tasks.named(sourceSet.compileJavaTaskName, JavaCompile).configure {
+        classpath = sourceSet.compileClasspath
+    }
+}
+tasks.named('test', Test).configure { classpath = sourceSets.test.runtimeClasspath }
+
+// Keep dev launcher libraries and outputs, subtracting only duplicate host files.
+// Loom/ModDev can add other launch-time classpath entries; do not replace those.
+tasks.withType(JavaExec).configureEach {
+    doFirst {
+        classpath = classpath.minus(standaloneArtifacts('runtimeClasspath'))
+    }
+}
+
+def verifyFork = tasks.register('verifyModernUiForkClasspath') {
+    group = 'verification'
+    description = 'Require one actual provider of each ModernUI/Arc3D class on all Java source-set classpaths.'
+    // Preserve producers (including common/shadow JARs) before opening classpath archives.
+    // Without declared inputs, --rerun-tasks may inspect a JAR while its producer rewrites it.
+    inputs.files(sourceSets.collectMany { [it.compileClasspath, it.runtimeClasspath] })
+    doLast {
+        sourceSets.each { sourceSet ->
+            [compile: sourceSet.compileClasspath, runtime: sourceSet.runtimeClasspath].each { kind, cp ->
+                def providers = [:].withDefault { [] }
+                cp.files.findAll { it.isFile() && it.name.endsWith('.jar') }.each { jar ->
+                    new ZipFile(jar).withCloseable { zip ->
+                        zip.entries().each { entry ->
+                            if (entry.name.endsWith('.class') &&
+                                    (entry.name.startsWith('icyllis/modernui/') ||
+                                            entry.name.startsWith('icyllis/arc3d/'))) {
+                                providers[entry.name].add(jar)
+                            }
+                        }
+                    }
+                }
+                def duplicates = providers.findAll { name, jars -> jars.size() > 1 }
+                if (!duplicates.isEmpty()) {
+                    throw new GradleException("Duplicate ModernUI/Arc3D classes in ${project.path}:${sourceSet.name} ${kind}: " +
+                            duplicates.take(8).collect { name, jars -> "${name}: ${jars*.name}" })
+                }
+                ['icyllis/modernui/core/Core.class', 'icyllis/arc3d/opengl/GLTexture.class',
+                 'icyllis/modernui/markflow/Markflow.class', 'icyllis/modernui/mc/UIManager.class'].each { name ->
+                    def jars = providers[name]
+                    if (jars.size() != 1 || !jars[0].name.startsWith('ModernUI-')) {
+                        throw new GradleException("Expected independent universal fork to supply ${name} in " +
+                                "${project.path}:${sourceSet.name} ${kind}, found ${jars*.name}")
+                    }
+                }
+                logger.lifecycle("${project.path}:${sourceSet.name} ${kind}: ${providers.size()} ModernUI/Arc3D classes, one provider each")
+            }
+        }
+    }
+}
+tasks.named('test').configure { dependsOn verifyFork }
+tasks.named('check').configure { dependsOn verifyFork }

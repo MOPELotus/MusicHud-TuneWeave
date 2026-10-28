@@ -81,8 +81,8 @@ dependencies {
 
     modImplementation "maven.modrinth:modmenu:$rootProject.modmenu_version"
 
-    modCompileOnly "maven.modrinth:modernui-mc-mvus:$rootProject.modernui_fabric_version"
-    implementation("icyllis.modernui:ModernUI-Core:$rootProject.modernui_version") {
+    modImplementation "io.github.mopelotus.modernui:ModernUI-Fabric:$rootProject.modernui_fork_version@jar"
+    implementation("dev.icyllis:modernui-core:$rootProject.modernui_version") {
         exclude group: "org.slf4j", module: "slf4j-api"
         exclude group: "org.apache.logging.log4j", module: "log4j-core"
         exclude group: "org.apache.logging.log4j", module: "log4j-api"
@@ -233,3 +233,5 @@ apply from: rootProject.file('gradle/verify-shaded-webp.gradle')
 apply from: rootProject.file('gradle/verify-shaded-svg.gradle')
 
 apply from: rootProject.file('gradle/verify-shaded-qr.gradle')
+
+apply from: rootProject.file('gradle/modernui-fork-classpath.gradle')

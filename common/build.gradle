@@ -102,11 +102,9 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter:$rootProject.junit_version"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 
-    api "icyllis.modernui:ModernUI-Core:$rootProject.modernui_version"
+    api "dev.icyllis:modernui-core:$rootProject.modernui_version"
     api "icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version"
-    compileOnly "maven.modrinth:modernui-mc-mvus:$rootProject.modernui_neoforge_version"
-    // Exercise the actual baked-glyph types without initializing a renderer; never shipped.
-    testImplementation "maven.modrinth:modernui-mc-mvus:$rootProject.modernui_neoforge_version"
+    implementation "io.github.mopelotus.modernui:ModernUI-NeoForge:$rootProject.modernui_fork_version@jar"
 
     implementation project(path: ':metadata', configuration: 'shadowRuntimeElements')
     implementation project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')
@@ -176,3 +174,5 @@ publishing {
 
 // Independent metadata and codec qualification are part of the client suite.
 tasks.named('test') { dependsOn ':metadata:test', ':audio-codecs:test', ':audio-containers:test' }
+
+apply from: rootProject.file('gradle/modernui-fork-classpath.gradle')
