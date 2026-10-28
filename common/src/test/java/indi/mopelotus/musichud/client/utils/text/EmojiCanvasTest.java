@@ -206,11 +206,9 @@ public final class EmojiCanvasTest {
             var canvas = new EmojiAwareCanvas(nativeCanvas, images);
             var textPaint = new Paint();
             textPaint.setColor(0x607f0022);
-            textPaint.setTextSize(17);
-            textPaint.setLinearText(false);
             textPaint.setShader(new LinearGradient(0, 0, 20, 0, 0x3bff0000, 0xff0000ff,
                     Shader.TileMode.CLAMP, null));
-            int originalColor = textPaint.getColor();
+            long originalColor = textPaint.getColorLong();
             var fontPaint = paint(font, false);
             var shaped = shape("🎵👩‍🎤❤️", fontPaint);
             check(shaped.getGlyphCount() == 3, "ZWJ and VS remain one shaped glyph each");
@@ -235,7 +233,7 @@ public final class EmojiCanvasTest {
             near(first[2] - first[0], 20, "rounded font image size");
             near(first[4], textPaint.getAlphaF(), "text opacity reaches color image");
             check(first[5] == 1, "DST_IN uses original gradient alpha as source and color PNG as destination");
-            check(textPaint.getColor() == originalColor && textPaint.hasShader(), "caller paint unchanged");
+            check(textPaint.getColorLong() == originalColor && textPaint.hasShader(), "caller paint unchanged");
             check(canvas.getMatrix().equals(before) && canvas.getSaveCount() == saveCount,
                     "drawing preserves active transform, clip and save stack");
             check(nativeCanvas.transforms.getFirst().equals(before), "image uses widget transform");
@@ -245,38 +243,34 @@ public final class EmojiCanvasTest {
             canvas.restore();
 
             nativeCanvas.reset();
-            canvas.drawShapedText(shape("A🎵B👩‍🎤C", fontPaint), 10, 40, textPaint);
-            check(nativeCanvas.images.size() == 2 && nativeCanvas.blobs == 1, "mixed ShapedText native once and emoji once");
+            canvas.drawTextRun("A🎵B👩‍🎤C", 0, 10, 0, 10, 10, 40, false, textPaint, fontPaint);
+            check(nativeCanvas.images.size() == 2 && nativeCanvas.blobs == 1, "mixed CharSequence native once and emoji once");
             nativeCanvas.reset();
             String context = "x🎵👩‍🎤y";
-            canvas.drawShapedText(new ShapedText(context.toCharArray(), 0, context.length(),
-                    1, context.length() - 1, ShapedText.BIDI_LTR, fontPaint), 10, 40, textPaint);
+            canvas.drawTextRun(context, 1, context.length() - 1, 0, context.length(), 10, 40, false, textPaint, fontPaint);
             check(nativeCanvas.images.size() == 2 && nativeCanvas.blobs == 0, "context range respects offsets without duplicate pass");
             nativeCanvas.reset();
             char[] chars = "abc".toCharArray();
-            canvas.drawShapedText(new ShapedText(chars, 0, chars.length, 0, chars.length,
-                    ShapedText.BIDI_LTR, fontPaint), 0, 40, textPaint);
+            canvas.drawTextRun(chars, 0, chars.length, 0, chars.length, 0, 40, false, textPaint, fontPaint);
             check(nativeCanvas.images.isEmpty() && nativeCanvas.blobs == 1, "outline-only text unchanged");
             nativeCanvas.reset();
-            textPaint.setLinearText(true);
             canvas.drawGlyphs(new int[]{99, 1, 3}, 1, new float[]{99, 99, 5, 2, 40, 3}, 2, 2,
-                    font, 10, 40, textPaint);
+                    font, 10, 40, textPaint, paint(font, true));
             check(nativeCanvas.images.size() == 2, "direct glyph offsets/count honored");
             first = nativeCanvas.images.getFirst();
             near(first[0], 15, "glyph position offset");
             near(first[1], 42 - 14.875f, "linear baseline");
             near(first[2] - first[0], 19.125f, "linear font size");
             nativeCanvas.reset();
-            canvas.drawGlyphs(new int[]{0}, 0, new float[]{0, 0}, 0, 1, font, 0, 0, textPaint);
-            canvas.drawGlyphs(new int[0], 0, new float[0], 0, 0, font, 0, 0, textPaint);
+            canvas.drawGlyphs(new int[]{0}, 0, new float[]{0, 0}, 0, 1, font, 0, 0, textPaint, fontPaint);
+            canvas.drawGlyphs(new int[0], 0, new float[0], 0, 0, font, 0, 0, textPaint, fontPaint);
             check(nativeCanvas.images.isEmpty(), "zero glyphs do not draw or load resources");
-            assertThrows(IndexOutOfBoundsException.class, () -> new ShapedText("abc".toCharArray(),
-                    0, 3, 0, 4, ShapedText.BIDI_LTR, fontPaint));
+            assertThrows(IndexOutOfBoundsException.class, () -> canvas.drawTextRun("abc", 0, 4, 0, 4,
+                    0, 0, false, textPaint, fontPaint));
             assertThrows(IndexOutOfBoundsException.class, () -> canvas.drawGlyphs(new int[]{1}, 0,
-                    new float[]{0}, 0, 1, font, 0, 0, textPaint));
+                    new float[]{0}, 0, 1, font, 0, 0, textPaint, fontPaint));
             var plain = new Paint();
             plain.setColor(0x3bff0000);
-            plain.setTextSize(17);
             nativeCanvas.reset();
             canvas.drawShapedText(shaped, 10, 40, plain);
             check(nativeCanvas.images.size() == 3 && nativeCanvas.images.getFirst()[5] == 0,
@@ -386,7 +380,7 @@ public final class EmojiCanvasTest {
         void reset() { images.clear(); transforms.clear(); blobs = 0; }
         @Override protected void onDrawImageRect(icyllis.arc3d.sketch.Image image, Rect2fc src, Rect2fc dst,
                                                  SamplingOptions sampling, icyllis.arc3d.sketch.Paint paint, int constraint) {
-            images.add(new float[]{dst.left(), dst.top(), dst.right(), dst.bottom(), paint.getAlphaF(), paint.getShader() == null ? 0 : 1});
+            images.add(new float[]{dst.left(), dst.top(), dst.right(), dst.bottom(), paint.getAlpha(), paint.getShader() == null ? 0 : 1});
             var matrix = new Matrix4();
             getLocalToDevice(matrix);
             transforms.add(matrix);
@@ -396,7 +390,7 @@ public final class EmojiCanvasTest {
             boolean alphaOnly = shader instanceof icyllis.arc3d.sketch.shaders.BlendShader blend &&
                     blend.getMode() == icyllis.arc3d.sketch.BlendMode.DST_IN && blend.getSrc() == expectedAlphaShader &&
                     blend.getDst() != expectedAlphaShader;
-            images.add(new float[]{dst.left(), dst.top(), dst.right(), dst.bottom(), paint.getAlphaF(), alphaOnly ? 1 : 0});
+            images.add(new float[]{dst.left(), dst.top(), dst.right(), dst.bottom(), paint.getAlpha(), alphaOnly ? 1 : 0});
             var matrix = new Matrix4();
             getLocalToDevice(matrix);
             transforms.add(matrix);

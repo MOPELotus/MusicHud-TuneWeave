@@ -81,13 +81,13 @@ class LoaderMetadataTest {
         for (String version : List.of("1.21.9", "1.21.10")) {
             assertTrue(minecraft.containsVersion(new DefaultArtifactVersion(version)));
             assertTrue(dependencyRange("modernui").containsVersion(
-                    new DefaultArtifactVersion("3.12.0.5-build.4+mc" + version)));
+                    new DefaultArtifactVersion("3.13.0.9+mc" + version)));
         }
         for (String version : List.of("1.21.8", "1.21.11")) {
             assertFalse(minecraft.containsVersion(new DefaultArtifactVersion(version)));
         }
         assertFalse(dependencyRange("modernui").containsVersion(
-                new DefaultArtifactVersion("3.12.0.5-build.3+mc1.21.10")));
+                new DefaultArtifactVersion("3.13.0.8+mc1.21.10")));
     }
 
 }

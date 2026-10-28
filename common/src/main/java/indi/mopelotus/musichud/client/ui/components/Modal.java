@@ -7,9 +7,11 @@ import icyllis.modernui.animation.AnimatorSet;
 import icyllis.modernui.animation.ObjectAnimator;
 import icyllis.modernui.annotation.NonNull;
 import icyllis.modernui.core.Context;
+import icyllis.modernui.graphics.Color;
 import icyllis.modernui.graphics.drawable.ColorDrawable;
 import icyllis.modernui.graphics.drawable.ShapeDrawable;
 import icyllis.modernui.mc.UIManager;
+import icyllis.modernui.resources.Resources;
 import icyllis.modernui.resources.TypedValue;
 import icyllis.modernui.util.ColorStateList;
 import icyllis.modernui.util.StateSet;
@@ -96,7 +98,7 @@ public class Modal {
             TypedValue tv = new TypedValue();
             var theme = context.getTheme();
             if (theme.resolveAttribute(R.ns, R.attr.colorOnSurface, tv, true)) {
-                titleView.setTextColor(theme.getResources().loadColorStateList(tv, theme));
+                titleView.setTextColor(theme.getResources().loadColorStateList(tv, null, theme));
             } else {
                 titleView.setTextColor(0xFFFFFFFF);
             }
@@ -116,7 +118,7 @@ public class Modal {
         TypedValue dividerTv = new TypedValue();
         var theme = context.getTheme();
         if (theme.resolveAttribute(R.ns, R.attr.colorOutlineVariant, dividerTv, true)) {
-            dividerBg.setColor(theme.getResources().loadColorStateList(dividerTv, theme));
+            dividerBg.setColor(theme.getResources().loadColorStateList(dividerTv, null, theme));
         } else {
             dividerBg.setColor(0xFF3E3E42);
         }
@@ -143,7 +145,7 @@ public class Modal {
             button.setText(buttonMeta.getText());
             TypedValue btnTv = new TypedValue();
             if (context.getTheme().resolveAttribute(R.ns, R.attr.colorOnSurface, btnTv, true)) {
-                button.setTextColor(context.getTheme().getResources().loadColorStateList(btnTv, context.getTheme()));
+                button.setTextColor(context.getTheme().getResources().loadColorStateList(btnTv, null, context.getTheme()));
             } else {
                 button.setTextColor(0xFFFFFFFF);
             }
@@ -182,28 +184,33 @@ public class Modal {
         TypedValue value = new TypedValue();
         var theme = context.getTheme();
         if (theme.resolveAttribute(R.ns, R.attr.colorSurface, value, true)) {
-            bg.setColor(theme.getResources().loadColorStateList(value, theme));
+            bg.setColor(theme.getResources().loadColorStateList(value, null, theme));
         } else {
             bg.setColor(0xFF2D2D30);
         }
 
-        int[] strokeColors = new int[2];
-        if (theme.resolveAttribute(R.ns, R.attr.colorOutlineVariant, value, true)) {
-            strokeColors[0] = value.data;
-            theme.resolveAttribute(R.ns, R.attr.colorOutline, value, true);
-            strokeColors[1] = ColorStateList.modulateColor(value.data, 0.12f);
-        } else {
-            strokeColors[0] = 0x20FFFFFF;
-            strokeColors[1] = 0x08FFFFFF;
-        }
-        bg.setStroke(layout.dp(1), new ColorStateList(
-                new int[][]{
-                        StateSet.get(StateSet.VIEW_STATE_ENABLED),
-                        StateSet.WILD_CARD
-                },
-                strokeColors
-        ));
+        bg.setStroke(layout.dp(1), cardStrokeColors(theme));
         layout.setBackground(bg);
+    }
+
+    static ColorStateList cardStrokeColors(Resources.Theme theme) {
+        long enabled = resolveThemeColor(theme, R.attr.colorOutlineVariant, 1f, Color.pack(0x20FFFFFF));
+        long disabled = resolveThemeColor(theme, R.attr.colorOutline, 0.12f, Color.pack(0x08FFFFFF));
+        return new ColorStateList(new int[][]{
+                StateSet.get(StateSet.VIEW_STATE_ENABLED), StateSet.WILD_CARD
+        }, new long[]{enabled, disabled});
+    }
+
+    private static long resolveThemeColor(Resources.Theme theme, String attribute, float alpha, long fallback) {
+        TypedValue value = new TypedValue();
+        if (theme.resolveAttribute(R.ns, attribute, value, true)) {
+            ColorStateList colors = theme.getResources().loadColorStateList(value, null, theme);
+            if (colors != null) {
+                long color = colors.getDefaultColor();
+                return alpha == 1f ? color : Color.withAlpha(color, Color.alpha(color) * alpha);
+            }
+        }
+        return fallback;
     }
 
     public void show() {

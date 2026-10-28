@@ -10,13 +10,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class FabricClientDependenciesTest {
     @Test void dedicatedServerDoesNotRequireTheClientUiHost() throws Exception {
-        FabricClientDependencies.requireModernUi(false, null, VersionPredicate.parse(">=3.13.0.7"));
+        FabricClientDependencies.requireModernUi(false, null, VersionPredicate.parse(">=3.13.0.9"));
     }
 
     @Test void clientRejectsMissingOldAndMalformedVersionsBeforeUiInitialization() throws Exception {
-        var required = VersionPredicate.parse(">=3.13.0.7");
+        var required = VersionPredicate.parse(">=3.13.0.9");
         assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(true, null, required));
-        for (String version : new String[]{"3.12.0", "3.13.0.6", "not-a-version"}) {
+        for (String version : new String[]{"3.12.0", "3.13.0.8", "not-a-version"}) {
             assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(true, Version.parse(version), required));
         }
         FabricClientDependencies.requireModernUi(true, Version.parse("3.13.0.9"), required);

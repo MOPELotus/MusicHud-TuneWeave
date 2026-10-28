@@ -49,6 +49,9 @@ subprojects {
                                       'META-INF/licenses/jmtc/NOTICE.txt']) {
                             if (zip.getEntry(path) == null) throw new GradleException("Missing desktop media implementation/license ${path}")
                         }
+                        if (zip.entries().any { it.name.startsWith('icyllis/modernui/') || it.name.startsWith('icyllis/arc3d/') }) {
+                            throw new GradleException('Client artifact must use the installed ModernUI fork, not bundle another host')
+                        }
                         if (zip.entries().any { it.name.startsWith('org/jaudiotagger/test/') ||
                                 it.name in ['org/jaudiotagger/Test.class', 'org/jaudiotagger/Test2.class'] }) {
                             throw new GradleException('Dependency example tools remain in client artifact')
@@ -91,6 +94,23 @@ subprojects {
                 }
             }
             tasks.named('build').configure { dependsOn verifyIdentity }
+        }
+    }
+    repositories {
+        exclusiveContent {
+            forRepository {
+                ivy {
+                    name = 'LotusModernUIReleases'
+                    // Local independent-port builds can be used before a matching release exists.
+                    def localFork = providers.gradleProperty('modernuiForkDirectory').orNull
+                    url = localFork ? rootProject.file(localFork).toURI() : 'https://github.com/MOPELotus/ModernUI-MC/releases/download'
+                    patternLayout {
+                        artifact (localFork ? '[artifact]-[revision]-universal.[ext]' : '[revision]/[artifact]-[revision]-universal.[ext]')
+                    }
+                    metadataSources { artifact() }
+                }
+            }
+            filter { includeGroup 'io.github.mopelotus.modernui' }
         }
     }
 }

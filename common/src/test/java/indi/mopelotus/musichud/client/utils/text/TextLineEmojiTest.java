@@ -11,9 +11,6 @@ import org.objectweb.asm.*;
 import org.objectweb.asm.tree.*;
 import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.SimpleRemapper;
-import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
-import org.spongepowered.asm.mixin.injection.selectors.ElementNode;
-import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
 import java.lang.invoke.MethodHandles;
 
 import java.lang.reflect.*;
@@ -102,7 +99,7 @@ public class TextLineEmojiTest {
         var nativeCalls = new AtomicInteger();
         char[] text = "🎵".toCharArray();
         ShapedText.doLayoutRun(text, 0, text.length, 0, text.length, false, fp, null,
-                EmojiAwareCanvas.collectEmojiRuns((piece, x, paint) -> {
+                EmojiAwareCanvas.collectEmojiRuns((piece, a, b, rtl, paint, x) -> {
                     nativeCalls.incrementAndGet();
                     paint.setFontSize(100);
                 }, runs::add));
@@ -151,34 +148,8 @@ public class TextLineEmojiTest {
         }
     }
 
-    @Test void actualStaticTextUtilsOverloadsPreserveContextAndValidateRanges() throws Exception {
-        try (var fixture = new Fixture()) {
-            var paint = new icyllis.modernui.text.TextPaint();
-            paint.setTypeface(icyllis.modernui.text.Typeface.createTypeface(new FontFamily(fixture.font), FontFamily.SANS_SERIF));
-            paint.setTextSize(17);
-            Class<?> helpers = fixture.loader.loadClass(TEXT + "TextUtils");
-            for (Class<?> inputType : new Class<?>[]{char[].class, CharSequence.class}) {
-                var method = helpers.getMethod("drawTextRun", Canvas.class, inputType, int.class, int.class,
-                        int.class, int.class, float.class, float.class, boolean.class, icyllis.modernui.text.TextPaint.class);
-                String context = "x🎵👩‍🎤y";
-                Object input = inputType == char[].class ? context.toCharArray() : context;
-                for (boolean rtl : new boolean[]{false, true}) {
-                    fixture.capture.reset();
-                    method.invoke(null, fixture.canvas, input, 1, context.length() - 1, 0, context.length(), 10f, 40f, rtl, paint);
-                    assertEquals(2, fixture.capture.images.size(), "actual context slice keeps ZWJ and one image pass");
-                    assertEquals(0, fixture.capture.blobs, "outside outline context is not drawn");
-                }
-                var failure = assertThrows(InvocationTargetException.class, () -> method.invoke(null,
-                        fixture.canvas, input, 0, context.length() + 1, 0, context.length(), 0f, 0f, false, paint));
-                assertInstanceOf(IndexOutOfBoundsException.class, failure.getCause());
-            }
-        }
-    }
-
     @Test void productionMixinTargetsActualCoreSitesAndSharesOnlyInvocationLocalState() throws Exception {
-        for (boolean utilities : new boolean[]{false, true}) {
-        String targetClass = utilities ? "TextUtils" : "TextLine";
-        String path = "indi/mopelotus/musichud/mixin/ModernUiEmoji" + targetClass + "Mixin.class";
+        String path = "indi/mopelotus/musichud/mixin/ModernUiEmojiTextLineMixin.class";
         var node = new ClassNode();
         try (var input = getClass().getClassLoader().getResourceAsStream(path)) {
             assertNotNull(input, "production mixin class must be compiled");
@@ -187,19 +158,18 @@ public class TextLineEmojiTest {
         assertTrue(node.fields.isEmpty(), "mixin must not keep drawing state on pooled TextLine objects");
         var mixin = annotations(node.visibleAnnotations, node.invisibleAnnotations).stream()
                 .filter(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/Mixin;")).findFirst().orElseThrow();
-        assertEquals(List.of("icyllis.modernui.text." + targetClass), value(mixin, "targets"));
+        assertEquals(List.of("icyllis.modernui.text.TextLine"), value(mixin, "targets"));
         assertEquals(false, value(mixin, "remap"));
         int wrappers = 0;
         for (var method : node.methods) {
             for (var annotation : annotations(method.visibleAnnotations, method.invisibleAnnotations)) {
                 if (!annotation.desc.endsWith("/WrapOperation;")) continue;
                 wrappers++;
-                assertEquals(expectedSelectors(utilities), value(annotation, "method"));
+                assertEquals(List.of("handleText"), value(annotation, "method"));
                 Object atValue = value(annotation, "at");
                 var at = (AnnotationNode) (atValue instanceof List<?> list ? list.getFirst() : atValue);
                 String target = (String) value(at, "target");
-                int expected = utilities || target.contains("doLayoutRun") ? 2 : 1;
-                if (utilities) assertTrue((method.access & Opcodes.ACC_STATIC) != 0, "static host requires static wrapper");
+                int expected = target.contains("doLayoutRun") ? 2 : 1;
                 assertEquals(expected, value(annotation, "require"));
                 assertEquals(expected, value(annotation, "allow"));
                 assertTrue(target.equals("Licyllis/modernui/graphics/text/ShapedText;doLayoutRun([CIIIIZLicyllis/modernui/graphics/text/FontPaint;Licyllis/modernui/graphics/text/FontMetricsInt;" + CONSUMER + ")F") ||
@@ -223,66 +193,11 @@ public class TextLineEmojiTest {
         }
         assertEquals(2, wrappers);
         // Independently validate the target's two shaping calls and one draw call against real bytecode.
-        try (var input = getClass().getClassLoader().getResourceAsStream("icyllis/modernui/text/" + targetClass + ".class")) {
+        try (var input = getClass().getClassLoader().getResourceAsStream("icyllis/modernui/text/TextLine.class")) {
             assertNotNull(input);
             weave(input.readAllBytes());
         }
-        }
     }
-    @Test void bareMethodSelectorStopsAtOneOverloadInsteadOfCoveringBoth() throws Exception {
-        var host = new ClassNode();
-        try (var input = getClass().getClassLoader().getResourceAsStream("icyllis/modernui/text/TextUtils.class")) {
-            assertNotNull(input);
-            new ClassReader(input).accept(host, 0);
-        }
-        var bare = selectedMethods(host, List.of("drawTextRun"));
-        assertEquals(1, bare.size(), "Sponge SELECT_MEMBER limits a bare name to the first exact match");
-        assertEquals(2, selectedMethods(host, productionSelectors(true)).size(),
-                "Both production wrappers must explicitly select both real overloads");
-    }
-
-    private static List<String> expectedSelectors(boolean utilities) {
-        return utilities ? List.of(
-                "drawTextRun(Licyllis/modernui/graphics/Canvas;[CIIIIFFZLicyllis/modernui/text/TextPaint;)V",
-                "drawTextRun(Licyllis/modernui/graphics/Canvas;Ljava/lang/CharSequence;IIIIFFZLicyllis/modernui/text/TextPaint;)V")
-                : List.of("handleText");
-    }
-
-    private static List<String> productionSelectors(boolean utilities) {
-        String targetClass = utilities ? "TextUtils" : "TextLine";
-        String path = "indi/mopelotus/musichud/mixin/ModernUiEmoji" + targetClass + "Mixin.class";
-        var mixin = new ClassNode();
-        try (var input = TextLineEmojiTest.class.getClassLoader().getResourceAsStream(path)) {
-            assertNotNull(input);
-            new ClassReader(input).accept(mixin, 0);
-        } catch (java.io.IOException failure) { throw new AssertionError(failure); }
-        for (var method : mixin.methods) {
-            if (!method.name.endsWith("$captureEmoji")) continue;
-            for (var annotation : annotations(method.visibleAnnotations, method.invisibleAnnotations)) {
-                if (annotation.desc.endsWith("/WrapOperation;")) {
-                    return ((List<?>) value(annotation, "method")).stream().map(String.class::cast).toList();
-                }
-            }
-        }
-        throw new AssertionError("Missing production capture selector");
-    }
-
-    /** Match the actual Sponge root-target selection and its per-selector match limit. */
-    private static Set<MethodNode> selectedMethods(ClassNode host, List<String> selectors) {
-        Set<MethodNode> selected = new LinkedHashSet<>();
-        for (String input : selectors) {
-            var selector = MemberInfo.parse(input, null).configure(ITargetSelector.Configure.SELECT_MEMBER);
-            int matches = 0;
-            for (var method : host.methods) {
-                if (!selector.match(ElementNode.of(host, method)).isExactMatch()) continue;
-                selected.add(method);
-                if (++matches >= selector.getMaxMatchCount()) break;
-            }
-            assertTrue(matches > 0, "Selector must match a real core method: " + input);
-        }
-        return selected;
-    }
-
     private static List<AnnotationNode> annotations(List<AnnotationNode> first, List<AnnotationNode> second) {
         var all = new ArrayList<AnnotationNode>();
         if (first != null) all.addAll(first);
@@ -309,14 +224,14 @@ public class TextLineEmojiTest {
     private static byte[] weave(byte[] original) {
         var node = new ClassNode();
         new ClassReader(original).accept(node, 0);
-        boolean utilities = node.name.endsWith("/TextUtils");
         int layouts = 0, blobs = 0;
-        for (var method : selectedMethods(node, productionSelectors(utilities))) {
+        for (var method : node.methods) {
+            if (!method.name.equals("handleText")) continue;
             int slot = method.maxLocals++;
             var init = new InsnList();
             var measured = new LabelNode();
             var done = new LabelNode();
-            init.add(new VarInsnNode(Opcodes.ALOAD, utilities ? 0 : 7)); // actual static helper/handleText Canvas argument
+            init.add(new VarInsnNode(Opcodes.ALOAD, 7)); // actual handleText Canvas argument
             init.add(new JumpInsnNode(Opcodes.IFNULL, measured));
             init.add(new TypeInsnNode(Opcodes.NEW, "java/util/ArrayList"));
             init.add(new InsnNode(Opcodes.DUP));
@@ -348,7 +263,7 @@ public class TextLineEmojiTest {
             }
         }
         assertEquals(2, layouts, "both real TextLine char-buffer paths must be covered");
-        assertEquals(utilities ? 2 : 1, blobs, "actual TextUtils/TextLine blob site contract");
+        assertEquals(1, blobs, "real TextLine blob site contract");
         var writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         node.accept(writer);
         return writer.toByteArray();
@@ -360,7 +275,7 @@ public class TextLineEmojiTest {
         synchronized Class<?> loadClass(String name) throws Exception {
             if (copies == null) {
                 var mapping = new LinkedHashMap<String, String>();
-                for (String suffix : List.of("TextUtils", "TextLine", "Layout", "StaticLayout", "StaticLayout$Builder")) {
+                for (String suffix : List.of("TextLine", "Layout", "StaticLayout", "StaticLayout$Builder")) {
                     String oldName = (TEXT + suffix).replace('.', '/');
                     mapping.put(oldName, oldName.replace("/text/", "/text/EmojiFixture"));
                 }
@@ -370,7 +285,7 @@ public class TextLineEmojiTest {
                     try (var input = TextLineEmojiTest.class.getClassLoader().getResourceAsStream(originalName + ".class")) {
                         if (input == null) throw new ClassNotFoundException(originalName);
                         byte[] bytes = input.readAllBytes();
-                        if (originalName.endsWith("/TextLine") || originalName.endsWith("/TextUtils")) bytes = weave(bytes);
+                        if (originalName.endsWith("/TextLine")) bytes = weave(bytes);
                         var writer = new ClassWriter(0);
                         new ClassReader(bytes).accept(new ClassRemapper(writer, new SimpleRemapper(mapping)), 0);
                         Class<?> copy = lookup.defineClass(writer.toByteArray());
