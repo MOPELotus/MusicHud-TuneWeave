@@ -20,14 +20,16 @@
 
 ## 选择下载文件
 
+**1.3.1.1 是 1.21.9–1.21.11 客户端热修订，使用配套 ModernUI 3.13.0.9 独立 port。** 其他 Minecraft 客户端和服务端/代理插件继续使用 1.3.1。历史 1.3.1 的 1.21.9–1.21.11 客户端仍使用 mVUS 3.12，请按所选 Release 的说明搭配。
+
 客户端每个版本组提供 Fabric、NeoForge 两个文件，只安装与你的加载器对应的一个。文件名中的版本范围表示同一个 JAR 支持该范围，不需要为范围内每个小版本下载另一份 MusicHud。
 
 | Minecraft | MusicHud 文件后缀 | Java | ModernUI 来源与已核对版本 |
 | --- | --- | --- | --- |
 | 1.21.1 | `+1.21.1.jar` | 21 | 官方 ModernUI `1.21.1-3.13.0.1` |
 | 1.21.6–1.21.8 | `+1.21.6-1.21.8.jar` | 21 | 官方 ModernUI `1.21.8-3.13.0.3`，支持该整个范围 |
-| 1.21.9–1.21.10 | `+1.21.9-1.21.10.jar` | 21 | mVUS `3.12.0.5-build.4`，ModernUI 文件需分别匹配 1.21.9 或 1.21.10 |
-| 1.21.11 | `+1.21.11.jar` | 21 | mVUS `3.12.0.5-build.4+mc1.21.11` |
+| 1.21.9–1.21.10 | `+1.21.9-1.21.10.jar` | 21 | 独立 port 3.13.0.9：[1.21.9](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.9-3.13.0.9) / [1.21.10](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.10-3.13.0.9)，按游戏版本分别选包 |
+| 1.21.11 | `+1.21.11.jar` | 21 | 独立 port [1.21.11-3.13.0.9](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.11-3.13.0.9) |
 | 26.1–26.1.2 | `+26.1-26.1.2.jar` | 25 | 官方 ModernUI `26.1.2-3.13.0.5`，支持该整个范围 |
 | 26.2 | `+26.2.jar` | 25 | 本项目配套 ModernUI `26.2-3.13.0.9` |
 | 26.3 | `+26.3.jar` | 25 | 本项目配套 ModernUI `26.3-3.13.0.9` |
@@ -40,20 +42,19 @@
 
 **NeoForge：** NeoForge、对应版本的 ModernUI，以及 MusicHud TuneWeave。
 
-ModernUI 有以下三条来源，按上表选择其中一条，再选择对应加载器：
+ModernUI 有以下两条来源，按上表选择其中一条，再选择对应加载器：
 
 1. [官方 ModernUI](https://modrinth.com/mod/modern-ui/versions)：用于 1.21.1、1.21.6–1.21.8、26.1–26.1.2。
-2. [ModernUI mVUS](https://modrinth.com/mod/modernui-mc-mvus/versions)：用于 1.21.9–1.21.10、1.21.11。
-3. [MOPELotus ModernUI 分支](https://github.com/MOPELotus/ModernUI-MC/releases)：用于 26.2、26.3，提供 Fabric 和 NeoForge 文件。
+2. [MOPELotus ModernUI 独立 port](https://github.com/MOPELotus/ModernUI-MC/releases)：用于 1.21.9、1.21.10、1.21.11、26.2、26.3，已提供对应游戏版本的 Fabric 和 NeoForge 正式发布文件。1.21.9–1.21.11 的 1.3.1.1 客户端要求 ModernUI **不低于 3.13.0.9**；版本过低时会拒绝启动，并显示中英双语更新说明与下载地址。
 
-26.2 / 26.3 请使用配套 ModernUI **3.13.0.9**，按游戏版本与 Fabric/NeoForge 加载器选择，并在以下字体版本中二选一：
+1.21.9 / 1.21.10 / 1.21.11 / 26.2 / 26.3 请使用配套 ModernUI **3.13.0.9**，按游戏版本与 Fabric/NeoForge 加载器选择，并在以下字体版本中二选一：
 
 - **普通版**：文件名以 `-universal.jar` 结尾，使用默认字体并允许自定义首选/回退字体，不要求安装 MiSans。
 - **MiSans 版**：文件名以 `-universal-misans.jar` 结尾，保留固定 MiSans 字体、字重设置与字体安装界面。缺少字体时需主动点击下载，完成后重启；已有有效字体无需重复下载。
 
-两版包含相同的走马灯、渲染及输入修复，模组 ID 都是 `modernui`，升级或切换时替换原 JAR，不可同时安装。两版分别使用 `client-standard.toml` 和 `client-misans.toml`，首次创建时继承并保留旧 `client.toml`；普通版只重置旧的 MiSans 完整固定字体组合，其他自定义字体组合保留。文本引擎、通用与 bootstrap 配置仍共用。详见[字体版本说明](https://github.com/MOPELotus/ModernUI-MC/blob/26.3-3.13.0.9/docs/font-editions.md)。MusicHud TuneWeave 本身无需按字体版本另选 JAR。
+两版包含相同的 Canvas/原生 GUI 动态文字、渲染及输入修复（Core TextView 的自动 MARQUEE 仍未实现；MusicHud HUD 走马灯由项目自行绘制），模组 ID 都是 `modernui`，升级或切换时替换原 JAR，不可同时安装。两版分别使用 `client-standard.toml` 和 `client-misans.toml`，首次创建时继承并保留旧 `client.toml`；普通版只重置旧的 MiSans 完整固定字体组合，其他自定义字体组合保留。文本引擎、通用与 bootstrap 配置仍共用。详见[字体版本说明](https://github.com/MOPELotus/ModernUI-MC/blob/26.3-3.13.0.9/docs/font-editions.md)。MusicHud TuneWeave 本身无需按字体版本另选 JAR。
 
-**26.2 / 26.3 配套 ModernUI 分支不需要 Forge Config API Port。** 上表其余版本使用的官方 ModernUI / mVUS **Fabric** 文件仍声明了这一依赖，需要额外安装匹配游戏版本的 [Forge Config API Port](https://modrinth.com/mod/forge-config-api-port/versions)。这是 ModernUI 的依赖；MusicHud TuneWeave 自身不依赖它。NeoForge 无需另装 API Port。
+**上述配套 ModernUI 独立 port 不需要 Forge Config API Port。** 上表其余版本使用的官方 ModernUI **Fabric** 文件仍声明了这一依赖，需要额外安装匹配游戏版本的 [Forge Config API Port](https://modrinth.com/mod/forge-config-api-port/versions)。这是 ModernUI 的依赖；MusicHud TuneWeave 自身不依赖它。NeoForge 无需另装 API Port。
 
 [Mod Menu](https://modrinth.com/mod/modmenu) 为 Fabric 可选依赖。不要同时安装多份 ModernUI，也不要与原版 MusicHud 同时安装。
 
@@ -92,7 +93,7 @@ ModernUI 有以下三条来源，按上表选择其中一条，再选择对应�
 
 ## 多人服务器与群组服
 
-玩家仍需安装客户端模组及其依赖。客户端和插件请使用同一发行版本。
+玩家仍需安装客户端模组及其依赖。通常按同一发行版本搭配客户端与插件；1.3.1.1 是客户端热修订，沿用 1.3.1 的 Paper、Velocity、BungeeCord 插件，通信协议不变。
 
 | 环境 | 插件安装位置 | 选择的文件 |
 | --- | --- | --- |
@@ -107,9 +108,9 @@ ModernUI 有以下三条来源，按上表选择其中一条，再选择对应�
 
 ## 获取更新与反馈
 
-全量 CI 和发布流程由默认分支 `26.3` 管理。当前矩阵覆盖七个客户端版本组的双加载器 JAR，以及 `plugin` 分支的三个跨版本插件，每种发行版各有 17 个部署文件，普通版与 CF 版合计 34 个，并附带 `SHA256SUMS` 与构建来源清单。
+全量 CI 和发布流程由默认分支 `26.3` 管理。当前矩阵覆盖七个客户端版本组的双加载器 JAR，以及 `plugin` 分支的三个跨版本插件，完整发行版每种各有 17 个部署文件，普通版与 CF 版合计 34 个；1.3.1.1 仅发布上述两个客户端版本组的 4 个普通版及 4 个 CF 文件。发行包附带 `SHA256SUMS` 与构建来源清单。
 
-GitHub Release 在推送匹配版本标签，或从 `26.3` 手动运行 CI 并选择 `publish` 时发布。CurseForge、Hangar 使用独立的 `Platform publishing` 工作流：从 `26.3` 运行，填写已发布的 GitHub Release 标签，先 `prepare` 再 `publish`。该流程也保留对旧版 15 文件发布包的校验和重试支持。
+GitHub Release 在推送匹配版本标签，或从 `26.3` 手动运行 CI 并选择 `publish` 时发布。CurseForge、Hangar 使用独立的 `Platform publishing` 工作流：从 `26.3` 运行，填写已发布的 GitHub Release 标签，先 `prepare` 再 `publish`。1.3.1.1 使用显式 `release_scope=modernui-1.3.1.1` 发布范围；仍运行全矩阵检查，仅分发目标客户端，平台发布仅涉及 CurseForge。该流程也保留对旧版 15 文件发布包的校验和重试支持。
 
 Actions 中的 `release-bundle` 可用于获取开发构建。报告问题时请提供 Minecraft、加载器、MusicHud、ModernUI 和 TuneWeave 的版本，以及复现步骤和相关日志片段；发送前请移除账号凭证。
 
