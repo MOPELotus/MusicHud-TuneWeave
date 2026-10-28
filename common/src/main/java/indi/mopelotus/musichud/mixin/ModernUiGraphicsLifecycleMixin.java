@@ -1,6 +1,8 @@
 package indi.mopelotus.musichud.mixin;
 
 import icyllis.modernui.mc.UIManager;
+import icyllis.modernui.mc.MuiScreen;
+import net.minecraft.client.gui.screens.Screen;
 import icyllis.modernui.core.Core;
 import icyllis.modernui.core.Choreographer;
 import indi.mopelotus.musichud.MusicHud;
@@ -22,6 +24,8 @@ public abstract class ModernUiGraphicsLifecycleMixin {
     @Shadow private static UIManager sInstance;
     @Shadow @Final private Thread mUiThread;
     @Shadow private volatile boolean mRunning;
+    @Shadow private volatile boolean mShutdownRequested;
+    @Shadow protected MuiScreen mScreen;
     @Shadow private void finish() { throw new AssertionError(); }
     @Unique private final UiShutdownRequest musichud_tuneweave$shutdownRequest = new UiShutdownRequest();
 
@@ -38,10 +42,20 @@ public abstract class ModernUiGraphicsLifecycleMixin {
     }
 
     @Inject(method = "removed", at = @At("HEAD"), cancellable = true)
-    private void musichud_tuneweave$skipStoppedDetach(CallbackInfo ci) {
-        // Some hosts finish the fragment manager in CLIENT_STOPPING, before Minecraft removes its screen.
-        // The UI loop has already detached the fragment; a second transaction cannot be enqueued.
-        if (!mRunning) ci.cancel();
+    private void musichud_tuneweave$skipStoppedDetach(Screen target, CallbackInfo ci) {
+        // The stopped UI already detached the fragment. Retire only this screen's
+        // main-thread identity so the following screen-change event cannot reuse it.
+        if (!mRunning) {
+            if (mScreen == target) mScreen = null;
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "onHoverMove", at = @At("HEAD"), cancellable = true)
+    private void musichud_tuneweave$skipStoppedHover(CallbackInfo ci) {
+        // Screen changes and synthetic cursor callbacks can outlive the UI queue.
+        // This flag distinguishes shutdown from startup, before mRunning becomes true.
+        if (mShutdownRequested) ci.cancel();
     }
 
     @ModifyArg(method = "finish", at = @At(value = "INVOKE", target =
