@@ -4,12 +4,14 @@
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
 
+// u_Style: (halfWidth, halfHeight, cornerRadius)
 layout(std140) uniform MHAlbumPosition {
     mat4 u_Translation;
-    vec4 u_Style; // (halfWidth, halfHeight, cornerRadius)
+    vec4 u_Style;
 };
+// u_Dynamic1: (timestamp, playedProgress, switchProgress)
 layout(std140) uniform MHDynamicStatus {
-    vec4 u_Dynamic1; // (timestamp, playedProgress, switchProgress)
+    vec4 u_Dynamic1;
 };
 
 layout(location = 0) in vec2 f_Position;

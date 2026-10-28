@@ -1,18 +1,21 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
 
+// u_Style: (halfWidth, halfHeight, cornerRadius)
 layout(std140) uniform MHProgressPosition {
     mat4 u_Translation;
-    vec4 u_Style; // (halfWidth, halfHeight, cornerRadius)
+    vec4 u_Style;
 };
+// u_Gradient: (gradientLength, rightOffset, transitionBorderRate)
 layout(std140) uniform MHProgressStyle {
-    vec3 u_Gradient; // (gradientLength, rightOffset, transitionBorderRate)
+    vec3 u_Gradient;
     vec4 u_PlayedColor;
     vec4 u_CurrentColor;
     vec4 u_BackgroundColor;
 };
+// u_Dynamic1: (timestamp, playedProgress, switchProgress)
 layout(std140) uniform MHDynamicStatus {
-    vec4 u_Dynamic1; // (timestamp, playedProgress, switchProgress)
+    vec4 u_Dynamic1;
 };
 
 layout(location = 0) in vec2 f_Position;
