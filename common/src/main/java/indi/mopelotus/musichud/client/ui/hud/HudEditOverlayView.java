@@ -5,6 +5,7 @@ import icyllis.modernui.core.Context;
 import icyllis.modernui.graphics.Canvas;
 import icyllis.modernui.graphics.Paint;
 import icyllis.modernui.graphics.RectF;
+import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.view.MotionEvent;
 import icyllis.modernui.view.View;
 import indi.mopelotus.musichud.client.ui.Theme;
@@ -37,6 +38,8 @@ public class HudEditOverlayView extends View {
     private final Paint borderPaint = new Paint();
     private final Paint handlePaint = new Paint();
 
+    private final HudEditorViewport viewport;
+
     private Handle hoveredHandle = Handle.NONE;
     private Handle activeHandle = Handle.NONE;
     private float dragStartPointerX;
@@ -47,8 +50,41 @@ public class HudEditOverlayView extends View {
 
     public HudEditOverlayView(Context context) {
         super(context);
+        viewport = new HudEditorViewport(windowMetrics(), this::post,
+                MuiModApi::addOnWindowResizeListener, MuiModApi::removeOnWindowResizeListener,
+                this::onViewportChanged);
         setClickable(true);
         setFocusable(false);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        viewport.attach(windowMetrics());
+        invalidate();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        viewport.detach();
+        finishDrag();
+        super.onDetachedFromWindow();
+    }
+
+    private void onViewportChanged() {
+        // Pointer anchors belong to the previous scale; cancel as with ACTION_CANCEL.
+        finishDrag();
+        hoveredHandle = Handle.NONE;
+        invalidate();
+    }
+
+    private void finishDrag() {
+        if (activeHandle != Handle.NONE) {
+            activeHandle = Handle.NONE;
+            dragStartRect = null;
+            clientConfig.save();
+            invalidate();
+        }
     }
 
     public void refresh() {
@@ -73,16 +109,21 @@ public class HudEditOverlayView extends View {
         return new RectF(gui.left * scale, gui.top * scale, gui.right * scale, gui.bottom * scale);
     }
 
-    private static int scaledWidth() {
-        return Minecraft.getInstance().getWindow().getGuiScaledWidth();
+    private int scaledWidth() {
+        return viewport.metrics().guiWidth();
     }
 
-    private static int scaledHeight() {
-        return Minecraft.getInstance().getWindow().getGuiScaledHeight();
+    private int scaledHeight() {
+        return viewport.metrics().guiHeight();
     }
 
-    private static float guiScale() {
-        return (float) Minecraft.getInstance().getWindow().getGuiScale();
+    private float guiScale() {
+        return (float) viewport.metrics().guiScale();
+    }
+
+    private static HudEditorViewport.Metrics windowMetrics() {
+        var window = Minecraft.getInstance().getWindow();
+        return new HudEditorViewport.Metrics(window.getWidth(), window.getHeight(), window.getGuiScale());
     }
 
     @Override
@@ -107,12 +148,7 @@ public class HudEditOverlayView extends View {
                 return true;
             }
             case MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (activeHandle != Handle.NONE) {
-                    activeHandle = Handle.NONE;
-                    dragStartRect = null;
-                    clientConfig.save();
-                    invalidate();
-                }
+                finishDrag();
                 return true;
             }
             default -> {
