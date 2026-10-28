@@ -8,6 +8,11 @@ on:
         type: choice
         options: [inspect, prepare, publish]
         default: inspect
+      release_scope:
+        description: 'Full release or the explicit ModernUI client hotfix'
+        type: choice
+        options: [full, modernui-1.3.1.1]
+        default: full
       tag:
         description: 'Existing GitHub Release tag'
         type: string
@@ -45,9 +50,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SCOPE: ${{ inputs.release_scope }}
           PLATFORM_TARGET: ${{ inputs.target }}
           PREPARED_RUN: ${{ inputs.prepared_run }}
-        run: python .github/scripts/platform_release.py validate-dispatch --tag "$RELEASE_TAG" --target "$PLATFORM_TARGET" --prepared-run "$PREPARED_RUN"
+        run: python .github/scripts/platform_release.py validate-dispatch --tag "$RELEASE_TAG" --target "$PLATFORM_TARGET" --prepared-run "$PREPARED_RUN" --release-scope "$RELEASE_SCOPE"
 
   inspect:
     if: github.ref == 'refs/heads/26.3' && inputs.mode == 'inspect'
@@ -86,6 +92,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SCOPE: ${{ inputs.release_scope }}
         run: python .github/scripts/platform_release.py prepare --tag "$RELEASE_TAG" --output bundle
       - uses: actions/upload-artifact@v4
         with:
@@ -119,6 +126,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SCOPE: ${{ inputs.release_scope }}
           PLATFORM: ${{ matrix.platform }}
           CURSEFORGE_TOKEN: ${{ matrix.platform == 'curseforge' && secrets.CURSEFORGE_TOKEN || '' }}
           HANGAR_API_TOKEN: ${{ matrix.platform == 'hangar' && secrets.HANGAR_API_TOKEN || '' }}
@@ -199,6 +207,7 @@ jobs:
       - name: Verify all platform files against the release source
         env:
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SCOPE: ${{ inputs.release_scope }}
         run: python .github/scripts/platform_release.py assemble --tag "$RELEASE_TAG" --output bundle --input cf-builds
       - uses: actions/upload-artifact@v4
         with:
@@ -229,4 +238,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SCOPE: ${{ inputs.release_scope }}
         run: python .github/scripts/client_updates.py --input bundle --tag "$RELEASE_TAG" --output update-catalog

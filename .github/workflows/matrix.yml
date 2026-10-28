@@ -6,6 +6,9 @@ on:
       distribution:
         type: string
         default: standard
+      release_scope:
+        type: string
+        default: full
       publish:
         type: boolean
         default: false
@@ -34,6 +37,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PUBLISH_REQUESTED: ${{ inputs.publish }}
           BUILD_DISTRIBUTION: ${{ inputs.distribution }}
+          RELEASE_SCOPE: ${{ inputs.release_scope }}
         run: python .github/scripts/build_release.py plan
       - uses: actions/upload-artifact@v4
         with:

@@ -391,3 +391,134 @@ class RuntimeArtifactContracts(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ScopedPlatformContracts(unittest.TestCase):
+    def setUp(self):
+        contract = fixtures.ScopedReleaseContracts()
+        contract.setUp()
+        self.addCleanup(contract.doCleanups)
+        h = contract.helper
+        h.manifest['repository'] = platform.REPOSITORY
+        h.fixture()
+        for row in h.rows:
+            build_folder = h.downloads / ('build-' + row['id'])
+            build = release.load_json(build_folder / 'build.json')
+            for artifact in build['artifacts']:
+                module = artifact['module']
+                path = build_folder / artifact['name']
+                code = b'\xca\xfe\xba\xbe\x00\x00' + (69 if row['branch'].startswith('26.') else 65).to_bytes(2, 'big')
+                with zipfile.ZipFile(path, 'a') as jar:
+                    jar.writestr(platform.MAIN_CLASSES[module], code)
+                    jar.writestr('indi/mopelotus/musichud/MusicHud.class', code)
+                    jar.writestr('META-INF/musichud-registries.core.properties', 'core=test')
+                    if module in ('fabric', 'neoforge'):
+                        jar.writestr('META-INF/musichud-registries.common.properties', 'common=test')
+                        jar.writestr('musichud_tuneweave.mixins.json', '{}')
+                artifact['sha256'] = release.digest(path)
+            release.dump(build_folder / 'build.json', build)
+        self.root = h.root / 'platform'
+        release.bundle(h.downloads, self.root / 'standard')
+        self.manifest = platform.verify_standard(self.root / 'standard', release.HOTFIX_TAG)
+        downloads = h.root / 'cf-builds'
+        for row in platform.cf_rows(self.manifest):
+            folder = downloads / ('cf-' + row['id'])
+            folder.mkdir(parents=True)
+            artifacts = []
+            for module in row['modules']:
+                standard = self.root / 'standard' / release.filename(row | {'distribution': 'standard'}, module)
+                target = folder / release.filename(row, module)
+                with zipfile.ZipFile(standard) as source, zipfile.ZipFile(target, 'w') as jar:
+                    for name in source.namelist():
+                        content = source.read(name)
+                        if name in ('META-INF/musichud-distribution.properties', 'META-INF/musichud-update.properties',
+                                    'fabric.mod.json', 'META-INF/neoforge.mods.toml'):
+                            content = content.replace(row['version'].encode(), (row['version'] + '-cf.1').encode())
+                            content = content.replace(b'distribution=standard', b'distribution=cf')
+                            content = content.replace(b'service_profiles=future-http-v2\n', b'')
+                        jar.writestr(name, content)
+                artifacts.append({'module': module, 'name': target.name, 'sha256': release.digest(target)})
+            release.dump(folder / 'build.json', {'entry': row, 'artifacts': artifacts})
+        with patch('builtins.print'):
+            platform.assemble(self.root, downloads, release.HOTFIX_TAG)
+
+    def test_scope_platform_bundle_contains_only_four_standard_and_four_cf_clients(self):
+        manifest, cf = platform.verify_platform_bundle(self.root, release.HOTFIX_TAG)
+        self.assertEqual(4, len(manifest['artifacts']))
+        self.assertEqual(4, len(cf['artifacts']))
+        self.assertEqual(release.HOTFIX_BRANCHES, {r['branch'] for r in platform.cf_rows(manifest)})
+        for row in platform.cf_rows(manifest):
+            text = platform.changelog(row, 'fabric')
+            self.assertIn('MOPELotus/ModernUI-MC/releases/tag/', text)
+            self.assertNotIn('modernui-mc-mvus', text)
+        range_row = next(r for r in platform.cf_rows(manifest) if r['branch'] == '1.21.9-1.21.10')
+        self.assertIn('1.21.9-3.13.0.9', platform.changelog(range_row, 'fabric'))
+        self.assertIn('1.21.10-3.13.0.9', platform.changelog(range_row, 'fabric'))
+
+    def test_scope_curseforge_uploads_four_clients_and_never_plugins(self):
+        manifest, cf = platform.verify_platform_bundle(self.root, release.HOTFIX_TAG)
+        client = Mock()
+        games = {'1.21.9', '1.21.10', '1.21.11', 'Fabric', 'NeoForge', 'Client'}
+        client.request.side_effect = lambda route, **kw: ([{'name': g} for g in games] if route == 'game/versions' else {'id': 42})
+        report = Mock()
+        report.data = {'files': {}}
+        platform.publish_curseforge(client, manifest, cf, self.root,
+                                    {'curseforge_mods': 1, 'curseforge_plugins': 2}, report)
+        routes = [call.args[0] for call in client.request.call_args_list]
+        self.assertEqual(4, routes.count('projects/1/upload-file'))
+        self.assertNotIn('projects/2/upload-file', routes)
+        report.failure.assert_not_called()
+
+    def test_default_full_dispatch_and_historical_mvus_metadata_remain_unchanged(self):
+        output = self.root / 'default-dispatch-output'
+        with patch.dict(os.environ, {'GITHUB_OUTPUT': str(output)}):
+            platform.validate_dispatch(release.HOTFIX_TAG, 'all', '')
+        self.assertEqual('matrix={"platform":["curseforge","hangar"]}\n', output.read_text())
+        row = next(r for r in self.manifest['entries'] if r['id'] == '1.21.11').copy()
+        row.pop('modernui_host')
+        row['version'] = '1.3.0-beta-3'
+        self.assertIn('modernui-mc-mvus', platform.changelog(row, 'fabric'))
+        self.assertNotIn('ModernUI-MC/releases/tag/1.21.11', platform.changelog(row, 'fabric'))
+        for scope, tag in [('other', release.HOTFIX_TAG), (release.HOTFIX_SCOPE, 'v1.3.1.2')]:
+            with self.subTest(scope=scope, tag=tag), self.assertRaises(ValueError):
+                platform.validate_dispatch(tag, 'all', '', scope)
+
+    def test_scope_dispatch_targets_only_curseforge(self):
+        output = self.root / 'dispatch-output'
+        with patch.dict(os.environ, {'GITHUB_OUTPUT': str(output)}):
+            platform.validate_dispatch(release.HOTFIX_TAG, 'all', '', release.HOTFIX_SCOPE)
+        self.assertEqual('matrix={"platform":["curseforge"]}\n', output.read_text())
+        with self.assertRaisesRegex(ValueError, 'no Hangar plugins'):
+            platform.validate_dispatch(release.HOTFIX_TAG, 'hangar', '', release.HOTFIX_SCOPE)
+
+    def test_prepared_bundle_scope_must_match_explicit_dispatch_through_all_verifiers(self):
+        for expected, accepted in ((release.HOTFIX_SCOPE, True), ('full', False), ('unknown', False)):
+            with self.subTest(expected=expected), patch.dict(os.environ, {'RELEASE_SCOPE': expected}):
+                if accepted:
+                    platform.verify_platform_bundle(self.root, release.HOTFIX_TAG)
+                else:
+                    with self.assertRaisesRegex(ValueError, 'scope differs from dispatch'):
+                        platform.verify_platform_bundle(self.root, release.HOTFIX_TAG)
+        with patch.dict(os.environ, {'RELEASE_SCOPE': release.HOTFIX_SCOPE}):
+            with self.assertRaisesRegex(ValueError, 'scope differs from dispatch'):
+                platform.verify_expected_scope({'entries': [], 'release_scope': 'full'})
+        with patch.dict(os.environ, {'RELEASE_SCOPE': 'full'}):
+            platform.verify_expected_scope({'entries': []})  # Historical full manifests have no scope field.
+
+    def test_scope_cf_mirror_uploads_exactly_four_matching_jars_then_catalog(self):
+        import client_updates
+        def api(repo, route):
+            if route.startswith('releases/tags/'):
+                return {'draft': False, 'tag_name': release.HOTFIX_TAG, 'id': 1}
+            if route.startswith('commits/'):
+                return {'sha': self.manifest['controller']}
+            return []
+        env = {'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': 'refs/heads/26.3',
+               'GITHUB_REPOSITORY': platform.REPOSITORY}
+        with patch.dict(os.environ, env), patch.object(release, 'api', side_effect=api), \
+             patch.object(client_updates.subprocess, 'run') as run, patch('builtins.print'):
+            client_updates.mirror_cf(self.root, release.HOTFIX_TAG, self.root / 'mirror')
+        commands = [c.args[0] for c in run.call_args_list]
+        self.assertEqual(5, len(commands))
+        self.assertEqual('client-updates-cf.json', Path(commands[-1][4]).name)
+        self.assertTrue(all('1.3.1.1-cf.1+' in Path(c[4]).name for c in commands[:-1]))

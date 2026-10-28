@@ -13,6 +13,11 @@ on:
         type: choice
         options: [standard, cf]
         default: standard
+      release_scope:
+        description: 'Full release or the explicit two-branch ModernUI 1.3.1.1 hotfix'
+        type: choice
+        options: [full, modernui-1.3.1.1]
+        default: full
       publish:
         description: 'Publish the version in gradle.properties to GitHub Release (run from 26.3)'
         type: boolean
@@ -34,3 +39,4 @@ jobs:
     with:
       publish: ${{ inputs.publish || false }}
       distribution: ${{ inputs.distribution || 'standard' }}
+      release_scope: ${{ inputs.release_scope || 'full' }}

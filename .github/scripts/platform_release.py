@@ -36,7 +36,8 @@ GAME_VERSIONS = {
 LEGACY_PLUGIN_GAMES = ['1.21.1', '1.21.6', '1.21.7', '1.21.8', '1.21.9', '1.21.10',
                 '1.21.11', '26.1', '26.1.1', '26.1.2', '26.2']
 PLUGIN_GAMES = LEGACY_PLUGIN_GAMES + ['26.3']
-MODERNUI_FORKS = {'26.2': '26.2-3.13.0.9', '26.3': '26.3-3.13.0.9'}
+MODERNUI_FORKS = {'26.2': '26.2-3.13.0.9', '26.3': '26.3-3.13.0.9',
+                  '1.21.9-1.21.10': '1.21.10-3.13.0.9', '1.21.11': '1.21.11-3.13.0.9'}
 PREPARATION_BRANCHES = {'26.2', release.DEFAULT_BRANCH}
 MAIN_CLASSES = {
     'fabric': 'indi/mopelotus/musichud/fabric/CommonInitializer.class',
@@ -77,17 +78,27 @@ def verify_runtime_jar(path, row, module):
                 release.require(int.from_bytes(content[6:8], 'big') == expected_java, 'Wrong Java bytecode target')
 
 
+def verify_expected_scope(manifest):
+    expected = os.environ.get('RELEASE_SCOPE')
+    if expected is not None:
+        release.require(expected in ('full', release.HOTFIX_SCOPE) and
+                        manifest.get('release_scope', 'full') == expected, 'Prepared release scope differs from dispatch')
+
+
 def verify_standard(folder, tag):
     validate_tag(tag)
     manifest = release.verify_bundle(folder)
+    verify_expected_scope(manifest)
     release.require(manifest['repository'] == REPOSITORY and manifest['tag'] == tag,
                     'Release repository or tag mismatch')
     rows = manifest['entries']
+    selected = release.release_rows(manifest)
+    version_rows = selected if manifest.get('release_scope') == release.HOTFIX_SCOPE else rows
     release.require(all(row.get('distribution', 'standard') == 'standard' and row['version'] == tag[1:]
-                        for row in rows), 'Expected matching standard release versions')
-    expected = {release.filename(row, module): (row, module) for row in rows if row['publish']
+                        for row in version_rows), 'Expected matching standard release versions')
+    expected = {release.filename(row, module): (row, module) for row in selected
                 for module in row['modules']}
-    release.require(len(expected) == release.artifact_count(rows) and
+    release.require(len(expected) == sum(len(r['modules']) for r in selected) and
                     {a['name'] for a in manifest['artifacts']} == set(expected),
                     'Duplicate or missing release artifacts')
     for artifact in manifest['artifacts']:
@@ -103,8 +114,8 @@ def cf_rows(manifest, overrides=None):
     if overrides is None:
         overrides = release.load_json(Path(__file__).parent.parent / 'cf-source-revisions.json')
     selected = overrides.get(manifest['tag'], {})
-    rows = [row | {'distribution': 'cf'} for row in manifest['entries']
-            if row['publish'] and row['branch'] != 'plugin']
+    rows = [row | {'distribution': 'cf'} for row in release.release_rows(manifest)
+            if row['branch'] != 'plugin']
     release.require(not selected or set(selected) == {r['branch'] for r in rows}, 'Incomplete CF source revisions')
     for row in rows:
         if row['branch'] in selected:
@@ -134,6 +145,8 @@ def prepare(tag, output):
     release.require(0 < len(names) <= 128, 'Invalid release file count')
     subprocess.run(['gh', 'release', 'download', tag, '--repo', REPOSITORY, '--dir', str(standard), *names], check=True)
     manifest = verify_standard(standard, tag)
+    if manifest.get('release_scope') == release.HOTFIX_SCOPE:
+        release.verify_modernui_releases(manifest)
     target = release.release_target(manifest)
     release.require(release.api(REPOSITORY, 'commits/' + tag)['sha'] == target, 'Release tag/source mismatch')
     if os.environ.get('GITHUB_OUTPUT'):
@@ -294,16 +307,27 @@ def multipart(metadata_name, metadata, files):
     return b''.join(parts) + ('--' + boundary + '--\r\n').encode(), 'multipart/form-data; boundary=' + boundary
 
 
+def uses_modernui_fork(row):
+    # Historical 1.21 releases used MVUS; their archived publication metadata
+    # must not acquire dependencies introduced by this scoped hotfix.
+    return row['branch'] in MODERNUI_FORKS and (
+        row['branch'] not in release.HOTFIX_BRANCHES or 'modernui_host' in row or
+        tuple(map(int, row['version'].split('-', 1)[0].split('.'))) >= (1, 3, 1, 1))
+
+
 def changelog(row, module):
     text = (f"MusicHud TuneWeave {row['version']} for {module}. "
             'Shared playback, music queues, lyrics and HUD improvements.\n\n')
     if module in ('fabric', 'neoforge'):
         modern = ('https://github.com/MOPELotus/ModernUI-MC/releases/tag/' + MODERNUI_FORKS[row['branch']]
-                  if row['branch'] in MODERNUI_FORKS else
+                  if uses_modernui_fork(row) else
                   'https://modrinth.com/mod/modernui-mc-mvus' if row['branch'] in ('1.21.9-1.21.10', '1.21.11')
                   else 'https://modrinth.com/mod/modern-ui')
         text += f"Requires the matching [ModernUI build]({modern}) for this Minecraft version and loader. "
-        if row['branch'] in MODERNUI_FORKS:
+        if row['branch'] == '1.21.9-1.21.10' and uses_modernui_fork(row):
+            text += ('For Minecraft 1.21.9 use the [1.21.9 fork](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.9-3.13.0.9); '
+                     'the linked 1.21.10 fork is for Minecraft 1.21.10. ')
+        if uses_modernui_fork(row):
             text += f"Install the {MODERNUI_FORKS[row['branch']]} fork manually; it is currently distributed through GitHub. "
             text += ('Choose either standard (-universal.jar) or MiSans (-universal-misans.jar); replace the old JAR and never install both. '
                      'Both include the same marquee/render/input fixes. Standard supports custom fonts without a MiSans installer. '
@@ -311,7 +335,7 @@ def changelog(row, module):
                      'The editions use separate client configs and import the old client.toml on first use. ')
         if module == 'fabric':
             text += 'Fabric API is required. '
-            if row['branch'] not in MODERNUI_FORKS:
+            if not uses_modernui_fork(row):
                 text += 'ModernUI also requires Forge Config API Port on Fabric. '
         if row.get('distribution') == 'cf':
             text += ('\n\nCF edition: connect to an existing TuneWeave service. '
@@ -346,11 +370,11 @@ def curseforge_metadata(row, module, available, manifest=None):
     release.require(all(name in available for name in names), 'Missing CurseForge game version tag')
     relations = []
     if row['range']:
-        if row['branch'] not in MODERNUI_FORKS and row['branch'] not in ('1.21.9-1.21.10', '1.21.11'):
+        if not uses_modernui_fork(row) and row['branch'] not in ('1.21.9-1.21.10', '1.21.11'):
             relations.append({'slug': 'modern-ui', 'projectID': 352491, 'type': 'requiredDependency'})
         if module == 'fabric':
             relations.append({'slug': 'fabric-api', 'projectID': 306612, 'type': 'requiredDependency'})
-            if row['branch'] not in MODERNUI_FORKS:
+            if not uses_modernui_fork(row):
                 relations.append({'slug': 'forge-config-api-port', 'projectID': 547434, 'type': 'requiredDependency'})
     data = {'displayName': f"MusicHud TuneWeave {release.artifact_version(row)} - {module}",
             'releaseType': release_type(row, manifest), 'gameVersionNames': names,
@@ -364,8 +388,8 @@ def curseforge_metadata(row, module, available, manifest=None):
 def publish_curseforge(client, manifest, cf, folder, config, report):
     available = {v['name'] for v in client.request('game/versions')}
     items = [(a['row'], a['module'], folder / 'cf' / a['name'], config['curseforge_mods']) for a in cf['artifacts']]
-    plugin = next(r for r in manifest['entries'] if r['branch'] == 'plugin')
     items += [(plugin, module, folder / 'standard' / release.filename(plugin, module), config['curseforge_plugins'])
+              for plugin in release.release_rows(manifest) if plugin['branch'] == 'plugin'
               for module in plugin['modules']]
     blocked_projects = set()
     for row, module, path, project in items:
@@ -527,6 +551,8 @@ def publish_platform(platform, folder, tag, config, output):
                     os.environ.get('GITHUB_REF') == 'refs/heads/' + release.DEFAULT_BRANCH and
                     os.environ.get('GITHUB_REPOSITORY') == REPOSITORY, 'Platform publishing requires default-branch dispatch')
     manifest, cf = verify_platform_bundle(folder, tag)
+    release.require(platform != 'hangar' or manifest.get('release_scope') != release.HOTFIX_SCOPE,
+                    'Scoped client release has no Hangar plugins')
     previous = previous_receipts(platform, tag) if platform == 'curseforge' else {}
     report = Receipt(platform, tag, output, previous)
     secret = {'curseforge': 'CURSEFORGE_TOKEN', 'hangar': 'HANGAR_API_TOKEN'}[platform]
@@ -541,7 +567,9 @@ def publish_platform(platform, folder, tag, config, output):
     release.require(not report.errors, 'Some uploads need attention; see the platform receipt')
 
 
-def validate_dispatch(tag, target, prepared_run):
+def validate_dispatch(tag, target, prepared_run, scope='full'):
+    release.require(scope in ('full', release.HOTFIX_SCOPE), 'Unsupported release scope')
+    release.require(scope == 'full' or tag == release.HOTFIX_TAG, 'Invalid scoped release tag')
     validate_tag(tag)
     release.require(target == 'all' or target in PLATFORMS, 'Unsupported publishing target')
     if prepared_run:
@@ -550,7 +578,11 @@ def validate_dispatch(tag, target, prepared_run):
         release.require(run['event'] == 'workflow_dispatch' and run['head_branch'] in PREPARATION_BRANCHES and
                         run['path'] == '.github/workflows/platforms.yml' and run['conclusion'] == 'success',
                         'Prepared bundle must come from a successful default-branch platform workflow')
-    platforms = list(PLATFORMS) if target == 'all' else [target]
+    if scope == release.HOTFIX_SCOPE:
+        release.require(target != 'hangar', 'Scoped client release has no Hangar plugins')
+        platforms = ['curseforge']
+    else:
+        platforms = list(PLATFORMS) if target == 'all' else [target]
     if os.environ.get('GITHUB_OUTPUT'):
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
             stream.write('matrix=' + json.dumps({'platform': platforms}, separators=(',', ':')) + '\n')
@@ -564,6 +596,7 @@ if __name__ == '__main__':
     parser.add_argument('--platform', choices=PLATFORMS)
     parser.add_argument('--target', choices=('all', *PLATFORMS), default='all')
     parser.add_argument('--prepared-run', default='')
+    parser.add_argument('--release-scope', default='full', choices=('full', release.HOTFIX_SCOPE))
     parser.add_argument('--output', type=Path, default=Path('platform-report'))
     args = parser.parse_args()
     if args.command == 'inspect':
@@ -576,4 +609,4 @@ if __name__ == '__main__':
         publish_platform(args.platform, args.input, args.tag,
                          release.load_json('.github/platform-projects.json'), args.output)
     else:
-        validate_dispatch(args.tag, args.target, args.prepared_run)
+        validate_dispatch(args.tag, args.target, args.prepared_run, args.release_scope)

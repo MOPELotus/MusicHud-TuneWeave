@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import tomllib
 import time
+import tempfile
 from urllib.parse import quote
 import zipfile
 
@@ -29,6 +30,51 @@ MODERNUI_HOSTS = {
     '1.21.10': 'a52dbcb619dcd0f5bc111da4cae591a4e7fc1311',
     '1.21.11': 'f390f2b5d353e8c64471e2297577a34d42c011b1',
 }
+
+
+HOTFIX_SCOPE = 'modernui-1.3.1.1'
+HOTFIX_BRANCHES = {'1.21.9-1.21.10', '1.21.11'}
+HOTFIX_TAG = 'v1.3.1.1'
+
+
+def release_rows(manifest):
+    rows = manifest['entries']
+    scope = manifest.get('release_scope', 'full')
+    require(scope in ('full', HOTFIX_SCOPE), 'Unsupported release scope')
+    if scope == 'full':
+        return [row for row in rows if row['publish']]
+    validate_matrix(rows)
+    require(all(r.get('distribution', 'standard') == 'standard' for r in rows), 'Scoped release requires standard builds')
+    require(all(len({r['sha'] for r in rows if r['branch'] == branch}) == 1 for branch in BRANCHES),
+            'Scoped endpoints disagree on frozen source')
+    require(manifest.get('tag') == HOTFIX_TAG and manifest.get('distribution', 'standard') == 'standard',
+            'Invalid scoped release tag or distribution')
+    require(SHA.fullmatch(manifest.get('controller', '')) and
+            manifest['controller'] == next(r['sha'] for r in rows if r['branch'] == DEFAULT_BRANCH),
+            'Scoped controller differs from frozen source')
+    require(all(r['version'] == '1.3.1' for r in rows if r['branch'] not in HOTFIX_BRANCHES),
+            'Scoped release changes an unrelated branch version')
+    require({r['id'] for r in rows if r['publish'] and r['branch'] in HOTFIX_BRANCHES} == {'1.21.10', '1.21.11'},
+            'Scoped distribution endpoints differ')
+    selected = [r for r in rows if r['branch'] in HOTFIX_BRANCHES]
+    endpoint_branches = {'1.21.9': '1.21.9-1.21.10', '1.21.10': '1.21.9-1.21.10', '1.21.11': '1.21.11'}
+    require({r['id']: r['branch'] for r in selected} == endpoint_branches, 'Scoped endpoint branch mapping differs')
+    require(all(r['range'] == ('1.21.9-1.21.10' if r['branch'] == '1.21.9-1.21.10' else '1.21.11')
+                for r in selected), 'Scoped Minecraft range differs')
+    require({r['id'] for r in selected} == {'1.21.9', '1.21.10', '1.21.11'} and
+            all(r['version'] == HOTFIX_TAG[1:] and r.get('modernui_host') == modernui_host(r) for r in selected),
+            'Scoped release sources or versions differ')
+    return [r for r in selected if r['publish']]
+
+
+def scoped_release_notes(manifest):
+    if manifest.get('release_scope') != HOTFIX_SCOPE:
+        return None
+    path = Path('.github/release-notes/1.3.1.1.md')
+    require(path.is_file() and not path.is_symlink(), 'Missing reviewed scoped release notes')
+    text = path.read_text()
+    require(text.strip(), 'Empty reviewed scoped release notes')
+    return text
 
 
 def modernui_host(row):
@@ -124,6 +170,9 @@ def artifact_count(rows):
 def release_target(manifest):
     rows = manifest['entries']
     validate_matrix(rows, allow_legacy=True)
+    if manifest.get('release_scope', 'full') != 'full':
+        release_rows(manifest)
+        return manifest['controller']
     branch = DEFAULT_BRANCH if any(row['branch'] == DEFAULT_BRANCH for row in rows) else '26.2'
     return next(row['sha'] for row in rows if row['branch'] == branch)
 
@@ -141,6 +190,10 @@ def plan():
     repo = os.environ['GITHUB_REPOSITORY']
     event, ref = os.environ['GITHUB_EVENT_NAME'], os.environ['GITHUB_REF']
     publish = release_requested(event, ref, os.environ.get('PUBLISH_REQUESTED') == 'true')
+    scope = os.environ.get('RELEASE_SCOPE', 'full')
+    require(scope in ('full', HOTFIX_SCOPE), 'Unsupported release scope')
+    require(scope == 'full' or (event == 'workflow_dispatch' and ref == 'refs/heads/' + DEFAULT_BRANCH),
+            'Scoped release requires explicit default-branch dispatch')
     distribution = os.environ.get('BUILD_DISTRIBUTION', 'standard')
     require(distribution in ('standard', 'cf'), 'Invalid distribution')
     require(not publish or distribution == 'standard', 'CF workflow builds are review artifacts only')
@@ -167,13 +220,19 @@ def plan():
     validate_matrix(rows)
     version = revisions[DEFAULT_BRANCH]['version']
     tag = 'v' + version + ('-cf' if distribution == 'cf' else '')
-    if publish:
+    if scope != 'full':
+        require(distribution == 'standard', 'Scoped release requires standard distribution')
+        tag = HOTFIX_TAG
+    if publish and scope == 'full':
         require(all(row['version'] == version for row in rows), 'Release versions must match on all source branches')
         require(not ref.startswith('refs/tags/') or ref == 'refs/tags/' + tag, 'Tag does not match mod_version')
     controller = run('git', 'rev-parse', 'HEAD')
     manifest = {'repository': repo, 'controller': controller, 'tag': tag, 'publish': publish,
                 'distribution': distribution,
                 'run_id': os.environ['GITHUB_RUN_ID'], 'entries': rows}
+    if scope != 'full':
+        manifest['release_scope'] = scope
+        release_rows(manifest)
     dump('build-plan.json', manifest)
     with Path(os.environ['GITHUB_OUTPUT']).open('a') as out:
         out.write('matrix=' + json.dumps({'include': rows}, separators=(',', ':')) + '\n')
@@ -289,14 +348,16 @@ def verify_cf_source(source, row):
             'CF source override must contain only the reviewed packaging fix and automation')
 
 
-def verify_modernui_jar(path, endpoint, loader):
+def verify_modernui_jar(path, endpoint, loader, font_variant='standard'):
+    require(font_variant in ('standard', 'misans'), 'Invalid ModernUI font edition')
+    suffix = 'universal-misans' if font_variant == 'misans' else 'universal'
     require(path.is_file() and not path.is_symlink(), 'Missing or unsafe ModernUI artifact')
-    require(path.name == f'ModernUI-{loader}-{endpoint}-3.13.0.9-universal.jar', 'ModernUI filename mismatch')
+    require(path.name == f'ModernUI-{loader}-{endpoint}-3.13.0.9-{suffix}.jar', 'ModernUI filename mismatch')
     upper = {'1.21.9': '1.21.10', '1.21.10': '1.21.11', '1.21.11': '1.21.12'}[endpoint]
     with zipfile.ZipFile(path) as jar:
         require(jar.testzip() is None, 'Corrupt ModernUI artifact')
         manifest = jar.read('META-INF/MANIFEST.MF').decode()
-        require('ModernUI-Font-Variant: standard' in manifest.splitlines(), 'Wrong ModernUI font variant')
+        require('ModernUI-Font-Variant: ' + font_variant in manifest.splitlines(), 'Wrong ModernUI font variant')
         if loader == 'Fabric':
             meta = json.loads(jar.read('fabric.mod.json'))
             require(meta['id'] == 'modernui' and meta['version'] == '3.13.0.9', 'ModernUI metadata mismatch')
@@ -308,6 +369,39 @@ def verify_modernui_jar(path, endpoint, loader):
             dependencies = meta['dependencies']['modernui']
             require(any(d['modId'] == 'minecraft' and d['versionRange'].replace(' ', '') == f'[{endpoint},{upper})'
                         for d in dependencies), 'ModernUI Minecraft range mismatch')
+
+
+def verify_modernui_releases(manifest):
+    """Verify public fork dependencies before publishing any scoped client files."""
+    require(manifest.get('release_scope') == HOTFIX_SCOPE, 'Expected scoped ModernUI release')
+    release_rows(manifest)
+    repo = 'MOPELotus/ModernUI-MC'
+    verified = {}
+    with tempfile.TemporaryDirectory() as directory:
+        for endpoint, sha in MODERNUI_HOSTS.items():
+            revision = endpoint + '-3.13.0.9'
+            info = api(repo, 'releases/tags/' + revision)
+            require(info.get('draft') is False and info.get('tag_name') == revision and
+                    api(repo, 'commits/' + revision)['sha'] == sha, 'ModernUI release source mismatch')
+            assets = info['assets']
+            expected = {f'ModernUI-{loader}-{revision}-{variant}.jar': (loader, variant)
+                        for loader in ('Fabric', 'NeoForge') for variant in ('universal', 'universal-misans')}
+            require(all(sum(a['name'] == name for a in assets) == 1 for name in expected),
+                    'Missing or duplicate ModernUI release assets')
+            hashes = {}
+            for name, (loader, variant) in expected.items():
+                asset = next(a for a in assets if a['name'] == name)
+                require(isinstance(asset.get('digest'), str) and
+                        re.fullmatch(r'sha256:[0-9a-f]{64}', asset['digest']), 'Missing ModernUI asset checksum')
+                subprocess.run(['gh', 'release', 'download', revision, '--repo', repo, '--dir', directory,
+                                '--pattern', name], check=True)
+                path = Path(directory) / name
+                require(digest(path) == asset['digest'][7:], 'ModernUI release checksum mismatch')
+                verify_modernui_jar(path, endpoint, loader, 'misans' if variant == 'universal-misans' else 'standard')
+                hashes[name] = asset['digest'][7:]
+            verified[revision] = {'sha': sha, 'assets': hashes}
+    print('Verified public ModernUI release sources and all twelve dependency assets.')
+    return verified
 
 
 def prepare_modernui(source, row):
@@ -377,12 +471,18 @@ def bundle(downloads, output):
         catalog_tag = catalog_tag.removesuffix('-cf')
     require(catalog_tag is None or (catalog_tag.startswith('v') and VERSION.fullmatch(catalog_tag[1:])),
             'Invalid bundle tag')
-    matching_versions = all('v' + row['version'] == catalog_tag for row in rows)
+    selected_rows = release_rows(manifest)
+    reviewed_notes = scoped_release_notes(manifest)
+    selected_ids = {r['id'] for r in selected_rows}
+    version_rows = selected_rows if manifest.get('release_scope') == HOTFIX_SCOPE else rows
+    matching_versions = all('v' + row['version'] == catalog_tag for row in version_rows)
     require(not manifest.get('publish') or matching_versions, 'Mixed release versions')
     verified = []
+    matrix_builds = []
     for row in rows:
         folder = downloads / ('build-' + row['id'])
         actual = load_json(folder / 'build.json')
+        matrix_builds.append(actual)
         require(actual['entry'] == row, 'Artifact provenance differs from frozen plan')
         expected = {filename(row, module): module for module in row['modules']}
         require({a['name'] for a in actual['artifacts']} == set(expected)
@@ -393,14 +493,16 @@ def bundle(downloads, output):
             require(artifact['module'] == expected[name], 'Artifact loader mismatch')
             require(digest(folder / name) == artifact['sha256'], 'Artifact checksum mismatch')
             verify_jar(folder / name, row, expected[name])
-            if row['publish']:
+            if row['id'] in selected_ids:
                 verified.append((folder / name, artifact | {'branch': row['branch'], 'sha': row['sha'], 'endpoint': row['id']}))
-    count = artifact_count(rows)
+    count = sum(len(r['modules']) for r in selected_rows)
     require(len(verified) == count and len({a['name'] for _, a in verified}) == count, 'Incomplete or duplicate distribution JARs')
     output.mkdir(parents=True, exist_ok=False)
     for path, artifact in verified:
         shutil.copy2(path, output / artifact['name'])
     manifest['artifacts'] = [artifact for _, artifact in verified]
+    if manifest.get('release_scope') == HOTFIX_SCOPE:
+        manifest['matrix_builds'] = matrix_builds
     dump(output / 'build-manifest.json', manifest)
     notes = ['Fabric and NeoForge client builds for every supported Minecraft version group, plus Paper, Velocity and BungeeCord plugins.',
              '', 'Choose the matching Minecraft version and loader. Install the ModernUI dependency described in the README.',
@@ -413,6 +515,12 @@ def bundle(downloads, output):
         notes += ['', 'CF review edition: connect to an existing TuneWeave service; no TuneWeave downloader or updater.',
                   'Install and start TuneWeave separately, then configure its service URL.',
                   'This build has not been approved by CurseForge. Plugin behavior is unchanged; the suffix identifies the review bundle.']
+    if manifest.get('release_scope') == HOTFIX_SCOPE:
+        notes = [reviewed_notes, '',
+                 'All thirteen endpoints were built and verified; matrix_builds records their frozen build provenance.',
+                 'This bundle retains only the four scoped client JARs. Nonselected build files are not included for later byte verification.',
+                 'SHA256SUMS covers every attached distribution file.', '', '| Branch | Commit |', '| --- | --- |']
+        notes += [f'| {b} | `{next(r["sha"] for r in rows if r["branch"] == b)}` |' for b in sorted(BRANCHES)]
     (output / 'RELEASE_NOTES.md').write_text('\n'.join(notes) + '\n')
     for name in ('license', 'LICENSE', 'COPYING', 'COPYING.LESSER'):
         if Path(name).is_file():
@@ -440,12 +548,39 @@ def verify_bundle(folder):
     require(listed == {p.name for p in folder.iterdir()} - {'SHA256SUMS'}, 'Unlisted release file')
     manifest = load_json(folder / 'build-manifest.json')
     validate_matrix(manifest['entries'], allow_legacy=True)
-    expected = {filename(row, module) for row in manifest['entries'] if row['publish'] for module in row['modules']}
-    require(len(manifest['artifacts']) == artifact_count(manifest['entries']) and
+    selected = release_rows(manifest)
+    expected = {filename(row, module) for row in selected for module in row['modules']}
+    require(len(manifest['artifacts']) == sum(len(row['modules']) for row in selected) and
             {a['name'] for a in manifest['artifacts']} == expected, 'Incomplete or duplicate release')
     require({a['name'] for a in manifest['artifacts']} == {n for n in listed if n.endswith('.jar')}, 'Release manifest differs from files')
     for a in manifest['artifacts']:
         require(digest(folder / a['name']) == a['sha256'], 'Manifest checksum mismatch')
+    if manifest.get('release_scope') == HOTFIX_SCOPE:
+        builds = manifest.get('matrix_builds', [])
+        require(len(builds) == len(manifest['entries']) and
+                {b['entry']['id'] for b in builds} == {r['id'] for r in manifest['entries']},
+                'Missing scoped full-matrix verification')
+        for row in manifest['entries']:
+            build = next(b for b in builds if b['entry']['id'] == row['id'])
+            require(build['entry'] == row and len(build['artifacts']) == len(row['modules']) and
+                    {a['name'] for a in build['artifacts']} == {filename(row, m) for m in row['modules']},
+                    'Scoped matrix provenance mismatch')
+            for item in build['artifacts']:
+                require(item.get('module') in row['modules'] and item['name'] == filename(row, item['module']) and
+                        isinstance(item.get('sha256'), str) and re.fullmatch(r'[0-9a-f]{64}', item['sha256']) and
+                        ('size' not in item or (type(item['size']) is int and item['size'] > 0)),
+                        'Invalid scoped matrix artifact metadata')
+        for artifact in manifest['artifacts']:
+            require(artifact.get('endpoint') in {r['id'] for r in selected}, 'Scoped artifact outside release scope')
+            row = next(r for r in selected if r['id'] == artifact['endpoint'])
+            build = next(b for b in builds if b['entry']['id'] == row['id'])
+            require(artifact['branch'] == row['branch'] and artifact['sha'] == row['sha'] and
+                    artifact['module'] in row['modules'] and
+                    any(artifact == a | {'branch': row['branch'], 'sha': row['sha'], 'endpoint': row['id']}
+                        for a in build['artifacts']), 'Scoped artifact provenance mismatch')
+            verify_jar(folder / artifact['name'], row, artifact['module'])
+    if manifest.get('release_scope') == HOTFIX_SCOPE:
+        require((folder / 'client-updates-standard.json').is_file(), 'Missing scoped standard updater catalog')
     for edition in ('standard', 'cf'):
         metadata = folder / f'client-updates-{edition}.json'
         if metadata.exists():
@@ -463,9 +598,17 @@ def publish(folder):
     repo, tag = os.environ['GITHUB_REPOSITORY'], os.environ['RELEASE_TAG']
     require(manifest['repository'] == repo and manifest['publish'] is True and tag == manifest['tag'], 'Release authorization mismatch')
     require(tag.startswith('v') and VERSION.fullmatch(tag[1:]), 'Invalid release tag')
-    require(all(row['version'] == tag[1:] for row in manifest['entries']), 'Mixed release versions')
+    version_rows = release_rows(manifest) if manifest.get('release_scope') == HOTFIX_SCOPE else manifest['entries']
+    require(all(row['version'] == tag[1:] for row in version_rows), 'Mixed release versions')
     target = release_target(manifest)
+    if manifest.get('release_scope') == HOTFIX_SCOPE:
+        require(os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' and
+                os.environ.get('GITHUB_REF') == 'refs/heads/' + DEFAULT_BRANCH and
+                os.environ.get('GITHUB_SHA') == manifest['controller'] and
+                run('git', 'rev-parse', 'HEAD') == manifest['controller'], 'Scoped publication controller provenance mismatch')
     require(str(manifest['run_id']) == os.environ['GITHUB_RUN_ID'], 'Release belongs to another workflow run')
+    if manifest.get('release_scope') == HOTFIX_SCOPE:
+        verify_modernui_releases(manifest)
     matching_tags = api(repo, 'git/matching-refs/tags/' + quote(tag, safe=''))
     if any(item['ref'] == 'refs/tags/' + tag for item in matching_tags):
         require(api(repo, 'commits/' + quote(tag, safe=''))['sha'] == target, 'Existing tag points to a different commit')

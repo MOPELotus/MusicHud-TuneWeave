@@ -516,5 +516,225 @@ class ModernUIContracts(unittest.TestCase):
                 release.verify_modernui_jar(link, '1.21.9', loader)
 
 
+class ScopedReleaseContracts(unittest.TestCase):
+    def setUp(self):
+        self.helper = ReleaseContracts()
+        self.helper.setUp()
+        self.addCleanup(self.helper.doCleanups)
+        h = self.helper
+        self.real_notes = release.scoped_release_notes
+        self.notes_patch = patch.object(release, 'scoped_release_notes', return_value='Reviewed fixture release notes')
+        self.notes_patch.start()
+        self.addCleanup(self.notes_patch.stop)
+        h.manifest.update(tag=release.HOTFIX_TAG, release_scope=release.HOTFIX_SCOPE,
+                          controller='a' * 40, distribution='standard')
+        for row in h.rows:
+            row['version'] = '1.3.1.1' if row['branch'] in release.HOTFIX_BRANCHES else '1.3.1'
+            host = release.modernui_host(row)
+            if host:
+                row['modernui_host'] = host
+
+    def bundle(self):
+        h = self.helper
+        h.fixture()
+        release.bundle(h.downloads, h.output)
+        return release.verify_bundle(h.output)
+
+    def test_scope_builds_all_endpoints_but_publishes_exactly_four_jars_and_catalog_entries(self):
+        h = self.helper
+        manifest = self.bundle()
+        self.assertEqual(13, len(manifest['entries']))
+        self.assertEqual(13, len(manifest['matrix_builds']))
+        self.assertEqual(4, len(list(h.output.glob('*.jar'))))
+        self.assertEqual({'1.21.10', '1.21.11'}, {a['endpoint'] for a in manifest['artifacts']})
+        catalog = release.load_json(h.output / 'client-updates-standard.json')
+        self.assertEqual(release.HOTFIX_TAG, catalog['tag'])
+        self.assertEqual(4, len(catalog['artifacts']))
+        self.assertTrue(all(a['version'].startswith('1.3.1.1+') for a in catalog['artifacts']))
+        self.assertEqual('a' * 40, release.release_target(manifest))
+
+    def test_scope_cannot_skip_unrelated_endpoint_builds(self):
+        h = self.helper
+        h.fixture()
+        (h.downloads / 'build-26.2/build.json').unlink()
+        with self.assertRaises(FileNotFoundError):
+            release.bundle(h.downloads, h.output)
+        self.assertFalse(h.output.exists())
+
+    def test_scope_rejects_unknown_scope_wrong_version_host_tag_controller_and_edition(self):
+        h = self.helper
+        for mutation in ('scope', 'version', 'host', 'tag', 'controller', 'distribution', 'row_edition', 'split_source', 'unselected_version', 'publish_endpoint', 'range'):
+            manifest = copy.deepcopy(h.manifest)
+            row = next(r for r in manifest['entries'] if r['id'] == '1.21.9')
+            if mutation == 'scope': manifest['release_scope'] = '../hotfix'
+            elif mutation == 'version': row['version'] = '1.3.1'
+            elif mutation == 'host': row['modernui_host']['sha'] = 'f' * 40
+            elif mutation == 'tag': manifest['tag'] = 'v1.3.1.2'
+            elif mutation == 'controller': manifest['controller'] = 'b' * 40
+            elif mutation == 'split_source': row['sha'] = 'b' * 40
+            elif mutation == 'unselected_version':
+                next(r for r in manifest['entries'] if r['id'] == '26.2')['version'] = '999.0.0'
+            elif mutation == 'publish_endpoint':
+                row['publish'] = True
+                next(r for r in manifest['entries'] if r['id'] == '1.21.10')['publish'] = False
+            elif mutation == 'range': row['range'] = '1.21.10'
+            elif mutation == 'row_edition':
+                for r in manifest['entries']: r['distribution'] = 'cf'
+            else: manifest['distribution'] = 'cf'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                release.release_rows(manifest)
+
+    def test_scope_rejects_swapped_endpoint_branch_mapping(self):
+        manifest = copy.deepcopy(self.helper.manifest)
+        ten = next(r for r in manifest['entries'] if r['id'] == '1.21.10')
+        eleven = next(r for r in manifest['entries'] if r['id'] == '1.21.11')
+        ten['branch'], eleven['branch'] = eleven['branch'], ten['branch']
+        ten['range'], eleven['range'] = eleven['range'], ten['range']
+        for row in (ten, eleven):
+            row['modernui_host'] = release.modernui_host(row)
+        with self.assertRaisesRegex(ValueError, 'endpoint branch mapping'):
+            release.release_rows(manifest)
+
+    def test_scope_catalog_is_mandatory_after_checksum_repair(self):
+        h = self.helper
+        self.bundle()
+        (h.output / 'client-updates-standard.json').unlink()
+        rewrite_checksums(h.output)
+        with self.assertRaisesRegex(ValueError, 'Missing scoped standard updater catalog'):
+            release.verify_bundle(h.output)
+
+    def test_scope_manifest_requires_complete_matrix_and_exact_artifact_provenance(self):
+        h = self.helper
+        manifest = self.bundle()
+        for mutation in ('missing_matrix', 'matrix_source', 'artifact_source', 'matrix_module', 'matrix_hash', 'matrix_size'):
+            changed = copy.deepcopy(manifest)
+            if mutation == 'missing_matrix': changed.pop('matrix_builds')
+            elif mutation == 'matrix_source': changed['matrix_builds'][0]['entry']['sha'] = 'b' * 40
+            elif mutation == 'matrix_module': changed['matrix_builds'][0]['artifacts'][0]['module'] = 'paper'
+            elif mutation == 'matrix_hash': changed['matrix_builds'][0]['artifacts'][0]['sha256'] = 'not-a-hash'
+            elif mutation == 'matrix_size': changed['matrix_builds'][0]['artifacts'][0]['size'] = -1
+            else: changed['artifacts'][0]['sha'] = 'b' * 40
+            release.dump(h.output / 'build-manifest.json', changed)
+            rewrite_checksums(h.output)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                release.verify_bundle(h.output)
+
+    def test_scope_publication_requires_dependency_verification_before_tag_mutation(self):
+        h = self.helper
+        self.bundle()
+        env = {'GITHUB_REPOSITORY': 'test/repository', 'RELEASE_TAG': release.HOTFIX_TAG, 'GITHUB_RUN_ID': '123',
+               'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': 'refs/heads/26.3', 'GITHUB_SHA': 'a' * 40}
+        with patch.dict(os.environ, env), patch.object(release, 'run', return_value='a' * 40), patch.object(release, 'verify_modernui_releases', side_effect=ValueError('missing fork')) as verify, \
+             patch.object(release, 'api') as api, patch.object(release.subprocess, 'run') as run:
+            with self.assertRaisesRegex(ValueError, 'missing fork'):
+                release.publish(h.output)
+            verify.assert_called_once()
+            api.assert_not_called()
+            run.assert_not_called()
+        with patch.dict(os.environ, env), patch.object(release, 'run', return_value='a' * 40), patch.object(release, 'verify_modernui_releases'), \
+             patch.object(release, 'api', side_effect=[[], {'sha': 'a' * 40}]), patch.object(release.subprocess, 'run') as run:
+            release.publish(h.output)
+            self.assertIn('--draft', run.call_args_list[1].args[0])
+            self.assertIn('--draft=false', run.call_args_list[-1].args[0])
+
+    def test_scope_publication_rejects_rebound_checkout_and_non_dispatch_context(self):
+        h = self.helper
+        self.bundle()
+        env = {'GITHUB_REPOSITORY': 'test/repository', 'RELEASE_TAG': release.HOTFIX_TAG, 'GITHUB_RUN_ID': '123',
+               'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': 'refs/heads/26.3', 'GITHUB_SHA': 'a' * 40}
+        for mutation in ('checkout', 'event', 'ref', 'github_sha'):
+            values = env.copy()
+            if mutation == 'event': values['GITHUB_EVENT_NAME'] = 'push'
+            elif mutation == 'ref': values['GITHUB_REF'] = 'refs/heads/1.21.11'
+            elif mutation == 'github_sha': values['GITHUB_SHA'] = 'b' * 40
+            with self.subTest(mutation=mutation), patch.dict(os.environ, values), \
+                 patch.object(release, 'run', return_value=('b' if mutation == 'checkout' else 'a') * 40), \
+                 patch.object(release, 'api') as api, patch.object(release.subprocess, 'run') as run:
+                with self.assertRaisesRegex(ValueError, 'controller provenance mismatch'):
+                    release.publish(h.output)
+                api.assert_not_called()
+                run.assert_not_called()
+
+    def test_scope_notes_are_required_and_append_only_matrix_provenance(self):
+        h = self.helper
+        with patch.object(Path, 'is_file', return_value=False), self.assertRaisesRegex(ValueError, 'Missing reviewed'):
+            self.real_notes(h.manifest)
+        self.bundle()
+        text = (h.output / 'RELEASE_NOTES.md').read_text()
+        self.assertIn('Reviewed fixture release notes', text)
+        self.assertIn('SHA256SUMS', text)
+        self.assertIn('matrix_builds', text)
+        self.assertNotIn('Hangar', text)
+        self.assertNotIn('Proxy networks', text)
+        self.assertNotIn('plus Paper', text)
+
+    def test_scoped_plan_requires_explicit_default_dispatch_and_freezes_full_matrix(self):
+        h = self.helper
+        branches = {branch: f'{n:040x}' for n, branch in enumerate(sorted(release.BRANCHES), 1)}
+        branches['26.3'] = 'a' * 40
+        def api(repo, path):
+            if path.startswith('git/ref/heads/'):
+                return {'object': {'sha': branches[path.removeprefix('git/ref/heads/')]}}
+            sha = path.split('?ref=')[1]
+            branch = next(b for b, s in branches.items() if s == sha)
+            version = '1.3.1.1' if branch in release.HOTFIX_BRANCHES else '1.3.1'
+            values = f'mod_version={version}\nminecraft_version_range={branch if branch != "plugin" else ""}\n'
+            return {'content': base64.b64encode(values.encode()).decode()}
+        env = {'GITHUB_REPOSITORY': 'test/repository', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
+               'GITHUB_REF': 'refs/heads/26.3', 'GITHUB_SHA': 'a' * 40, 'GITHUB_RUN_ID': '123',
+               'GITHUB_OUTPUT': str(h.root / 'outputs'), 'PUBLISH_REQUESTED': 'true',
+               'BUILD_DISTRIBUTION': 'standard', 'RELEASE_SCOPE': release.HOTFIX_SCOPE}
+        with patch.dict(os.environ, env), patch.object(release, 'api', side_effect=api), \
+             patch.object(release, 'run', return_value='a' * 40), \
+             patch.object(release, 'load_json', return_value=copy.deepcopy(h.rows)), patch.object(release, 'dump') as dump:
+            release.plan()
+            manifest = dump.call_args.args[1]
+            self.assertEqual(13, len(manifest['entries']))
+            self.assertEqual(release.HOTFIX_TAG, manifest['tag'])
+            self.assertEqual(release.HOTFIX_SCOPE, manifest['release_scope'])
+        for event, ref in [('push', 'refs/tags/v1.3.1.1'), ('workflow_dispatch', 'refs/heads/1.21.11'),
+                           ('pull_request', 'refs/heads/26.3')]:
+            with patch.dict(os.environ, env | {'GITHUB_EVENT_NAME': event, 'GITHUB_REF': ref, 'PUBLISH_REQUESTED': 'false'}), \
+                 self.subTest(event=event, ref=ref), self.assertRaises(ValueError):
+                release.plan()
+
+    def test_modernui_releases_require_pinned_public_sources_and_all_asset_hashes(self):
+        h = self.helper
+        assets_by_tag = {}
+        source_files = {}
+        for endpoint in release.MODERNUI_HOSTS:
+            revision = endpoint + '-3.13.0.9'
+            assets = []
+            for loader in ('Fabric', 'NeoForge'):
+                path = ModernUIContracts.jar(self, h.root / 'mui', loader, endpoint=endpoint)
+                source_files[path.name] = path
+                assets.append({'name': path.name, 'digest': 'sha256:' + release.digest(path)})
+                misans = path.with_name(path.name.replace('-universal.jar', '-universal-misans.jar'))
+                with zipfile.ZipFile(path) as original, zipfile.ZipFile(misans, 'w') as jar:
+                    for name in original.namelist():
+                        content = original.read(name)
+                        if name == 'META-INF/MANIFEST.MF':
+                            content = content.replace(b'Variant: standard', b'Variant: misans')
+                        jar.writestr(name, content)
+                source_files[misans.name] = misans
+                assets.append({'name': misans.name, 'digest': 'sha256:' + release.digest(misans)})
+            assets_by_tag[revision] = {'draft': False, 'tag_name': revision, 'assets': assets}
+        def api(repo, path):
+            tag = path.split('/')[-1]
+            if path.startswith('commits/'):
+                return {'sha': release.MODERNUI_HOSTS[tag.removesuffix('-3.13.0.9')]}
+            return assets_by_tag[tag]
+        def download(command, **kwargs):
+            release.shutil.copy2(source_files[command[-1]], Path(command[command.index('--dir') + 1]) / command[-1])
+        with patch.object(release, 'api', side_effect=api), patch.object(release.subprocess, 'run', side_effect=download):
+            self.assertEqual(3, len(release.verify_modernui_releases(h.manifest)))
+            assets_by_tag['1.21.9-3.13.0.9']['assets'][0]['digest'] = 'sha256:' + '0' * 64
+            with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
+                release.verify_modernui_releases(h.manifest)
+            assets_by_tag['1.21.9-3.13.0.9']['draft'] = True
+            with self.assertRaisesRegex(ValueError, 'source mismatch'):
+                release.verify_modernui_releases(h.manifest)
+
+
 if __name__ == '__main__':
     unittest.main()
