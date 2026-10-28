@@ -3,6 +3,7 @@ package indi.mopelotus.musichud.client.services.tuneweave;
 import com.google.gson.JsonNull;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.TuneWeaveException;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeavePlatform;
+import java.util.concurrent.CancellationException;
 import java.util.function.Supplier;
 
 /** Pins credentials before scheduling, but initializes a cold profile before capturing mapping scope. */
@@ -27,6 +28,16 @@ final class TuneWeaveAccountRequests {
             entities.requireEpoch(epoch);
             return entities.capture(operation).get();
         });
+    }
+
+    /** Cached UI classification has a neutral answer while an account/epoch is changing.
+     * Keep the same scope checks as requests, but never retry a rejected read in a new account. */
+    boolean readCachedFlag(Supplier<Boolean> operation) {
+        try {
+            return gateway.capture(entities.capture(operation)).get();
+        } catch (CancellationException changedScope) {
+            return false;
+        }
     }
 
     private static TuneWeaveException loginRequired() {

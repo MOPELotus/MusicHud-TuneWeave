@@ -692,11 +692,11 @@ public final class TuneWeaveClientService {
     }
 
     public boolean isFavoritePlaylist(Playlist playlist) {
-        return scoped(() -> account.isFavoritePlaylist(playlist));
+        return accountRequests.readCachedFlag(() -> account.isFavoritePlaylist(playlist));
     }
 
     public boolean supportsFavoriteIntelligence(Playlist playlist) {
-        return scoped(() -> account.supportsFavoriteIntelligence(playlist));
+        return accountRequests.readCachedFlag(() -> account.supportsFavoriteIntelligence(playlist));
     }
 
     public List<MusicDetail> loadFavoriteIntelligence(Playlist playlist, String startReference) {
