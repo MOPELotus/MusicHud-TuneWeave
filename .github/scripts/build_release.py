@@ -519,6 +519,7 @@ def bundle(downloads, output):
         notes = [reviewed_notes, '',
                  'All thirteen endpoints were built and verified; matrix_builds records their frozen build provenance.',
                  'This bundle retains only the four scoped client JARs. Nonselected build files are not included for later byte verification.',
+                 'Scoped publishing uploads this bundle as a draft pending runtime acceptance; publication is finalized after acceptance.',
                  'SHA256SUMS covers every attached distribution file.', '', '| Branch | Commit |', '| --- | --- |']
         notes += [f'| {b} | `{next(r["sha"] for r in rows if r["branch"] == b)}` |' for b in sorted(BRANCHES)]
     (output / 'RELEASE_NOTES.md').write_text('\n'.join(notes) + '\n')
@@ -628,8 +629,11 @@ def publish(folder):
     require(api(repo, 'commits/' + quote(tag, safe=''))['sha'] == target, 'Existing tag points to a different commit')
     subprocess.run(['gh', 'release', 'upload', tag, '--repo', repo,
                     *[str(p) for p in sorted(folder.iterdir())]], check=True)
-    subprocess.run(['gh', 'release', 'edit', tag, '--repo', repo, '--draft=false',
-                    '--latest=false' if prerelease else '--latest'], check=True)
+    if manifest.get('release_scope') == HOTFIX_SCOPE:
+        print('Scoped release uploaded as draft; awaiting runtime acceptance before publication.')
+    else:
+        subprocess.run(['gh', 'release', 'edit', tag, '--repo', repo, '--draft=false',
+                        '--latest=false' if prerelease else '--latest'], check=True)
 
 
 if __name__ == '__main__':

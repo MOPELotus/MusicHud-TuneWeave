@@ -635,7 +635,27 @@ class ScopedReleaseContracts(unittest.TestCase):
              patch.object(release, 'api', side_effect=[[], {'sha': 'a' * 40}]), patch.object(release.subprocess, 'run') as run:
             release.publish(h.output)
             self.assertIn('--draft', run.call_args_list[1].args[0])
-            self.assertIn('--draft=false', run.call_args_list[-1].args[0])
+            self.assertEqual(['gh', 'release', 'upload'], run.call_args_list[-1].args[0][:3])
+
+    def test_scope_success_uploads_all_assets_and_keeps_release_draft_for_runtime_acceptance(self):
+        h = self.helper
+        self.bundle()
+        env = {'GITHUB_REPOSITORY': 'test/repository', 'RELEASE_TAG': release.HOTFIX_TAG, 'GITHUB_RUN_ID': '123',
+               'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': 'refs/heads/26.3', 'GITHUB_SHA': 'a' * 40}
+        with patch.dict(os.environ, env), patch.object(release, 'run', return_value='a' * 40), \
+             patch.object(release, 'verify_modernui_releases'), \
+             patch.object(release, 'api', side_effect=[[], {'sha': 'a' * 40}]), \
+             patch.object(release.subprocess, 'run') as run, patch('builtins.print') as output:
+            release.publish(h.output)
+        commands = [call.args[0] for call in run.call_args_list]
+        create = next(command for command in commands if command[:3] == ['gh', 'release', 'create'])
+        self.assertIn('--draft', create)
+        self.assertFalse(any(command[:3] == ['gh', 'release', 'edit'] for command in commands))
+        self.assertFalse(any('--draft=false' in command for command in commands))
+        upload = next(command for command in commands if command[:3] == ['gh', 'release', 'upload'])
+        self.assertEqual({str(path) for path in h.output.iterdir()}, set(upload[6:]))
+        output.assert_called_once_with('Scoped release uploaded as draft; awaiting runtime acceptance before publication.')
+        self.assertIn('draft pending runtime acceptance', (h.output / 'RELEASE_NOTES.md').read_text())
 
     def test_scope_publication_rejects_rebound_checkout_and_non_dispatch_context(self):
         h = self.helper
