@@ -151,12 +151,23 @@ public final class VideoDetailView extends LinearLayout {
 
     private void playAll() {
         if (video == null) return;
-        for (TuneWeaveVideoPart part : parts) play(part);
+        var binding = tasks.capture();
+        for (TuneWeaveVideoPart part : parts) {
+            if (!tasks.isCurrent(binding) || !play(part)) return;
+        }
     }
 
-    private void play(TuneWeaveVideoPart part) {
-        if (video == null) return;
-        QueueSubmissionFeedback.submit(this, tuneWeave.videoPartTrack(video, part));
+    private boolean play(TuneWeaveVideoPart part) {
+        if (video == null) return false;
+        try {
+            QueueSubmissionFeedback.submit(this, tuneWeave.videoPartTrack(video, part));
+            return true;
+        } catch (java.util.concurrent.CancellationException changedScope) {
+            // A concurrent account/cache change rejected this click before submission.
+        } catch (RuntimeException error) {
+            showStatus(message(error));
+        }
+        return false;
     }
 
     private ImageButton action(String key, View.OnClickListener listener) {
