@@ -8,9 +8,11 @@ This is an independently maintained fork of [MusicHud by Ephern / Etern](https:/
 
 ### Installation
 
-Install the file for your Minecraft version and loader, together with its required dependencies. Fabric needs Fabric API and the appropriate ModernUI build. Most supported ModernUI Fabric builds also need Forge Config API Port; the project's 26.2 / 26.3 ModernUI fork does not. NeoForge needs the corresponding ModernUI build. Never install this mod alongside upstream MusicHud or a second edition of MusicHud TuneWeave.
+Install the file for your Minecraft version and loader, together with its required dependencies. Fabric needs Fabric API and the appropriate ModernUI build. Most supported ModernUI Fabric builds also need Forge Config API Port; the project's 1.21.9 / 1.21.10 / 1.21.11 / 26.2 / 26.3 ModernUI ports do not. NeoForge needs the corresponding ModernUI build. Never install this mod alongside upstream MusicHud or a second edition of MusicHud TuneWeave.
 
-For Minecraft 26.2 / 26.3, use the matching [ModernUI 3.13.0.9 release](https://github.com/MOPELotus/ModernUI-MC/releases). Choose either the standard `-universal.jar` or the MiSans `-universal-misans.jar` for your loader; replace the old ModernUI JAR and never install both editions. Standard supports custom fonts without a MiSans installer. MiSans retains its font installer and weight controls; missing fonts require an explicit download and restart. Both editions include the same marquee/render/input fixes and use separate client configuration files, importing the old `client.toml` on first use. See the [font edition guide](https://github.com/MOPELotus/ModernUI-MC/blob/26.3-3.13.0.9/docs/font-editions.md). This font choice is independent of the MusicHud standard/CF distribution.
+For Minecraft 1.21.9 / 1.21.10 / 1.21.11 / 26.2 / 26.3, use the matching [ModernUI 3.13.0.9 release](https://github.com/MOPELotus/ModernUI-MC/releases). Choose either the standard `-universal.jar` or the MiSans `-universal-misans.jar` for your loader; replace the old ModernUI JAR and never install both editions. Standard supports custom fonts without a MiSans installer. MiSans retains its font installer and weight controls; missing fonts require an explicit download and restart. Both editions include the same Canvas/native GUI text, rendering and input fixes (Core TextView automatic MARQUEE remains unimplemented; MusicHud draws its own HUD marquee) and use separate client configuration files, importing the old `client.toml` on first use. See the [font edition guide](https://github.com/MOPELotus/ModernUI-MC/blob/26.3-3.13.0.9/docs/font-editions.md). This font choice is independent of the MusicHud standard/CF distribution.
+
+For MusicHud 1.3.1.1, download ModernUI for your exact game version: [1.21.9](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.9-3.13.0.9), [1.21.10](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.10-3.13.0.9), or [1.21.11](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.11-3.13.0.9), then choose Fabric or NeoForge. ModernUI versions below 3.13.0.9 are rejected at startup with bilingual update instructions. MusicHud uses one shared JAR per loader for 1.21.9–1.21.10; ModernUI uses separate game-version JARs. Historical MusicHud 1.3.1 builds for these games still require mVUS 3.12.
 
 Press **M** in a world to open the music interface. Search for music, add tracks to the queue, or use a supported playlist as an idle playback source. Lyrics, account features and available audio quality depend on the music service and the user's access rights.
 
@@ -22,7 +24,7 @@ CF service preferences use a separate `musichud_tuneweave-cf-server.toml` file, 
 
 ### Multiplayer
 
-Players need the client mod and its dependencies. A standalone Paper server uses the Paper plugin. Velocity and BungeeCord networks install the matching plugin **only on the proxy**, with no copy on any backend. The plugins coordinate public playback and do not run TuneWeave or store music-platform login credentials.
+Players need the client mod and its dependencies. The 1.3.1.1 client hotfix continues to use the 1.3.1 server/proxy plugins; other Minecraft clients remain on 1.3.1. A standalone Paper server uses the Paper plugin. Velocity and BungeeCord networks install the matching plugin **only on the proxy**, with no copy on any backend. The plugins coordinate public playback and do not run TuneWeave or store music-platform login credentials.
 
 ### Support and development
 
