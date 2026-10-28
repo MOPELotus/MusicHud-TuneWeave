@@ -29,6 +29,10 @@ side = "BOTH"
 [[dependencies.musichud_tuneweave]]
 modId = "modernui"
 type = "required"
+reason = """
+ModernUI is missing or too old. Install the independent ModernUI-MC port 3.13.0.9 or newer for your Minecraft version.
+未安装 ModernUI 或版本过低。请安装与当前 Minecraft 版本匹配的独立 ModernUI-MC port 3.13.0.9 或更新版本。
+https://github.com/MOPELotus/ModernUI-MC/releases"""
 versionRange = "[3.13.0.9,)"
 ordering = "AFTER"
 side = "CLIENT"

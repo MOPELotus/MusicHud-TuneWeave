@@ -3,11 +3,15 @@ package indi.mopelotus.musichud.utils;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/** Product SemVer, separate from the Minecraft network protocol and the CF package revision. */
-public record ReleaseVersion(int major, int minor, int patch, List<String> pre, int cfRevision)
+/** Product version (SemVer with an optional numeric hotfix component), separate from the Minecraft network protocol and the CF package revision. */
+public record ReleaseVersion(int major, int minor, int patch, int hotfix, List<String> pre, int cfRevision)
         implements Comparable<ReleaseVersion> {
-    private static final Pattern FORMAT = Pattern.compile("(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})(?:-([A-Za-z0-9.-]{1,100}))?");
+    private static final Pattern FORMAT = Pattern.compile("(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})(?:\\.(0|[1-9][0-9]{0,8}))?(?:-([A-Za-z0-9.-]{1,100}))?");
     public ReleaseVersion { pre = List.copyOf(pre); }
+    /** Compatibility for callers constructing a three-component product version. */
+    public ReleaseVersion(int major, int minor, int patch, List<String> pre, int cfRevision) {
+        this(major, minor, patch, 0, pre, cfRevision);
+    }
     public static ReleaseVersion parse(String text) {
         if (text == null || text.length() > 160) throw new IllegalArgumentException("Invalid release version");
         String[] parts = text.split("\\+", -1);
@@ -18,14 +22,20 @@ public record ReleaseVersion(int major, int minor, int patch, List<String> pre, 
         if (cf.find()) { revision = Integer.parseInt(cf.group(1)); version = version.substring(0, cf.start()); }
         var match = FORMAT.matcher(version);
         if (!match.matches()) throw new IllegalArgumentException("Invalid release version");
-        List<String> pre = match.group(4) == null ? List.of() : List.of(match.group(4).split("\\.", -1));
+        List<String> pre = match.group(5) == null ? List.of() : List.of(match.group(5).split("\\.", -1));
         if (pre.stream().anyMatch(p -> p.isEmpty() || p.matches("0[0-9]+"))) throw new IllegalArgumentException("Invalid prerelease");
-        return new ReleaseVersion(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3)), pre, revision);
+        return new ReleaseVersion(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3)),
+                match.group(4) == null ? 0 : Integer.parseInt(match.group(4)), pre, revision);
+    }
+    /** Product identity used when a release tag has no CF packaging revision. */
+    public ReleaseVersion withoutCfRevision() {
+        return cfRevision == 0 ? this : new ReleaseVersion(major, minor, patch, hotfix, pre, 0);
     }
     @Override public int compareTo(ReleaseVersion other) {
         int n = Integer.compare(major, other.major); if (n != 0) return n;
         n = Integer.compare(minor, other.minor); if (n != 0) return n;
         n = Integer.compare(patch, other.patch); if (n != 0) return n;
+        n = Integer.compare(hotfix, other.hotfix); if (n != 0) return n;
         if (pre.isEmpty() != other.pre.isEmpty()) return pre.isEmpty() ? 1 : -1;
         for (int i = 0; i < Math.min(pre.size(), other.pre.size()); i++) {
             String a = pre.get(i), b = other.pre.get(i); boolean an = a.matches("[0-9]+"), bn = b.matches("[0-9]+");

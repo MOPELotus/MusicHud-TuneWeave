@@ -59,4 +59,86 @@ class UpdateCatalogTest {
         var offer = ClientUpdateCatalog.select(catalog("cf"), "v1.4.0-beta.1", installed("cf"), true, "").orElseThrow();
         assertEquals(ClientUpdateCatalog.releasePageUri("v1.4.0-beta.1"), offer.releasePageUri());
     }
+    @Test void numericHotfixOrdersBeforePrereleaseAndIndependentCfRevision() {
+        List<String> ordered = List.of("1.3.1", "1.3.1.1-beta.2", "1.3.1.1-beta.10",
+                "1.3.1.1", "1.3.1.1-cf.1", "1.3.1.1-cf.2", "1.3.1.2", "1.3.1.10", "1.3.2");
+        for (int i = 1; i < ordered.size(); i++) {
+            assertTrue(ReleaseVersion.parse(ordered.get(i - 1)).compareTo(ReleaseVersion.parse(ordered.get(i))) < 0,
+                    ordered.get(i - 1) + " must precede " + ordered.get(i));
+        }
+        assertEquals(ReleaseVersion.parse("1.3.1"), ReleaseVersion.parse("1.3.1.0"));
+        assertEquals(new ReleaseVersion(1, 3, 1, List.of(), 0), ReleaseVersion.parse("1.3.1.0"));
+        assertEquals(0, ReleaseVersion.parse("1.3.1.1+1.21.9-1.21.10")
+                .compareTo(ReleaseVersion.parse("1.3.1.1+1.21.11")));
+        assertEquals(999999999, ReleaseVersion.parse("1.3.1.999999999").hotfix());
+    }
+
+    @Test void currentHotfixIdentitiesSelectNewerUpdatesWithoutDowngradingOrCrossingEdition() {
+        for (String game : List.of("1.21.9", "1.21.10", "1.21.11")) {
+            String metadata = game.equals("1.21.11") ? game : "1.21.9-1.21.10";
+            for (String loader : List.of("fabric", "neoforge")) for (String edition : List.of("standard", "cf")) {
+                String suffix = edition.equals("cf") ? "-cf.1" : "";
+                var current = new ClientUpdateCatalog.Installed("1.3.1.1" + suffix + "+" + metadata, edition, loader, game);
+                var before = new ClientUpdateCatalog.Installed("1.3.1" + suffix + "+" + metadata, edition, loader, game);
+                String same = hotfixCatalog("1.3.1.1", suffix, metadata, edition, loader, game);
+                var offer = ClientUpdateCatalog.select(same, "v1.3.1.1", before, false, "hotfix").orElseThrow();
+                assertEquals("1.3.1.1" + suffix + "+" + metadata, offer.version());
+                assertEquals("https://github.com/MOPELotus/MusicHud-TuneWeave/releases/tag/v1.3.1.1", offer.releasePageUri().toString());
+                assertEquals("https://github.com/MOPELotus/MusicHud-TuneWeave/releases/download/v1.3.1.1/musichud-tuneweave-"
+                        + loader + "-1.3.1.1" + suffix + "%2B" + metadata + ".jar", offer.downloadUri().toString());
+                assertTrue(ClientUpdateCatalog.select(same, "v1.3.1.1", current, false, "").isEmpty());
+                assertTrue(ClientUpdateCatalog.select(hotfixCatalog("1.3.1", suffix, metadata, edition, loader, game),
+                        "v1.3.1", current, true, "").isEmpty());
+                assertTrue(ClientUpdateCatalog.select(hotfixCatalog("1.3.1.2", suffix, metadata, edition, loader, game),
+                        "v1.3.1.2", current, false, "").isPresent());
+                if (edition.equals("cf")) assertTrue(ClientUpdateCatalog.select(
+                        hotfixCatalog("1.3.1.1", "-cf.2", metadata, edition, loader, game),
+                        "v1.3.1.1", current, false, "").isPresent());
+                assertThrows(IllegalArgumentException.class, () -> new ClientUpdateCatalog.Installed(
+                        "1.3.1.1" + (edition.equals("cf") ? "" : "-cf.1") + "+" + metadata, edition, loader, game));
+            }
+        }
+    }
+
+    @Test void hotfixPrereleasesKeepTheExistingOptInAndMetadataSemantics() {
+        var current = new ClientUpdateCatalog.Installed("1.3.1.1+1.21.11", "standard", "fabric", "1.21.11");
+        String preview = hotfixCatalog("1.3.1.2-rc.1", "", "1.21.11", "standard", "fabric", "1.21.11");
+        assertTrue(ClientUpdateCatalog.select(preview, "v1.3.1.2-rc.1", current, false, "").isEmpty());
+        assertTrue(ClientUpdateCatalog.select(preview, "v1.3.1.2-rc.1", current, true, "").isPresent());
+        assertEquals(List.of("rc", "1"), ReleaseVersion.parse("1.3.1.2-rc.1-cf.2+1.21.11").pre());
+        assertEquals(2, ReleaseVersion.parse("1.3.1.2-rc.1-cf.2+1.21.11").cfRevision());
+    }
+
+    @Test void releaseTagPrefilterStripsOnlyCfRevisionAndPreservesHotfixAndPrerelease() {
+        var installed = ReleaseVersion.parse("1.3.1.2-rc.1-cf.2+1.21.11");
+        var base = installed.withoutCfRevision();
+        assertEquals(ReleaseVersion.parse("1.3.1.2-rc.1"), base);
+        assertEquals(2, installed.cfRevision());
+        assertTrue(ReleaseVersion.parse("1.3.1.1").compareTo(base) < 0);
+        assertEquals(0, ReleaseVersion.parse("1.3.1.2-rc.1").compareTo(base));
+        assertTrue(ReleaseVersion.parse("1.3.1.2").compareTo(base) > 0);
+        assertSame(base, base.withoutCfRevision());
+    }
+
+    @Test void fourthComponentAndTagBoundariesRemainStrict() {
+        for (String bad : List.of("1.3.1.01", "1.3.1.-1", "1.3.1.1000000000", "1.3.1.1.0",
+                "1.3.1.", "1.3.1.1-01", "1.3.1.1+", "1.3.1.1+a+b", "1.3.1.1+../x",
+                "1.3.1." + "9".repeat(200), "1.3.1.1-" + "a".repeat(101))) {
+            assertThrows(IllegalArgumentException.class, () -> ReleaseVersion.parse(bad), bad);
+        }
+        for (String bad : List.of("v1.3.1.01", "v1.3.1.1000000000", "v1.3.1.1.0", "v1.3.1.1/../x",
+                "v1.3.1.1?next=evil", "v1.3.1.1+1.21.11", "v1.3.1." + "9".repeat(200))) {
+            assertThrows(IllegalArgumentException.class, () -> ClientUpdateCatalog.releasePageUri(bad), bad);
+            assertThrows(IllegalArgumentException.class, () -> ClientUpdateCatalog.assetUri(bad, "file.jar"), bad);
+        }
+    }
+
+    private static String hotfixCatalog(String product, String suffix, String metadata, String edition, String loader, String game) {
+        String version = product + suffix + "+" + metadata;
+        return """
+                {"schema":1,"repository":"MOPELotus/MusicHud-TuneWeave","tag":"v%s","distribution":"%s",
+                "artifacts":[{"version":"%s","distribution":"%s","loader":"%s","minecraft":["%s"],
+                "file":"musichud-tuneweave-%s-%s.jar","sha256":"%s","size":123}]}
+                """.formatted(product, edition, version, edition, loader, game, loader, version, HASH);
+    }
 }
