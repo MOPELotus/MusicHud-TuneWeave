@@ -1,10 +1,13 @@
 #version 150
 
+// u_Positions: p1, p2, p3, p4
+// u_TextMeta: spread, colorCount, textWidth
+// u_Colors: c1, c2, c3, (textStartX, 0, 0, 0)
 layout(std140) uniform GradientParams {
     mat4 _ModelView;
-    vec4 u_Positions;// p1, p2, p3, p4
-    vec3 u_TextMeta;// spread, colorCount, textWidth
-    mat4 u_Colors;// c1, c2, c3, (textStartX, 0, 0, 0)
+    vec4 u_Positions;
+    vec3 u_TextMeta;
+    mat4 u_Colors;
     float u_unused;
 };
 
