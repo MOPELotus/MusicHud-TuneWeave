@@ -27,6 +27,24 @@ class CatalogTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     updates.catalog(folder, 'v1.4.0-beta.1', 'cf' if edition == 'standard' else 'standard')
 
+    def test_four_component_catalog_keeps_tag_filename_and_identity_consistent(self):
+        for edition in ('standard', 'cf'):
+            with tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory)
+                version = '1.3.1.1' + ('-cf.1' if edition == 'cf' else '') + '+1.21.11'
+                path = self.jar(folder, edition, game='1.21.11', version=version)
+                self.assertEqual(version, updates.catalog(folder, 'v1.3.1.1', edition)['artifacts'][0]['version'])
+                with self.assertRaisesRegex(ValueError, 'Updater version mismatch'):
+                    updates.catalog(folder, 'v1.3.1', edition)
+                path.rename(folder / path.name.replace('1.3.1.1', '1.3.1'))
+                with self.assertRaisesRegex(ValueError, 'Updater version mismatch'):
+                    updates.catalog(folder, 'v1.3.1.1', edition)
+
+    def test_catalog_tags_reject_other_numeric_lengths_and_unsafe_input(self):
+        for tag in ('v1.3', 'v1.3.1.1.1', 'v1..3.1', 'v1.3.1.1\n', 'v1.3.1.1/path', 'v１.3.1.1', None):
+            with tempfile.TemporaryDirectory() as directory, self.subTest(tag=tag), self.assertRaisesRegex(ValueError, 'Invalid catalog tag'):
+                updates.catalog(Path(directory), tag, 'standard')
+
     def test_invalid_identity_and_ambiguous_game_fail_closed(self):
         for game in ('26.3,26.3', '../26.3', ''):
             with tempfile.TemporaryDirectory() as directory:

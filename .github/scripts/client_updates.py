@@ -13,7 +13,8 @@ METADATA = 'META-INF/musichud-update.properties'
 
 
 def catalog(folder, tag, distribution):
-    release.require(re.fullmatch(r'v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?', tag), 'Invalid catalog tag')
+    release.require(isinstance(tag, str) and tag.startswith('v') and release.VERSION.fullmatch(tag[1:]),
+                    'Invalid catalog tag')
     release.require(distribution in ('standard', 'cf'), 'Invalid catalog edition')
     artifacts = []
     matches = set()

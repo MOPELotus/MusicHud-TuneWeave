@@ -40,15 +40,17 @@ class ServiceUpdateContracts(unittest.TestCase):
 
     def test_controlled_standard_identity_and_future_profiles_are_accepted_for_both_loaders(self):
         for loader in ('fabric', 'neoforge'):
-            row = self.row()
-            self.verify(self.jar(row, self.identity(row, loader), loader), row, loader)
+            for version in ('1.3.1', '1.3.1.1'):
+                row = self.row(version)
+                release.validate_row(row)
+                self.verify(self.jar(row, self.identity(row, loader), loader), row, loader)
 
     def test_numeric_contract_boundary_preserves_history_and_does_not_sort_1_10_as_1_1(self):
         for version in ('1.2.99', '1.3.0', '1.3.0-beta-3'):
             row = self.row(version)
             self.verify(self.jar(row), row)
             self.verify(self.jar(row, self.identity(row, profiles=None)), row)
-        for version in ('1.3.1', '1.3.1-beta.1', '1.3.10', '1.10.0', '2.0.0'):
+        for version in ('1.3.1', '1.3.1-beta.1', '1.3.1.1', '1.3.1.1-beta.1', '1.3.10', '1.10.0', '2.0.0'):
             row = self.row(version)
             with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'Missing client update identity'):
                 self.verify(self.jar(row), row)

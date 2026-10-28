@@ -19,7 +19,7 @@ DEFAULT_BRANCH = '26.3'
 LEGACY_BRANCHES = {'26.2', '26.1', '1.21.1', '1.21.6-1.21.8', '1.21.9-1.21.10', '1.21.11', 'plugin'}
 BRANCHES = LEGACY_BRANCHES | {DEFAULT_BRANCH}
 MODULES = {'fabric', 'neoforge', 'paper', 'velocity', 'bungeecord'}
-VERSION = re.compile(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?\Z')
+VERSION = re.compile(r'[0-9]+(?:\.[0-9]+){2,3}(?:-[A-Za-z0-9.-]+)?\Z')
 SHA = re.compile(r'[0-9a-f]{40}\Z')
 
 # Independent ports are built from reviewed immutable source, never a moving branch.
@@ -371,6 +371,14 @@ def bundle(downloads, output):
     manifest = load_json(downloads / 'build-plan/build-plan.json')
     rows = manifest['entries']
     validate_matrix(rows)
+    catalog_tag = manifest.get('tag')
+    require(catalog_tag is None or isinstance(catalog_tag, str), 'Invalid bundle tag')
+    if catalog_tag and rows[0].get('distribution') == 'cf':
+        catalog_tag = catalog_tag.removesuffix('-cf')
+    require(catalog_tag is None or (catalog_tag.startswith('v') and VERSION.fullmatch(catalog_tag[1:])),
+            'Invalid bundle tag')
+    matching_versions = all('v' + row['version'] == catalog_tag for row in rows)
+    require(not manifest.get('publish') or matching_versions, 'Mixed release versions')
     verified = []
     for row in rows:
         folder = downloads / ('build-' + row['id'])
@@ -410,9 +418,11 @@ def bundle(downloads, output):
         if Path(name).is_file():
             shutil.copy2(name, output / name)
     import client_updates
-    if manifest.get('tag'):
+    # Mixed branch versions are valid CI review artifacts; updater catalogs belong
+    # to a single matching release tag and must never offer mismatched versions.
+    if manifest.get('tag') and matching_versions:
         edition = rows[0].get('distribution', 'standard')
-        dump(output / f'client-updates-{edition}.json', client_updates.catalog(output, manifest['tag'], edition))
+        dump(output / f'client-updates-{edition}.json', client_updates.catalog(output, catalog_tag, edition))
     sums = ''.join(f'{digest(p)}  {p.name}\n' for p in sorted(output.iterdir()))
     (output / 'SHA256SUMS').write_text(sums)
 
@@ -440,7 +450,8 @@ def verify_bundle(folder):
         metadata = folder / f'client-updates-{edition}.json'
         if metadata.exists():
             import client_updates
-            require(load_json(metadata) == client_updates.catalog(folder, manifest['tag'], edition), 'Updater catalog differs from verified JARs')
+            catalog_tag = manifest['tag'].removesuffix('-cf') if edition == 'cf' else manifest['tag']
+            require(load_json(metadata) == client_updates.catalog(folder, catalog_tag, edition), 'Updater catalog differs from verified JARs')
     return manifest
 
 

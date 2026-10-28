@@ -152,9 +152,9 @@ class PlatformContracts(unittest.TestCase):
             self.assertIn('multipart/form-data; boundary=', content_type)
 
     def test_release_tags_are_bounded(self):
-        for tag in ('v1.3.0-beta-3', 'v2.0.0'):
+        for tag in ('v1.3.0-beta-3', 'v2.0.0', 'v1.3.1.1', 'v1.3.1.1-beta.1'):
             platform.validate_tag(tag)
-        for tag in ('--help', 'v1.0.0-cf', 'v1.0.0/../../x', 'v1.0.0\nnext', None):
+        for tag in ('--help', 'v1.0.0-cf', 'v1.0.0/../../x', 'v1.0.0\nnext', 'v1.3', 'v1.3.1.1.1', 'v1.3.1.1-cf', None):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 platform.validate_tag(tag)
 
