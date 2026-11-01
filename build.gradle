@@ -1,0 +1,93 @@
+plugins { id 'application' }
+repositories { mavenCentral() }
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+version = '0.2.0'
+def companionProtocolVersion = 1
+def sourceCommit = providers.exec { commandLine 'git', 'rev-parse', 'HEAD' }.standardOutput.asText.map { it.trim() }
+def lwjglVersion = '3.4.3'
+def desktopPlatform = providers.gradleProperty('desktopPlatform').getOrElse(
+        System.getProperty('os.name').toLowerCase().contains('windows') ? 'windows' : 'linux')
+if (!(desktopPlatform in ['windows', 'linux'])) throw new GradleException('desktopPlatform must be windows or linux (x64)')
+dependencies {
+    implementation project(':protocol')
+    for (module in ['lwjgl', 'lwjgl-glfw', 'lwjgl-opengl']) {
+        implementation "org.lwjgl:${module}:${lwjglVersion}"
+        runtimeOnly "org.lwjgl:${module}:${lwjglVersion}:natives-${desktopPlatform}"
+    }
+    testImplementation 'org.junit.jupiter:junit-jupiter:6.0.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:6.0.0'
+}
+application {
+    mainClass = 'indi.mopelotus.musichud.companion.desktop.Companion'
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED', '-Xms32m', '-Xmx256m']
+}
+test { useJUnitPlatform() }
+jar {
+    doFirst {
+        manifest.attributes('Main-Class': application.mainClass.get(),
+                'Class-Path': configurations.runtimeClasspath.files.collect { it.name }.join(' '))
+    }
+}
+processResources {
+    from('license') { into 'META-INF/licenses/musichud-tuneweave'; rename { 'LICENSE' } }
+    from('NOTICE') { into 'META-INF/licenses/musichud-tuneweave' }
+    inputs.property('version', project.version)
+    doLast {
+        destinationDir.toPath().resolve('companion-version.txt').toFile().text = project.version.toString()
+    }
+}
+tasks.register('packageCompanion', Exec) {
+    dependsOn installDist
+    doFirst {
+        if (desktopPlatform != 'windows' || !System.getProperty('os.name').toLowerCase().contains('windows')
+                || !(System.getProperty('os.arch').toLowerCase() in ['amd64', 'x86_64'])) {
+            throw new GradleException('Build Companion.exe on Windows x64 with -PdesktopPlatform=windows')
+        }
+        commandLine javaToolchains.launcherFor(java.toolchain).get().metadata.installationPath.file('bin/jpackage.exe'),
+                '--type', 'app-image', '--name', 'Companion', '--app-version', project.version,
+                '--input', layout.buildDirectory.dir("install/${project.name}/lib").get().asFile,
+                '--main-jar', tasks.jar.archiveFileName.get(), '--main-class', application.mainClass.get(),
+                '--java-options', '--enable-native-access=ALL-UNNAMED',
+                '--java-options', '-Xms32m', '--java-options', '-Xmx256m',
+                '--dest', layout.buildDirectory.dir('package').get().asFile
+    }
+    doLast {
+        def identity = [schemaVersion: 1, version: project.version.toString(), protocolVersion: companionProtocolVersion, sourceCommit: sourceCommit.get()]
+        layout.buildDirectory.file('package/Companion/companion.json').get().asFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(identity)) + '\n'
+        copy {
+            from 'README.md'
+            into layout.buildDirectory.dir('package/Companion')
+        }
+        copy {
+            from 'license'
+            from 'NOTICE'
+            from 'src/main/resources/META-INF/licenses'
+            into layout.buildDirectory.dir('package/Companion/licenses')
+        }
+    }
+}
+distributions.main.contents {
+    from('license') { into 'licenses'; rename { 'MusicHud-TuneWeave-LICENSE' } }
+    from('NOTICE') { into 'licenses' }
+    from('src/main/resources/META-INF/licenses') { into 'licenses' }
+}
+
+tasks.register('bundleCompanion', Zip) {
+    dependsOn packageCompanion
+    archiveFileName = "Companion-${project.version}-windows-x64.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(layout.buildDirectory.dir('package/Companion')) { into 'Companion' }
+    doLast {
+        def archive = archiveFile.get().asFile
+        def sha = java.security.MessageDigest.getInstance('SHA-256')
+        archive.withInputStream { stream ->
+            byte[] buffer = new byte[65536]
+            int count
+            while ((count = stream.read(buffer)) != -1) sha.update(buffer, 0, count)
+        }
+        def manifest = [schemaVersion: 1, version: project.version.toString(), protocolVersion: companionProtocolVersion,
+                        sourceCommit: sourceCommit.get(), platform: 'windows-x64', archive: archive.name,
+                        sha256: sha.digest().encodeHex().toString(), size: archive.length(), entryPoint: 'Companion/Companion.exe']
+        new File(archive.parentFile, 'companion-manifest.json').text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(manifest)) + '\n'
+    }
+}

@@ -1,0 +1,2 @@
+rootProject.name = 'musichud-companion'
+include 'protocol'
