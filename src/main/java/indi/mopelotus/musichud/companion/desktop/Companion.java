@@ -209,6 +209,7 @@ public final class Companion {
                 System.out.println("HUD " + (locked ? "locked (mouse passthrough)" : "unlocked (drag to move)"));
             }
             CompanionWire.Message frame = expired ? null : state.frame();
+            boolean uploaded = false;
             if (frame != null && frame != displayed) {
                 boolean resized = displayed == null || width != frame.width() || height != frame.height();
                 width = frame.width(); height = frame.height();
@@ -227,10 +228,7 @@ public final class Companion {
                 if (resized) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, upload);
                 else glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, upload);
                 displayed = frame;
-                long latency = Math.max(0, System.currentTimeMillis() - frame.capturedAtMillis());
-                totalLatencyMillis += latency;
-                latencies.add(latency);
-                presentations++;
+                uploaded = true;
             }
             if (frame != null && !visible) { glfwShowWindow(window); visible = true; }
             if (frame == null && visible) {
@@ -257,9 +255,16 @@ public final class Companion {
                 glTexCoord2f(0, 1); glVertex2f(0, height);
                 glEnd();
                 glfwSwapBuffers(window);
+                if (uploaded) {
+                    // Include the draw and swap call; this still does not measure display scanout.
+                    long latency = Math.max(0, System.currentTimeMillis() - frame.capturedAtMillis());
+                    totalLatencyMillis += latency;
+                    latencies.add(latency);
+                    presentations++;
+                }
             }
             if (started - reportStart >= 10_000_000_000L) {
-                System.out.printf(Locale.ROOT, "received FPS=%.1f, capture-to-submit ms: mean=%.1f p50=%.1f p95=%.1f%n",
+                System.out.printf(Locale.ROOT, "presented FPS=%.1f, capture-to-swap-return ms: mean=%.1f p50=%.1f p95=%.1f%n",
                         presentations * 1e9 / (started - reportStart), presentations == 0 ? 0 : (double) totalLatencyMillis / presentations,
                         latencies.percentile(.5), latencies.percentile(.95));
                 latencies.reset();

@@ -42,7 +42,7 @@ Companion 已连接时，游戏主线程的绘制节奏至少保持所选桌面�
 
 ## 本机数据与排查
 
-Windows 数据目录为 `%LOCALAPPDATA%\MusicHud-TuneWeave\Companion`，包含位置、单实例锁和 `companion-39841.log`。日志记录 GPU、连接状态及帧率、提交延迟 P50/P95，不包含平台凭据。
+Windows 数据目录为 `%LOCALAPPDATA%\MusicHud-TuneWeave\Companion`，包含位置、单实例锁和 `companion-39841.log`。日志记录 GPU、连接状态及换帧帧率、换帧调用返回延迟 P50/P95，不包含平台凭据。
 
 启动参数：`--x 24 --y 24` 覆盖初始桌面位置，`--position-file <path>` 指定位置文件；`--port 39841` 指定接收端口，须与游戏一致。位置使用物理像素。当前游戏端固定监听 `127.0.0.1:39841`，同一端口只连接一个 Companion。
 
@@ -52,7 +52,7 @@ Windows 数据目录为 `%LOCALAPPDATA%\MusicHud-TuneWeave\Companion`，包含�
 
 Windows 人工验收需实际运行游戏和 Companion，检查透明圆角与淡出、置顶、不抢焦点、解锁拖动、锁定时释放拖动、点击和滚轮穿透、重启默认锁定、DPI、多显示器与断流清空，并从两进程日志确认物理 GPU。构建或启动器检查通过不等于这些项目通过。
 
-性能对照应保持同一窗口尺寸、GUI 缩放、曲目和背景场景，预热后分别测量关闭导出、仅离屏、离屏加读回及完整 IPC。记录游戏帧时间、帧率、丢帧、延迟和两进程 CPU/GPU/内存；日志的 capture-to-submit 是软件提交时间，不是屏幕实际出光延迟。
+性能对照应保持同一窗口尺寸、GUI 缩放、曲目和背景场景，预热后分别测量关闭导出、仅离屏、离屏加读回及完整 IPC。记录游戏帧时间、帧率、丢帧、延迟和两进程 CPU/GPU/内存。日志的 `capture-to-swap-return` 从游戏端 GPU 读回前的捕获时间戳计至桌面端 `glfwSwapBuffers` 返回，涵盖读回、IPC、纹理上传和换帧调用；不含此前的 HUD 提取绘制，也不代表 GPU 执行完毕或屏幕实际出光。
 
 ## 数据边界与许可
 
