@@ -7,9 +7,13 @@ Minecraft 26.3 的独立桌面 HUD。Minecraft 继续使用原 HUD Renderer，Co
 ## 使用
 
 1. 安装 `experiment/companion` 分支构建的 26.3 Fabric 或 NeoForge 模组，以及对应的 ModernUI。普通正式分支尚不包含桌面导出功能。
-2. 保留 Windows 构建产物的整个 `Companion` 目录，双击 `Companion.exe`。随附运行时，无须另装 Java；不能只复制 EXE。
-3. 在 MusicHud 的设置菜单中找到 **桌面 HUD（Companion）** 分类，打开 **启用桌面 HUD** 开关。
+2. 在 MusicHud 设置菜单的 **桌面 HUD（Companion）** 分类中打开 **启用桌面 HUD**。标准版会下载并校验完整程序包，由 Mod 启动；同处可打开下载页面、选择安装目录或已有程序路径，以及查看版本、停止和重启。
+3. 手动启动或使用 CF 版时，完整解压 Windows ZIP，保留整个 `Companion` 目录，双击 `Companion.exe`。随附运行时，无须另装 Java；不能只复制 EXE。CF 版仅提供画面导出、锁定、帧率和缩放设置，程序由用户自行下载和启动。
 4. 关闭 **锁定桌面 HUD（鼠标穿透）** 开关，在桌面直接拖动 HUD；调整后回到游戏打开该开关。
+
+当前仍是准备阶段，正式分支尚未合入，也尚未发布包含 Companion 的正式 Release。自动下载需要官方发布 `companion-latest.json` 与 Windows ZIP 后才能使用；目前可使用工作流构建的完整程序包，标准版中填写 `Companion.exe` 路径或手动启动。
+
+关闭导出或退出游戏时，Mod 会结束自己启动的 Companion。外部手动启动的进程不会被接管或终止；游戏退出后会清空画面，可从托盘退出程序。托管启动的命令行参数见下方“版本及进程管理”。
 
 锁定后，整个桌面 HUD 不接收鼠标操作，点击及滚轮交给下方窗口。新连接、Companion 重启均默认锁定；拖动结束的位置保存在本机。显示器移除后，屏幕外的位置回到主屏工作区。导出开关默认关闭，每次启动游戏需重新启用。
 
