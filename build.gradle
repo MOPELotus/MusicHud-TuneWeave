@@ -1,7 +1,6 @@
 plugins { id 'application' }
 repositories { mavenCentral() }
 java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
-version = '0.2.0'
 def companionProtocolVersion = 1
 def sourceCommit = providers.exec { commandLine 'git', 'rev-parse', 'HEAD' }.standardOutput.asText.map { it.trim() }
 def lwjglVersion = '3.4.3'

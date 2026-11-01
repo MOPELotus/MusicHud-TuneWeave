@@ -24,13 +24,15 @@ public final class Companion {
     private final WindowPosition position;
     private final int port;
     private final OwnerProcess owner;
+    private final Path stopFile;
     private final Integer requestedX, requestedY;
     private ByteBuffer upload;
     private volatile boolean exitRequested;
 
-    private Companion(int port, Integer x, Integer y, Path positionPath, OwnerProcess owner) {
+    private Companion(int port, Integer x, Integer y, Path positionPath, OwnerProcess owner, Path stopFile) {
         this.port = port;
         this.owner = owner;
+        this.stopFile = stopFile;
         requestedX = x;
         requestedY = y;
         position = new WindowPosition(positionPath);
@@ -40,12 +42,14 @@ public final class Companion {
         int port = CompanionWire.PORT;
         Integer x = null, y = null;
         Long ownerPid = null, ownerStart = null;
+        Path stopFile = null;
         String dataHome = System.getenv("LOCALAPPDATA");
         Path data = dataHome == null ? Path.of(System.getProperty("user.home"), ".config") : Path.of(dataHome);
         Path positionPath = data.resolve("MusicHud-TuneWeave/Companion/position.properties");
         try {
             for (int i = 0; i < args.length; i++) {
                 switch (args[i]) {
+                    case "--stop-file" -> stopFile = stopFile(argumentValue(args, ++i));
                     case "--owner-pid" -> ownerPid = Long.parseLong(argumentValue(args, ++i));
                     case "--owner-start" -> ownerStart = Long.parseLong(argumentValue(args, ++i));
                     case "--version" -> { System.out.println(version()); return; }
@@ -54,7 +58,7 @@ public final class Companion {
                     case "--y" -> y = Integer.parseInt(argumentValue(args, ++i));
                     case "--position-file" -> positionPath = Path.of(argumentValue(args, ++i));
                     case "--help" -> {
-                        System.out.println("Companion [--port 39841] [--x pixels --y pixels] [--position-file path] [--owner-pid PID --owner-start epochMillis] [--version]");
+                        System.out.println("Companion [--port 39841] [--x pixels --y pixels] [--position-file path] [--owner-pid PID --owner-start epochMillis] [--stop-file absolutePath] [--version]");
                         return;
                     }
                     default -> throw new IllegalArgumentException("Unknown option: " + args[i]);
@@ -62,11 +66,11 @@ public final class Companion {
             }
             if (port < 1 || port > 65535 || (x == null) != (y == null)) throw new IllegalArgumentException("Invalid port or position");
             OwnerProcess owner = OwnerProcess.of(ownerPid, ownerStart);
-            if (owner != null && !owner.alive()) return;
+            if ((owner != null && !owner.alive()) || stopRequested(stopFile)) return;
             try (var session = new DesktopSession(data.resolve("MusicHud-TuneWeave/Companion"), port)) {
                 try {
                     System.out.println("Companion version=" + version() + ", owner=" + owner);
-                    new Companion(port, x, y, positionPath, owner).run();
+                    new Companion(port, x, y, positionPath, owner, stopFile).run();
                 }
                 catch (RuntimeException error) { error.printStackTrace(System.err); throw error; }
             } catch (java.io.IOException error) { throw new IllegalStateException(error.getMessage(), error); }
@@ -75,6 +79,14 @@ public final class Companion {
             throw error;
         }
     }
+
+    static Path stopFile(String value) {
+        Path path = Path.of(value);
+        if (!path.isAbsolute()) throw new IllegalArgumentException("--stop-file must be an absolute path");
+        return path;
+    }
+
+    static boolean stopRequested(Path path) { return path != null && java.nio.file.Files.exists(path); }
 
     static String version() {
         try (var stream = Companion.class.getResourceAsStream("/companion-version.txt")) {
@@ -178,7 +190,7 @@ public final class Companion {
         boolean visible = false;
         long reportStart = System.nanoTime(), presentations = 0, totalLatencyMillis = 0;
         FrameTimings latencies = new FrameTimings();
-        while (!exitRequested && !glfwWindowShouldClose(window) && (owner == null || owner.alive())) {
+        while (!exitRequested && !glfwWindowShouldClose(window) && (owner == null || owner.alive()) && !stopRequested(stopFile)) {
             long started = System.nanoTime();
             glfwPollEvents();
             DisplayState state = receiver.state.get();

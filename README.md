@@ -67,3 +67,6 @@ IPC 仅传输版本化的 RGBA8 画面、帧身份、时间和锁定状态。像
 Windows ZIP 为 `Companion-0.2.0-windows-x64.zip`，根目录包含完整 `Companion/`。
 `Companion/companion.json` 记录版本、帧协议版本与源提交；同目录外的 `companion-manifest.json` 记录 ZIP 的 SHA-256、大小和入口。
 此分支 CI 仅构建测试产物，不自动发布 Release 或上传分发平台。
+
+托管启动还可传 `--stop-file absolutePath`。启动前该路径应不存在；文件出现后程序正常退出，避免 Windows 强制终止进程跳过清理。
+Companion 只检查信号文件，不创建、修改或删除它。管理方使用每次启动独有的临时目录，并在退出后清理自己创建的目录。
