@@ -8,7 +8,7 @@ class CompanionArgumentsTest {
         assertDoesNotThrow(() -> Companion.main(new String[]{"--help"}));
     }
     @Test void versionDoesNotInitializeGraphicsOrConnectToTheGame() {
-        assertEquals("0.2.0", Companion.version());
+        assertEquals("0.2.1", Companion.version());
         assertDoesNotThrow(() -> Companion.main(new String[]{"--version"}));
     }
     @Test void absentOwnerExitsBeforeGraphics() {

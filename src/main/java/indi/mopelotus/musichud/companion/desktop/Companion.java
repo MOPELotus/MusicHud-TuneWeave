@@ -230,7 +230,11 @@ public final class Companion {
                 displayed = frame;
                 uploaded = true;
             }
-            if (frame != null && !visible) { glfwShowWindow(window); visible = true; }
+            if (frame != null && !visible) {
+                glfwShowWindow(window);
+                if (windows != null) windows.ensureTopmost();
+                visible = true;
+            }
             if (frame == null && visible) {
                 finishDrag();
                 if (windows != null) windows.releaseMouse();
