@@ -109,6 +109,20 @@ jobs:
         with:
           ref: ${{ fromJSON(needs.plan.outputs.companion).sha }}
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.controller }}
+          path: client-contract
+          persist-credentials: false
+      - name: Verify client and desktop wire protocol sources agree
+        shell: python
+        run: |
+          from pathlib import Path
+          client = Path('client-contract/common/src/main/java/indi/mopelotus/musichud/companion/protocol')
+          service = Path('protocol/src/main/java/indi/mopelotus/musichud/companion/protocol')
+          assert {p.name for p in client.glob('*.java')} == {p.name for p in service.glob('*.java')}
+          for source in client.glob('*.java'):
+              assert source.read_text() == (service / source.name).read_text(), source.name
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
