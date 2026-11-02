@@ -20,6 +20,7 @@ public final class ClientGraphicsResources {
             error -> MusicHud.LOGGER.warn("Failed to release a TuneWeave UI image", error));
 
     private static volatile Runnable uiShutdown = () -> {};
+    private static volatile boolean renderContextUsable = true;
 
     private ClientGraphicsResources() {}
 
@@ -92,6 +93,7 @@ public final class ClientGraphicsResources {
     }
 
     public static void releaseTexture(AutoCloseable texture) {
+        if (!renderContextUsable) return;
         if (RenderSystem.isOnRenderThread()) {
             RENDER.release(texture);
         } else if (!RENDER.isStopped()) {
@@ -102,14 +104,19 @@ public final class ClientGraphicsResources {
 
     /** Minecraft.close HEAD, before its textures, renderer and GPU device are destroyed. */
     public static void beginShutdown() {
+        renderContextUsable = indi.mopelotus.musichud.client.companion.CompanionBridge.shutdown();
         UI.stop();
         RENDER.stop();
         HudRendererManager.shutdown();
         ImageUtils.cleanup();
         // Some older ModernUI builds do not invoke UIManager.destroy on every Minecraft exit path.
         uiShutdown.run();
-        RENDER.close();
-        MusicHud.LOGGER.info("Released TuneWeave render resources");
+        if (renderContextUsable) {
+            RENDER.close();
+            MusicHud.LOGGER.info("Released TuneWeave render resources");
+        } else {
+            MusicHud.LOGGER.warn("Skipped TuneWeave GPU disposal because the render context could not be restored");
+        }
     }
 
     /** UIManager.run, after its event loop finishes and before its recording context is released. */

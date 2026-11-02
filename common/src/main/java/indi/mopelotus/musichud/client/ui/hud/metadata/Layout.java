@@ -91,6 +91,7 @@ public class Layout implements HudUniform {
     }
 
     public AbsolutePosition calcAbsolutePosition(HudRenderContext context) {
+        if (parent == null && context != null && context.isDesktopOrigin()) return new AbsolutePosition(2, 2);
         if (parent != null) {
             AbsolutePosition absolutePosition = parent.calcAbsolutePosition(context);
             float xOffset = horizontalAlign.calcX(x, context, getRootLayout());

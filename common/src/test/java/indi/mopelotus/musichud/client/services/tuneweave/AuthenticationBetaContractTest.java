@@ -24,9 +24,9 @@ class AuthenticationBetaContractTest {
                         case "getTuneWeaveBaseUrl" -> "http://127.0.0.1:7832";
                         case "getDefaultMusicPlatform" -> "migu";
                         case "getTuneWeaveCredential" -> credentials.getOrDefault(args[0], "");
-                        case "setTuneWeaveCredential" -> { credentials.put((String) args[0], (String) args[1]); yield null; }
+                        case "setTuneWeaveCredential", "storeLoginCredential", "storeLoginAccount" -> { credentials.put((String) args[0], (String) args[1]); yield null; }
                         case "clearTuneWeaveCredential" -> { credentials.remove(args[0]); yield null; }
-                        case "save", "setDefaultMusicPlatform" -> null;
+                        case "save", "setDefaultMusicPlatform", "storeAccountProfile" -> null;
                         default -> throw new AssertionError(method.getName());
                     });
             gateway = new TuneWeaveGateway(config, (base, method, path, query, body, sent) -> {

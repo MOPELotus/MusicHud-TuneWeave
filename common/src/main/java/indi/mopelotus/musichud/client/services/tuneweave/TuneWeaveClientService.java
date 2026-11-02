@@ -139,6 +139,9 @@ public final class TuneWeaveClientService {
         return gateway.isAvailable();
     }
 
+    public java.util.List<indi.mopelotus.musichud.beans.user.SavedAccount> savedAccounts(TuneWeavePlatform platform) { return gateway.savedAccounts(platform); }
+    public void selectAccount(TuneWeavePlatform platform, String id) { authentication.selectAccount(platform, id); }
+
     public boolean hasCredential(TuneWeavePlatform platform) {
         return gateway.hasCredential(platform);
     }

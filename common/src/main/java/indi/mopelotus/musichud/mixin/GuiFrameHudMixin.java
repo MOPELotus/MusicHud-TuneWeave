@@ -1,6 +1,5 @@
 package indi.mopelotus.musichud.mixin;
 
-import indi.mopelotus.musichud.client.ui.hud.HudRendererManager;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -22,6 +21,6 @@ public abstract class GuiFrameHudMixin {
                                                GuiGraphicsExtractor graphics) {
         if (!resourcesLoaded) return;
         graphics.nextStratum();
-        HudRendererManager.getInstance().renderFrame(graphics, deltaTracker);
+        indi.mopelotus.musichud.client.companion.CompanionBridge.extract(graphics, deltaTracker);
     }
 }
