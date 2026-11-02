@@ -46,6 +46,32 @@ final class TuneWeaveGateway {
         publish.run();
     }
     private final ThreadLocal<RequestContext> boundContext = new ThreadLocal<>();
+    private final ThreadLocal<PendingCredential> pendingCredential = new ThreadLocal<>();
+
+    /** Uncommitted login credential, scoped to profile verification on this thread. */
+    private static final class PendingCredential {
+        final TuneWeavePlatform platform;
+        String value;
+        PendingCredential(TuneWeavePlatform platform, String value) { this.platform = platform; this.value = value; }
+    }
+    static final class VerifiedLogin<T> {
+        final String credential;
+        final T profile;
+        VerifiedLogin(String credential, T profile) { this.credential = credential; this.profile = profile; }
+    }
+
+    <T> VerifiedLogin<T> verifyLogin(TuneWeavePlatform platform, JsonElement credential, Supplier<T> loadProfile) {
+        PendingCredential previous = pendingCredential.get();
+        PendingCredential pending = new PendingCredential(platform, parseCredential(platform, credential));
+        pendingCredential.set(pending);
+        try {
+            T profile = capture(loadProfile).get();
+            return new VerifiedLogin<>(pending.value, profile);
+        } finally {
+            if (previous == null) pendingCredential.remove(); else pendingCredential.set(previous);
+        }
+    }
+
 
     TuneWeaveGateway() { this(ClientConfig.getInstance()); }
     TuneWeaveGateway(ClientConfig config) { this(config, TuneWeaveApiClient::requestAt); }
@@ -145,6 +171,9 @@ final class TuneWeaveGateway {
     TuneWeaveApiClient.TuneWeaveResponse requestForPlatform(
             TuneWeavePlatform platform, String method, String path,
             Map<String, String> query, JsonElement body) {
+        PendingCredential pending = pendingCredential.get();
+        if (pending != null && pending.platform == platform)
+            return requestPending(pending, method, path, query, body);
         // beta.1 exposes these catalog reads only in public scope. Never apply this to
         // account libraries, playlists, track authorization, or mutations.
         if ("GET".equals(method) && (platform == TuneWeavePlatform.KUGOU || platform == TuneWeavePlatform.KUWO || platform == TuneWeavePlatform.MIGU)
@@ -172,15 +201,67 @@ final class TuneWeaveGateway {
         return request(method, path, query, body, List.of());
     }
 
-    synchronized void saveCredential(TuneWeavePlatform expectedPlatform, JsonElement element) {
+    private static String parseCredential(TuneWeavePlatform expectedPlatform, JsonElement element) {
         JsonObject meta = new JsonObject(); meta.add("caller_credential", element);
         var values = indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveCredentialUpdates.parse(meta, List.of());
         String value = values.get(expectedPlatform.apiName());
         if (value == null || values.size() != 1) throw new TuneWeaveApiClient.TuneWeaveException("Unexpected credential platform", false);
-        config.setTuneWeaveCredential(expectedPlatform.apiName(), value);
-        states.put(expectedPlatform, new CredentialState(value));
-        config.setDefaultMusicPlatform(expectedPlatform.apiName());
+        return value;
+    }
+
+    synchronized void saveVerifiedLogin(TuneWeavePlatform platform, VerifiedLogin<TuneWeaveSession> verified) {
+        var profile = verified.profile;
+        config.storeLoginAccount(platform.apiName(), verified.credential, profile.userId(), profile.nickname(), profile.avatarUrl());
+        states.put(platform, new CredentialState(verified.credential));
+        config.setDefaultMusicPlatform(platform.apiName());
         config.save();
+    }
+
+    synchronized void saveVerifiedRefresh(TuneWeavePlatform platform, VerifiedLogin<TuneWeaveSession> verified) {
+        for (var account : config.getSavedAccounts(platform.apiName())) {
+            if (account.selected() && !account.userId().isBlank() && !account.userId().equals(verified.profile.userId()))
+                throw new TuneWeaveApiClient.TuneWeaveException("Refreshed session identity does not match selected account", false);
+        }
+        CredentialState state = state(platform);
+        config.setTuneWeaveCredential(platform.apiName(), verified.credential);
+        state.value = verified.credential;
+        rememberProfile(verified.profile);
+        config.save();
+    }
+
+    private TuneWeaveApiClient.TuneWeaveResponse requestPending(PendingCredential pending, String method,
+            String path, Map<String, String> query, JsonElement body) {
+        RequestContext context = snapshot();
+        requireCurrentContext(context);
+        try {
+            var response = transport.request(context.baseUrl, method, path, query, body, List.of(pending.value));
+            requireCurrentContext(context);
+            for (var update : response.credentialUpdates().entrySet()) {
+                if (!pending.platform.apiName().equals(update.getKey()))
+                    throw new TuneWeaveApiClient.TuneWeaveException("Unexpected login credential update platform", false);
+                pending.value = update.getValue();
+            }
+            return response;
+        } catch (TuneWeaveApiClient.TuneWeaveException error) {
+            requireCurrentContext(context);
+            // A failed candidate must never mutate or erase the selected saved account.
+            throw error;
+        }
+    }
+
+    synchronized java.util.List<indi.mopelotus.musichud.beans.user.SavedAccount> savedAccounts(TuneWeavePlatform platform) {
+        return config.getSavedAccounts(platform.apiName());
+    }
+
+    synchronized void selectAccount(TuneWeavePlatform platform, String id) {
+        config.selectSavedAccount(platform.apiName(), id);
+        // Replace identity even for A -> B -> A before any queued request runs.
+        states.put(platform, new CredentialState(config.getTuneWeaveCredential(platform.apiName())));
+    }
+
+    synchronized void rememberProfile(TuneWeaveSession session) {
+        if (session != null && session.authenticated()) config.storeAccountProfile(session.platform().apiName(),
+                session.userId(), session.nickname(), session.avatarUrl());
     }
 
     synchronized void clearCredential(TuneWeavePlatform platform) {

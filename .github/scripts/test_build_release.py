@@ -276,6 +276,7 @@ class ReleaseContracts(unittest.TestCase):
 
     def test_plan_freezes_eight_branches_and_uses_new_default_version(self):
         shas = {branch: f'{index:040x}' for index, branch in enumerate(sorted(release.BRANCHES), 1)}
+        shas['companion'] = 'd' * 40
         for event, ref, base in [('push', 'refs/heads/26.3', ''), ('push', 'refs/heads/26.2', ''),
                                  ('pull_request', 'refs/pull/1/merge', '26.3'),
                                  ('push', 'refs/tags/v1.3.0-beta-4', '')]:
@@ -287,7 +288,7 @@ class ReleaseContracts(unittest.TestCase):
                 sha = path.split('?ref=')[1]
                 branch = source if sha == event_sha else next(b for b, s in shas.items() if s == sha)
                 version = '1.3.0-beta-4' if branch == '26.3' or ref.startswith('refs/tags/') else '1.3.0-beta-3'
-                values = f'mod_version={version}\nminecraft_version_range={branch if branch != "plugin" else ""}\n'
+                values = f'version=0.2.0\nmod_version={version}\nminecraft_version_range={branch if branch != "plugin" else ""}\n'
                 return {'content': base64.b64encode(values.encode()).decode()}
             env = {'GITHUB_REPOSITORY': 'test/repository', 'GITHUB_EVENT_NAME': event, 'GITHUB_REF': ref,
                    'GITHUB_BASE_REF': base, 'GITHUB_SHA': event_sha, 'GITHUB_RUN_ID': '123',
@@ -299,6 +300,7 @@ class ReleaseContracts(unittest.TestCase):
                 release.plan()
                 manifest = dump.call_args.args[1]
                 self.assertEqual('v1.3.0-beta-4', manifest['tag'])
+                self.assertEqual(dict(branch='companion', sha='d' * 40, version='0.2.0'), manifest['companion'])
                 self.assertEqual(13, len(manifest['entries']))
                 self.assertEqual(ref.startswith('refs/tags/'), manifest['publish'])
                 self.assertEqual('c' * 40, manifest['controller'])
@@ -650,6 +652,8 @@ class ScopedReleaseContracts(unittest.TestCase):
         commands = [call.args[0] for call in run.call_args_list]
         create = next(command for command in commands if command[:3] == ['gh', 'release', 'create'])
         self.assertIn('--draft', create)
+        self.assertIn('--latest=false', create)
+        self.assertNotIn('--latest', create)
         self.assertFalse(any(command[:3] == ['gh', 'release', 'edit'] for command in commands))
         self.assertFalse(any('--draft=false' in command for command in commands))
         upload = next(command for command in commands if command[:3] == ['gh', 'release', 'upload'])

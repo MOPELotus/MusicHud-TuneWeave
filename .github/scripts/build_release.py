@@ -233,10 +233,19 @@ def plan():
     if scope != 'full':
         manifest['release_scope'] = scope
         release_rows(manifest)
+    import companion_release
+    if companion_release.allowed(manifest):
+        service_sha = api(repo, 'git/ref/heads/companion')['object']['sha']
+        require(SHA.fullmatch(service_sha), 'Invalid Companion source commit')
+        encoded = api(repo, f'contents/gradle.properties?ref={service_sha}')['content']
+        service_version = properties(base64.b64decode(encoded).decode())['version']
+        manifest['companion'] = dict(branch='companion', sha=service_sha, version=service_version)
+        companion_release.validate_source(manifest['companion'])
     dump('build-plan.json', manifest)
     with Path(os.environ['GITHUB_OUTPUT']).open('a') as out:
         out.write('matrix=' + json.dumps({'include': rows}, separators=(',', ':')) + '\n')
         out.write(f'controller={controller}\npublish={str(publish).lower()}\ntag={tag}\n')
+        out.write('companion=' + json.dumps(manifest.get('companion'), separators=(',', ':')) + '\n')
 
 
 def artifact_version(row):
@@ -252,7 +261,7 @@ def filename(row, module):
 def verify_cf_contents(jar, depth=0):
     require(depth <= 8, 'Excessive nested archives')
     forbidden = (b'ServiceUpdateService', b'ServiceUpdateUi', b'ServiceUpdateCompatibility', b'DownloadSourceUi',
-                 b'DownloadSources', b'TuneWeaveCompatibility', b'ModServiceCompatibility', b'ServiceReleaseProfiles',
+                 b'CompanionReleaseInstaller', b'ManagedCompanionProcess', b'CompanionSettingsFile', b'CompanionServiceManager', b'companion-latest.json', b'DownloadSources', b'TuneWeaveCompatibility', b'ModServiceCompatibility', b'ServiceReleaseProfiles',
                  b'ServiceUpdateHealth', b'ApiServerManager', b'SodaSignerSupport', b'SodaSignerProcess',
                  b'musichud_tuneweave.update.service.', b'service_profiles=', b'UpdateInstaller', b'UpdateBackupCleanup', b'installer.jar', b'ApiServerFetcher', b'ApiBinaryUpdateService', b'ApiDownloadSession',
                  b'release-manifest.json', b'NeteaseCloudMusicApiEnhanced/api-enhanced/releases')
@@ -503,6 +512,16 @@ def bundle(downloads, output):
     manifest['artifacts'] = [artifact for _, artifact in verified]
     if manifest.get('release_scope') == HOTFIX_SCOPE:
         manifest['matrix_builds'] = matrix_builds
+    import companion_release
+    if manifest.get('companion') is not None:
+        require(companion_release.allowed(manifest), 'Unexpected Companion in CF or scoped plan')
+        service_folder = downloads / 'build-companion'
+        metadata = companion_release.verify(service_folder, manifest['companion'])
+        require({p.name for p in service_folder.iterdir()} == {metadata['archive'], 'companion-manifest.json'},
+                'Unexpected Companion build files')
+        shutil.copy2(service_folder / metadata['archive'], output / metadata['archive'])
+        shutil.copy2(service_folder / 'companion-manifest.json', output / 'companion-manifest.json')
+        dump(output / 'companion-latest.json', companion_release.catalog(metadata, manifest['tag']))
     dump(output / 'build-manifest.json', manifest)
     notes = ['Fabric and NeoForge client builds for every supported Minecraft version group, plus Paper, Velocity and BungeeCord plugins.',
              '', 'Choose the matching Minecraft version and loader. Install the ModernUI dependency described in the README.',
@@ -522,6 +541,12 @@ def bundle(downloads, output):
                  'Scoped publishing uploads this bundle as a draft pending runtime acceptance; publication is finalized after acceptance.',
                  'SHA256SUMS covers every attached distribution file.', '', '| Branch | Commit |', '| --- | --- |']
         notes += [f'| {b} | `{next(r["sha"] for r in rows if r["branch"] == b)}` |' for b in sorted(BRANCHES)]
+    if manifest.get('companion') is not None:
+        notes += ['', f'Windows x64 Companion {metadata["version"]}: `{metadata["archive"]}`.',
+                  'The standard client can download and manage this desktop HUD service. Manual download is also supported.',
+                  'Extract the complete archive and launch Companion/Companion.exe; retain app, runtime and licenses.',
+                  'Companion is distributed on GitHub only, never CurseForge or Hangar.',
+                  f'Frozen Companion source: `{manifest["companion"]["sha"]}`. Machine catalog: companion-latest.json.']
     (output / 'RELEASE_NOTES.md').write_text('\n'.join(notes) + '\n')
     for name in ('license', 'LICENSE', 'COPYING', 'COPYING.LESSER'):
         if Path(name).is_file():
@@ -588,6 +613,8 @@ def verify_bundle(folder):
             import client_updates
             catalog_tag = manifest['tag'].removesuffix('-cf') if edition == 'cf' else manifest['tag']
             require(load_json(metadata) == client_updates.catalog(folder, catalog_tag, edition), 'Updater catalog differs from verified JARs')
+    import companion_release
+    companion_release.verify_release(folder, manifest)
     return manifest
 
 
@@ -621,6 +648,9 @@ def publish(folder):
     # gh refuses existing releases; never overwrite an earlier release or its assets.
     command = ['gh', 'release', 'create', tag, '--repo', repo, '--target', target, '--draft',
                '--verify-tag', '--title', f'MusicHud TuneWeave {tag[1:]}', '--notes-file', str(folder / 'RELEASE_NOTES.md')]
+    # A scoped draft must retain the full release as the automatic download entry point.
+    if manifest.get('release_scope') == HOTFIX_SCOPE:
+        command += ['--latest=false']
     prerelease = '-' in tag
     if prerelease:
         command += ['--prerelease']

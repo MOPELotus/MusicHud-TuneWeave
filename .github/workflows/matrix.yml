@@ -24,6 +24,7 @@ jobs:
       controller: ${{ steps.plan.outputs.controller }}
       publish: ${{ steps.plan.outputs.publish }}
       tag: ${{ steps.plan.outputs.tag }}
+      companion: ${{ steps.plan.outputs.companion }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -99,8 +100,48 @@ jobs:
             source/**/build/reports/tests/**
           if-no-files-found: ignore
 
+  companion:
+    needs: plan
+    if: needs.plan.outputs.companion != 'null'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ fromJSON(needs.plan.outputs.companion).sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test and package frozen standalone Companion
+        run: .\gradlew.bat test protocol:test bundleCompanion -PdesktopPlatform=windows --rerun-tasks --console=plain
+      - name: Check packaged version without graphics
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ fromJSON(needs.plan.outputs.companion).version }}
+        run: |
+          $process = Start-Process -FilePath build/package/Companion/Companion.exe -ArgumentList '--version' -Wait -PassThru -RedirectStandardOutput companion-version.txt
+          if ($process.ExitCode -ne 0 -or (Get-Content companion-version.txt -Raw).Trim() -ne $env:EXPECTED_VERSION) { throw 'Companion launcher version mismatch' }
+          $identity = Get-Content build/package/Companion/companion.json | ConvertFrom-Json
+          if ($identity.version -ne $env:EXPECTED_VERSION) { throw 'Companion package version mismatch' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-companion
+          path: build/distributions/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tests-companion
+          path: |
+            build/reports/tests/
+            protocol/build/reports/tests/
+          if-no-files-found: ignore
+
   bundle:
-    needs: [plan, build]
+    needs: [plan, build, companion]
+    if: always() && needs.plan.result == 'success' && needs.build.result == 'success' && (needs.companion.result == 'success' || needs.companion.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

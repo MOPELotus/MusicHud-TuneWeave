@@ -83,7 +83,7 @@ class ServiceUpdateContracts(unittest.TestCase):
                 self.verify(self.jar(row, self.identity(row)), row)
 
     def test_new_standard_implementations_references_and_labels_are_rejected_recursively(self):
-        for token in ('ServiceUpdateService', 'ServiceUpdateUi', 'ServiceUpdateCompatibility', 'DownloadSourceUi',
+        for token in ('ManagedCompanionProcess', 'CompanionSettingsFile', 'CompanionReleaseInstaller', 'companion-latest.json', 'ServiceUpdateService', 'ServiceUpdateUi', 'ServiceUpdateCompatibility', 'DownloadSourceUi',
                       'DownloadSources', 'TuneWeaveCompatibility', 'ModServiceCompatibility', 'ServiceReleaseProfiles',
                       'ServiceUpdateHealth', 'ApiServerManager', 'SodaSignerSupport', 'SodaSignerProcess',
                       'musichud_tuneweave.update.service.title', 'service_profiles=tuneweave-http-v1'):
