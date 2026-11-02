@@ -235,7 +235,8 @@ class HudFrameInjectionTest {
     }
 
     private static boolean isHudExtraction(MethodInsnNode call) {
-        return call.owner.equals(HUD) && call.name.equals("renderFrame");
+        return call.owner.equals(HUD) && call.name.equals("renderFrame")
+                || call.owner.equals("indi/mopelotus/musichud/client/companion/CompanionBridge") && call.name.equals("extract");
     }
 
     private record Injection(MethodNode handler, AnnotationNode annotation, MethodNode target) {}

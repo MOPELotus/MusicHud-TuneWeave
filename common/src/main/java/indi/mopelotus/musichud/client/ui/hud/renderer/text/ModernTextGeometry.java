@@ -42,6 +42,8 @@ import java.util.WeakHashMap;
  * filtering for smooth sub-pixel motion.
  */
 public final class ModernTextGeometry {
+    private static TextLayoutProcessor desktopProcessor;
+    private static final java.util.Map<String, TextLayout> DESKTOP_LAYOUTS = new java.util.HashMap<>();
     private static final Random OBFUSCATED_RANDOM = new Random();
 
     /**
@@ -53,7 +55,8 @@ public final class ModernTextGeometry {
     private static final Map<TextLayout, Map<Integer, GLBakedGlyph[]>> GLYPH_CACHE = new WeakHashMap<>();
 
     /** Frame-owned CPU references; do not retain glyphs across font reloads. */
-    public static void endFrame() { GLYPH_CACHE.clear(); }
+    public static void endFrame() {
+        DESKTOP_LAYOUTS.clear(); GLYPH_CACHE.clear(); }
 
     private ModernTextGeometry() {
     }
@@ -61,7 +64,15 @@ public final class ModernTextGeometry {
     public static List<GradientTextRenderState> build(Font font, String text, int x, int y,
                                                       GradientSpec gradient, float alpha,
                                                       @Nullable ScreenRectangle scissor, Matrix3x2f pose) {
-        TextLayout layout = TextLayoutEngine.getInstance().lookupVanillaLayout(text);
+        boolean desktop = indi.mopelotus.musichud.client.ui.hud.renderer.HudRenderContext.getCurrent() != null
+                && indi.mopelotus.musichud.client.ui.hud.renderer.HudRenderContext.getCurrent().isDesktopOrigin();
+        int desktopScale = indi.mopelotus.musichud.interfaces.ClientConfig.getInstance().getCompanionScale();
+        TextLayout layout;
+        if (desktop) {
+            if (desktopProcessor == null) desktopProcessor = new TextLayoutProcessor(TextLayoutEngine.getInstance());
+            layout = DESKTOP_LAYOUTS.computeIfAbsent(text, value -> desktopProcessor.createVanillaLayout(
+                    value, net.minecraft.network.chat.Style.EMPTY, desktopScale, 0));
+        } else layout = TextLayoutEngine.getInstance().lookupVanillaLayout(text);
         float totalAdvance = Math.max(1f, layout.getTotalAdvance());
         if (totalAdvance <= 1f && layout.getGlyphs().length == 0) {
             return List.of();

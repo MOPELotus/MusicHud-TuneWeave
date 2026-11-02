@@ -35,6 +35,6 @@ public abstract class GuiFrameHudMixin {
         GuiGraphics graphics = frame.get();
         if (graphics == null) return;
         graphics.nextStratum();
-        HudRendererManager.getInstance().renderFrame(graphics, deltaTracker);
+        indi.mopelotus.musichud.client.companion.CompanionBridge.extract(graphics, deltaTracker);
     }
 }

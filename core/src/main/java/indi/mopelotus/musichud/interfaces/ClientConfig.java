@@ -45,6 +45,13 @@ public interface ClientConfig {
 
     void setHideHudWhenNotPlaying(boolean hideHudWhenNotPlaying);
 
+    default boolean getCompanionEnabled() { return false; }
+    default void setCompanionEnabled(boolean enabled) {}
+    default int getCompanionFps() { return 60; }
+    default void setCompanionFps(int fps) {}
+    default int getCompanionScale() { return 2; }
+    default void setCompanionScale(int scale) {}
+
     boolean getEnableHud();
 
     void setEnableHud(boolean enableHud);
@@ -118,6 +125,20 @@ public interface ClientConfig {
     void setTuneWeaveCredential(String platform, String credential);
 
     void clearTuneWeaveCredential(String platform);
+
+    default java.util.List<indi.mopelotus.musichud.beans.user.SavedAccount> getSavedAccounts(String platform) { return java.util.List.of(); }
+
+    default void selectSavedAccount(String platform, String id) { throw new IllegalArgumentException("Saved account is unavailable"); }
+
+    default void storeLoginCredential(String platform, String credential) { setTuneWeaveCredential(platform, credential); }
+
+    default void storeAccountProfile(String platform, String userId, String nickname, String avatarUrl) {}
+
+    /** Commit a fully validated login together, reusing the same saved identity when available. */
+    default void storeLoginAccount(String platform, String credential, String userId, String nickname, String avatarUrl) {
+        storeLoginCredential(platform, credential);
+        storeAccountProfile(platform, userId, nickname, avatarUrl);
+    }
 
     String getDefaultMusicPlatform();
 
