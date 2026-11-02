@@ -17,7 +17,7 @@ public class ServerConfigDefinition implements ServerConfig {
 
     private volatile String serverApiBaseUrl = "http://127.0.0.1:7832";
     private boolean startupBinaryApiServerWhenLaunch = BuildDistribution.DEFAULT_AUTO_START;
-    private String serverApiBinaryExecutablePath = BuildDistribution.DEFAULT_EXECUTABLE_PATH;
+    private volatile String serverApiBinaryExecutablePath = BuildDistribution.DEFAULT_EXECUTABLE_PATH;
     private double pusherVoteAdditionalRate = 0.5;
     private int port = 7832;
     @Setter

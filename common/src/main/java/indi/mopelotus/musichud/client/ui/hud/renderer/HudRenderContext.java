@@ -38,8 +38,16 @@ public class HudRenderContext {
     private final Map<StorageKey, GpuBufferSlice> uniformSlices = new HashMap<>();
 
     @Getter
-    @Setter
     private GuiGraphicsExtractor graphics;
+    @Getter @Setter
+    private boolean desktopOrigin;
+
+    public void setGraphics(GuiGraphicsExtractor graphics) {
+        this.graphics = graphics;
+        activate();
+    }
+
+    public void activate() { current = this; }
 
     public HudRenderContext() {
         current = this;

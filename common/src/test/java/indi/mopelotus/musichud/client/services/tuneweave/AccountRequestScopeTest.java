@@ -46,6 +46,7 @@ class AccountRequestScopeTest {
                     case "getTuneWeaveBaseUrl" -> "http://127.0.0.1:7832";
                     case "getDefaultMusicPlatform" -> "bilibili";
                     case "getTuneWeaveCredential" -> credential.get();
+                    case "storeAccountProfile" -> null;
                     default -> throw new AssertionError(method.getName());
                 });
         var gateway = new TuneWeaveGateway(config, (b, m, p, q, body, credentials) -> {

@@ -208,6 +208,7 @@ public class ConfigView extends LinearLayout {
             }));
             commonCategory.addView(editHud, new LayoutParams(MATCH_PARENT, dp(40)));
             view.addView(commonCategory);
+            view.addView(new indi.mopelotus.musichud.client.companion.CompanionPreferences(context));
 
             var multiplayerCategory = PreferencesFragment.createCategoryList(view, I18n.get(MusicHud.MOD_ID + ".config.category.externalServer"));
             PreferencesFragment.BooleanOption autoConnectToServerOption = new PreferencesFragment.BooleanOption(
