@@ -2,11 +2,11 @@
 
 独立版本 **0.2.1**，帧协议版本 **1**。桌面程序独立维护在本仓库 `companion` 分支。
 
-Minecraft 26.3 的独立桌面 HUD。Minecraft 继续使用原 HUD Renderer，Companion 只显示游戏传来的透明画面。游戏内 HUD 保留。
+Minecraft 客户端的独立桌面 HUD。Minecraft 继续使用原 HUD Renderer，Companion 只显示游戏传来的透明画面。游戏内 HUD 保留。
 
 ## 使用
 
-1. 安装 `experiment/companion` 分支构建的 26.3 Fabric 或 NeoForge 模组，以及对应的 ModernUI。普通正式分支尚不包含桌面导出功能。
+1. 安装本仓库对应正式客户端分支构建的 Fabric 或 NeoForge 模组，以及对应的 ModernUI。支持 `26.3`、`26.2`、`26.1`、`1.21.11`、`1.21.9-1.21.10`、`1.21.6-1.21.8` 和 `1.21.1` 分支。桌面 HUD 默认关闭，需在设置中启用。
 2. 在 MusicHud 设置菜单的 **桌面 HUD（Companion）** 分类中打开 **启用桌面 HUD**。标准版会下载并校验完整程序包，由 Mod 启动；同处可打开下载页面、选择安装目录或已有程序路径，以及查看版本、停止和重启。
 3. 手动启动或使用 CF 版时，完整解压 Windows ZIP，保留整个 `Companion` 目录，双击 `Companion.exe`。随附运行时，无须另装 Java；不能只复制 EXE。CF 版仅提供画面导出、锁定、帧率和缩放设置，程序由用户自行下载和启动。
 4. 关闭 **锁定桌面 HUD（鼠标穿透）** 开关，在桌面直接拖动 HUD；调整后回到游戏打开该开关。
