@@ -21,26 +21,33 @@ final class SimpleTomlConfig {
     }
 
     static Map<String, String> read(Path path) {
-        Map<String, String> values = new LinkedHashMap<>();
-        if (!Files.isRegularFile(path)) {
-            return values;
-        }
-        try {
-            for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
-                String trimmed = line.trim();
-                if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("[")) {
-                    continue;
-                }
-                int splitIndex = trimmed.indexOf('=');
-                if (splitIndex <= 0) {
-                    continue;
-                }
-                String key = trimmed.substring(0, splitIndex).trim();
-                String value = stripInlineComment(trimmed.substring(splitIndex + 1).trim());
-                values.put(key, unquote(value));
-            }
-        } catch (IOException e) {
+        try { return readChecked(path); }
+        catch (IOException e) {
             MusicHud.LOGGER.warn("Failed to read config file {}", path, e);
+            return new LinkedHashMap<>();
+        }
+    }
+
+    /** Migration must distinguish a missing config from an unreadable one before removing legacy secrets. */
+    static Map<String, String> readChecked(Path path) throws IOException {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (Files.notExists(path)) return values;
+        if (!Files.isRegularFile(path)) throw new IOException("Configuration is not a regular file");
+        int limit = 32 * 1024 * 1024;
+        if (Files.size(path) > limit) throw new IOException("Configuration exceeds its size limit");
+        byte[] bytes;
+        try (var input = Files.newInputStream(path)) { bytes = input.readNBytes(limit + 1); }
+        if (bytes.length > limit) throw new IOException("Configuration exceeds its size limit");
+        String content = StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString();
+        var lines = content.lines().iterator();
+        while (lines.hasNext()) {
+            String trimmed = lines.next().trim();
+            if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("[")) continue;
+            int splitIndex = trimmed.indexOf('=');
+            if (splitIndex <= 0) continue;
+            String key = trimmed.substring(0, splitIndex).trim();
+            String value = stripInlineComment(trimmed.substring(splitIndex + 1).trim());
+            values.put(key, unquote(value));
         }
         return values;
     }

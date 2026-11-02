@@ -12,6 +12,7 @@ plugins {
 apply from: 'gradle/distribution.gradle'
 apply from: 'gradle/archive-compression.gradle'
 apply from: 'gradle/project-license.gradle'
+apply from: 'gradle/verify-companion-isolation.gradle'
 
 allprojects {
     group = rootProject.maven_group

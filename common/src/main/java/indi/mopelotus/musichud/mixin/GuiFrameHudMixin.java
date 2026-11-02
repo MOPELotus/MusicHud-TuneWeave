@@ -22,6 +22,6 @@ public abstract class GuiFrameHudMixin {
         // Preserve the baseline resource-loading gate before touching HUD shaders.
         if (!Minecraft.getInstance().isGameLoadFinished()) return;
         graphics.nextStratum();
-        HudRendererManager.getInstance().renderFrame(graphics, deltaTracker);
+        indi.mopelotus.musichud.client.companion.CompanionBridge.extract(graphics, deltaTracker);
     }
 }

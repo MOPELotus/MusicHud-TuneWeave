@@ -4,6 +4,10 @@ import icyllis.modernui.core.Context;
 import icyllis.modernui.graphics.Image;
 import icyllis.modernui.mc.MuiModApi;
 import icyllis.modernui.view.Gravity;
+import icyllis.modernui.view.MeasureSpec;
+import icyllis.modernui.util.ColorStateList;
+import icyllis.modernui.util.StateSet;
+import icyllis.modernui.widget.FrameLayout;
 import icyllis.modernui.view.View;
 import icyllis.modernui.widget.Button;
 import icyllis.modernui.widget.ImageButton;
@@ -65,6 +69,8 @@ public class AccountView extends LinearLayout {
     private final TuneWeaveClientService tuneWeave = TuneWeaveClientService.getInstance();
     private TuneWeavePlatform selectedPlatform = tuneWeave.defaultPlatform();
     private boolean showingUniPlaylists;
+    private boolean choosingAccount;
+    private boolean addingAccount;
     private final CallbackGeneration callbacks = new CallbackGeneration();
     private final CallbackGeneration playlistCallbacks = new CallbackGeneration();
     private final CallbackGeneration albumCallbacks = new CallbackGeneration();
@@ -193,6 +199,7 @@ public class AccountView extends LinearLayout {
         platformSelector.setSelectedPlatform(selectedPlatform);
         platformSelector.setOnPlatformSelectedListener(platform -> {
             showingUniPlaylists = false;
+            finishAccountFlow();
             selectedPlatform = platform;
             tuneWeave.setDefaultPlatform(platform);
             LoginService.getInstance().switchTuneWeavePlatform(platform);
@@ -218,7 +225,22 @@ public class AccountView extends LinearLayout {
             addView(new UniPlaylistView(context), new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
             return;
         }
-        if (!tuneWeave.hasCredential(selectedPlatform)) {
+        if (choosingAccount) {
+            buildAccountPicker(context, generation);
+            return;
+        }
+        if (addingAccount || !tuneWeave.hasCredential(selectedPlatform)) {
+            if (!tuneWeave.savedAccounts(selectedPlatform).isEmpty() || addingAccount) {
+                Button accounts = new Button(context);
+                accounts.setText(I18n.get(MusicHud.MOD_ID + ".button.switchAccount"));
+                accounts.setOnClickListener(v -> {
+                    tuneWeave.cancelLogins();
+                    addingAccount = false;
+                    choosingAccount = true;
+                    refresh(false);
+                });
+                addView(accounts, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+            }
             LoginView loginView = new LoginView(context, false);
             addView(loginView, new LayoutParams(MATCH_PARENT, 0, 1));
             return;
@@ -309,6 +331,11 @@ public class AccountView extends LinearLayout {
         buttons.setAnimationsEnabled(false);
         buttons.setLineGravity(Gravity.CENTER_VERTICAL);
         infoLayout.addView(buttons, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        buildCard(context, cardBackground, buttons, ".button.switchAccount", "square_user_round.png", view -> {
+            if (!callbacks.isCurrent(generation)) return;
+            choosingAccount = true;
+            refresh(false);
+        });
         Button historyButton = buildCard(context, cardBackground, buttons, ".button.history", "rotate_ccw_clock.png", view -> {
             if (!callbacks.isCurrent(generation)) return;
             RouterContainer router = RouterContainer.getInstance();
@@ -442,6 +469,144 @@ public class AccountView extends LinearLayout {
                 this.<ObservableSequencedSet<Artist>>loadModule(musicService::loadAccountArtists, mySubscribedArtistsContent,
                         artists -> renderArtists(artists, generation), generation, ignoreCache);
         }, generation, ignoreCache);
+    }
+
+    public void finishAccountFlow() {
+        choosingAccount = false;
+        addingAccount = false;
+    }
+
+    private void buildAccountPicker(Context context, long generation) {
+        TuneWeavePlatform platform = selectedPlatform;
+        LinearLayout panel = new LinearLayout(context) {
+            @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                super.onMeasure(MeasureSpec.makeMeasureSpec(Math.min(MeasureSpec.getSize(widthMeasureSpec), dp(640)),
+                        MeasureSpec.EXACTLY), heightMeasureSpec);
+            }
+        };
+        panel.setOrientation(VERTICAL);
+        panel.setPadding(dp(24), dp(24), dp(24), dp(24));
+        LayoutParams panelParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
+        panelParams.gravity = Gravity.CENTER_HORIZONTAL;
+        addView(panel, panelParams);
+
+        TextView title = new TextView(context);
+        title.setText(I18n.get(MusicHud.MOD_ID + ".button.switchAccount"));
+        title.setTextSize(Theme.TEXT_SIZE_LARGER);
+        title.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
+        panel.addView(title, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        TextView platformName = new TextView(context);
+        platformName.setText(I18n.get(MusicHud.MOD_ID + ".platform." + platform.apiName()));
+        platformName.setTextSize(Theme.TEXT_SIZE_NORMAL);
+        platformName.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+        LayoutParams platformParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
+        platformParams.setMargins(0, dp(4), 0, dp(20));
+        panel.addView(platformName, platformParams);
+
+        var accounts = tuneWeave.savedAccounts(platform);
+        if (accounts.isEmpty()) {
+            TextView empty = new TextView(context);
+            empty.setText(I18n.get(MusicHud.MOD_ID + ".text.account.noSavedAccounts"));
+            empty.setTextSize(Theme.TEXT_SIZE_NORMAL);
+            empty.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+            empty.setPadding(0, dp(16), 0, dp(24));
+            panel.addView(empty, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+        }
+        for (var account : accounts) {
+            LinearLayout card = new LinearLayout(context);
+            card.setOrientation(HORIZONTAL);
+            card.setGravity(Gravity.CENTER_VERTICAL);
+            card.setMinimumHeight(dp(88));
+            card.setFocusable(true);
+            ColorStateList colors = new ColorStateList(new int[][]{
+                    new int[]{icyllis.modernui.R.attr.state_pressed},
+                    new int[]{icyllis.modernui.R.attr.state_hovered},
+                    new int[]{icyllis.modernui.R.attr.state_focused}, StateSet.WILD_CARD},
+                    new int[]{0x38E0BFB7, 0x28E0BFB7, 0x28E0BFB7, account.selected() ? 0x25E0BFB7 : 0x18FFFFFF});
+            InsetBackgroundFactory.builder().cornerRadius(dp(12)).backgroundColor(colors)
+                    .padding(new InsetBackgroundFactory.Padding(dp(16), dp(16), dp(16), dp(16))).build()
+                    .applyBackgroundTo(card);
+
+            FrameLayout avatarContainer = new FrameLayout(context);
+            InsetBackgroundFactory.builder().cornerRadius(dp(28)).backgroundColor(ColorStateList.valueOf(0x20FFFFFF))
+                    .build().applyBackgroundTo(avatarContainer);
+            ImageView placeholder = new ImageView(context);
+            placeholder.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            Image icon = ImageUtils.getImageFromResource("/assets/musichud_tuneweave/textures/gui/icons/square_user_round.png");
+            if (icon != null) placeholder.setImageDrawable(new ScaledImageDrawable(context.getResources(), icon, dp(24), dp(28)));
+            avatarContainer.addView(placeholder, new FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+            if (!account.avatarUrl().isBlank()) {
+                UrlImageView avatar = new UrlImageView(context);
+                avatar.setCircular(true);
+                avatar.setTransitionDuration(0);
+                avatarContainer.addView(avatar, new FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+                avatar.loadUrl(account.avatarUrl());
+            }
+            card.addView(avatarContainer, new LayoutParams(dp(56), dp(56)));
+
+            LinearLayout info = new LinearLayout(context);
+            info.setOrientation(VERTICAL);
+            LayoutParams infoParams = new LayoutParams(0, WRAP_CONTENT, 1);
+            infoParams.setMargins(dp(16), 0, dp(12), 0);
+            card.addView(info, infoParams);
+            TextView name = new TextView(context);
+            name.setSingleLine(true);
+            name.setEllipsize(icyllis.modernui.text.TextUtils.TruncateAt.END);
+            name.setText(account.nickname().isBlank() ? (account.userId().isBlank()
+                    ? I18n.get(MusicHud.MOD_ID + ".platform." + platform.apiName()) : account.userId()) : account.nickname());
+            name.setTextSize(Theme.TEXT_SIZE_LARGE);
+            name.setTextColor(Theme.EMPHASIZE_TEXT_COLOR);
+            info.addView(name, new LayoutParams(MATCH_PARENT, WRAP_CONTENT));
+            TextView id = new TextView(context);
+            id.setSingleLine(true);
+            id.setEllipsize(icyllis.modernui.text.TextUtils.TruncateAt.END);
+            id.setText(account.userId().isBlank() ? I18n.get(MusicHud.MOD_ID + ".platform." + platform.apiName())
+                    : I18n.get(MusicHud.MOD_ID + ".platform." + platform.apiName()) + " · " + account.userId());
+            id.setTextSize(Theme.TEXT_SIZE_NORMAL);
+            id.setTextColor(Theme.SECONDARY_TEXT_COLOR);
+            LayoutParams idParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
+            idParams.setMargins(0, dp(6), 0, 0);
+            info.addView(id, idParams);
+            if (account.selected()) {
+                TextView current = new TextView(context);
+                current.setText(I18n.get(MusicHud.MOD_ID + ".text.account.current"));
+                current.setTextSize(Theme.TEXT_SIZE_NORMAL);
+                current.setTextColor(Theme.PRIMARY_COLOR);
+                current.setGravity(Gravity.CENTER);
+                InsetBackgroundFactory.builder().cornerRadius(dp(16)).backgroundColor(ColorStateList.valueOf(0x20E0BFB7))
+                        .padding(new InsetBackgroundFactory.Padding(dp(12), dp(6), dp(12), dp(6))).build()
+                        .applyBackgroundTo(current);
+                card.addView(current, new LayoutParams(WRAP_CONTENT, WRAP_CONTENT));
+            }
+            card.setOnClickListener(v -> {
+                if (!callbacks.isCurrent(generation)) return;
+                finishAccountFlow();
+                LoginService.getInstance().switchSavedAccount(platform, account.id());
+            });
+            LayoutParams cardParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
+            cardParams.setMargins(0, 0, 0, dp(12));
+            panel.addView(card, cardParams);
+        }
+        FlexWrapLayout actions = new FlexWrapLayout(context);
+        actions.setAnimationsEnabled(false);
+        actions.setLineGravity(Gravity.CENTER_VERTICAL);
+        LayoutParams actionsParams = new LayoutParams(MATCH_PARENT, WRAP_CONTENT);
+        actionsParams.setMargins(0, dp(8), 0, 0);
+        panel.addView(actions, actionsParams);
+        var background = InsetBackgroundFactory.builder().cornerRadius(dp(8)).backgroundColor(Theme.GHOST_BUTTON_STATES)
+                .padding(new InsetBackgroundFactory.Padding(dp(12), dp(8), dp(12), dp(8))).build();
+        buildCard(context, background, actions, ".button.addAccount", "list_plus.png", v -> {
+            if (!callbacks.isCurrent(generation)) return;
+            tuneWeave.cancelLogins();
+            choosingAccount = false;
+            addingAccount = true;
+            refresh(false);
+        });
+        buildCard(context, background, actions, ".button.back", "arrow_left.png", v -> {
+            if (!callbacks.isCurrent(generation)) return;
+            finishAccountFlow();
+            refresh(false);
+        });
     }
 
     private void post(long generation, Runnable callback) {

@@ -67,19 +67,30 @@ final class TuneWeaveAuthenticationService {
     }
 
     private TuneWeaveSession commit(TuneWeaveLoginAttempt attempt, JsonElement credential) {
+        return commit(attempt, credential, true);
+    }
+
+    private TuneWeaveSession commit(TuneWeaveLoginAttempt attempt, JsonElement credential, boolean newLogin) {
+        Object expectedIdentity;
+        synchronized (this) { requireCurrent(attempt); expectedIdentity = attempt.accountIdentity; }
+        // Verify the candidate entirely in memory. Network failure leaves the old saved account intact.
+        var verified = gateway.verifyLogin(attempt.platform, credential, () -> readSession(attempt.platform));
+        if (verified.profile == null || !verified.profile.authenticated())
+            throw new TuneWeaveApiClient.TuneWeaveException("Login did not return an authenticated profile", false);
         synchronized (this) {
             requireCurrent(attempt);
-            gateway.publishIfAccountCurrent(attempt.platform, attempt.accountIdentity,
-                    () -> { gateway.saveCredential(attempt.platform, credential); sessions.remove(attempt.platform); });
+            gateway.publishIfAccountCurrent(attempt.platform, expectedIdentity, () -> {
+                if (newLogin) gateway.saveVerifiedLogin(attempt.platform, verified);
+                else gateway.saveVerifiedRefresh(attempt.platform, verified);
+                sessions.put(attempt.platform, verified.profile);
+            });
             attempt.expectedCredential = gateway.credential(attempt.platform);
             attempt.accountIdentity = gateway.accountIdentity(attempt.platform);
             var validation = gateway.capture(() -> null);
             attempt.validateContext = () -> validation.get();
             transactions.values().removeIf(value -> value == attempt);
         }
-        TuneWeaveSession result = loadSession(attempt.platform);
-        requireCurrent(attempt);
-        return result;
+        return verified.profile;
     }
 
     TuneWeaveAuthenticationService(TuneWeaveGateway gateway,
@@ -248,20 +259,24 @@ final class TuneWeaveAuthenticationService {
         synchronized (this) { expectedEpoch = accountEpochs.get(platform); }
         Object expected = gateway.accountIdentity(platform);
         return gateway.capture(() -> {
-            JsonElement data = gateway.requestForPlatform(platform, "GET", "/v1/auth/session",
-                    Map.of("platform", platform.apiName()), null).data();
-            TuneWeaveSession parsed = profile(data);
-            if (parsed != null && parsed.platform() != platform)
-                throw new TuneWeaveApiClient.TuneWeaveException("Session platform does not match requested platform", false);
-            TuneWeaveSession result = enrichSessionProfile(parsed);
+            TuneWeaveSession result = readSession(platform);
             synchronized (this) {
                 if (accountEpochs.get(platform) != expectedEpoch) throw new java.util.concurrent.CancellationException("Authentication state changed during profile load");
                 gateway.publishIfAccountCurrent(platform, expected, () -> {
-                    if (result != null) sessions.put(platform, result);
+                    if (result != null) { gateway.rememberProfile(result); sessions.put(platform, result); }
                 });
             }
             return result;
         }).get();
+    }
+
+    private TuneWeaveSession readSession(TuneWeavePlatform platform) {
+        JsonElement data = gateway.requestForPlatform(platform, "GET", "/v1/auth/session",
+                Map.of("platform", platform.apiName()), null).data();
+        TuneWeaveSession parsed = profile(data);
+        if (parsed != null && parsed.platform() != platform)
+            throw new TuneWeaveApiClient.TuneWeaveException("Session platform does not match requested platform", false);
+        return enrichSessionProfile(parsed);
     }
 
     TuneWeaveSession refreshSession(TuneWeavePlatform platform) {
@@ -269,7 +284,7 @@ final class TuneWeaveAuthenticationService {
         JsonObject body = clientModeBody(platform);
         JsonObject data = object(gateway.requestForPlatform(
                 platform, "POST", "/v1/auth/session/refresh", Map.of(), body).data());
-        return commit(attempt, data.get("caller_credential"));
+        return commit(attempt, data.get("caller_credential"), false);
     }
 
     void logout(TuneWeavePlatform platform) {
@@ -295,6 +310,12 @@ final class TuneWeaveAuthenticationService {
                 }
             }
         };
+    }
+
+    synchronized void selectAccount(TuneWeavePlatform platform, String id) {
+        gateway.selectAccount(platform, id);
+        cancelPlatform(platform);
+        sessions.remove(platform);
     }
 
     synchronized void clearCredential(TuneWeavePlatform platform) {
