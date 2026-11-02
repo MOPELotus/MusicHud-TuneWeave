@@ -190,7 +190,7 @@ public final class CompanionBridge {
             };
             RenderThreadGlState.restoreFramebufferBindings();
             RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
-                    target.getColorTexture(), 0, target.getDepthTexture(), 0);
+                    target.getColorTexture(), 0, target.getDepthTexture(), 1);
             drawingDesktop = true;
             replayed = false;
             HudRendererManager.getInstance().renderDesktopFrame(graphics, () -> {
