@@ -16,8 +16,8 @@ class ConfigIdentityMigrationTest {
         Path active = directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-client.toml"); Files.writeString(active, original);
         Path previous = MusicHud.getConfigDirectory(); MusicHud.setConfigDirectory(directory);
         try {
-            var constructor = ClientConfigDefinition.class.getDeclaredConstructor(); constructor.setAccessible(true);
-            var config = constructor.newInstance(); config.load();
+            var constructor = ClientConfigDefinition.class.getDeclaredConstructor(Path.class); constructor.setAccessible(true);
+            var config = constructor.newInstance(directory.resolve("private/client-accounts.json")); config.load();
             assertEquals(37, config.getSoundVolume()); assertEquals(ScrobbleMode.ALL, config.getScrobbleMode());
             config.setSoundVolume(63); config.save();
             assertEquals("63", SimpleTomlConfig.read(active).get("soundVolume"));
@@ -28,8 +28,8 @@ class ConfigIdentityMigrationTest {
         Path active = directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-client.toml");
         Path previous = MusicHud.getConfigDirectory(); MusicHud.setConfigDirectory(directory);
         try {
-            var constructor = ClientConfigDefinition.class.getDeclaredConstructor(); constructor.setAccessible(true);
-            var config = constructor.newInstance();
+            var constructor = ClientConfigDefinition.class.getDeclaredConstructor(Path.class); constructor.setAccessible(true);
+            var config = constructor.newInstance(directory.resolve("private/client-accounts.json"));
             Files.writeString(active, "audioOutputMode = \"STEREO\"\n"); config.load();
             assertEquals(indi.mopelotus.musichud.beans.music.AudioOutputMode.STEREO, config.getAudioOutputMode());
             config.save(); assertEquals("STEREO", SimpleTomlConfig.read(active).get("audioOutputMode"));
@@ -66,14 +66,14 @@ class ConfigIdentityMigrationTest {
         Path previous = MusicHud.getConfigDirectory();
         MusicHud.setConfigDirectory(directory);
         try {
-            var constructor = ClientConfigDefinition.class.getDeclaredConstructor();
+            var constructor = ClientConfigDefinition.class.getDeclaredConstructor(Path.class);
             constructor.setAccessible(true);
-            var config = constructor.newInstance();
+            var config = constructor.newInstance(directory.resolve("private/client-accounts.json"));
             config.load();
             assertTrue(config.getEnableLyricsSidebar());
             config.setEnableLyricsSidebar(false);
             config.save();
-            var reloaded = constructor.newInstance();
+            var reloaded = constructor.newInstance(directory.resolve("private/client-accounts.json"));
             reloaded.load();
             assertFalse(reloaded.getEnableLyricsSidebar());
             Files.writeString(active, "enableLyricsSidebar = invalid\n");
@@ -91,10 +91,10 @@ class ConfigIdentityMigrationTest {
         Path active = directory.resolve(ProjectIdentity.CONFIG_PREFIX + "-client.toml");
         Path previous = MusicHud.getConfigDirectory(); MusicHud.setConfigDirectory(directory);
         try {
-            var constructor = ClientConfigDefinition.class.getDeclaredConstructor(); constructor.setAccessible(true);
-            var config = constructor.newInstance(); config.load(); assertTrue(config.getEnableLyricBlur());
+            var constructor = ClientConfigDefinition.class.getDeclaredConstructor(Path.class); constructor.setAccessible(true);
+            var config = constructor.newInstance(directory.resolve("private/client-accounts.json")); config.load(); assertTrue(config.getEnableLyricBlur());
             config.setEnableLyricBlur(false);
-            var next = constructor.newInstance(); next.load(); assertFalse(next.getEnableLyricBlur());
+            var next = constructor.newInstance(directory.resolve("private/client-accounts.json")); next.load(); assertFalse(next.getEnableLyricBlur());
             for (String text : new String[]{"enableLyricBlur = invalid\n", "enableLyricBlur = 2\n", "soundVolume = 25\n"}) {
                 Files.writeString(active, text); next.load(); assertTrue(next.getEnableLyricBlur());
             }

@@ -19,6 +19,10 @@ public class MusicHudMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        if (mixinClassName.endsWith(".DynamicFpsCompanionMixin")) {
+            // Inspect availability without loading an optional target before Mixin transforms it.
+            return getClass().getClassLoader().getResource("dynamic_fps/impl/DynamicFPSMod.class") != null;
+        }
         if (mixinClassName.contains("ReactiveMusicCompatMixin")) {
             try {
                 Class.forName("circuitlord.reactivemusic.ReactiveMusic", false, getClass().getClassLoader());

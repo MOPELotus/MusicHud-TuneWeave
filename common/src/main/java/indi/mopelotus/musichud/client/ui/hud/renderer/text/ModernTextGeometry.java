@@ -46,6 +46,8 @@ import java.util.WeakHashMap;
  * motion stays smooth without a custom fragment shader.
  */
 public final class ModernTextGeometry {
+    private static TextLayoutProcessor desktopProcessor;
+    private static final Map<String, TextLayout> DESKTOP_LAYOUTS = new HashMap<>();
     private static final Random OBFUSCATED_RANDOM = new Random();
 
     /**
@@ -59,6 +61,8 @@ public final class ModernTextGeometry {
     /** Frame-owned references must not survive font resource reloads. */
     public static void endFrame() {
         GLYPH_CACHE.clear();
+        DESKTOP_LAYOUTS.clear();
+        desktopProcessor = null;
     }
 
     private ModernTextGeometry() {
@@ -67,7 +71,18 @@ public final class ModernTextGeometry {
     public static List<GradientTextRenderState> build(Font font, String text, int x, int y,
                                                       GradientSpec gradient, float alpha,
                                                       @Nullable ScreenRectangle scissor, Matrix3x2f pose) {
-        TextLayout layout = TextLayoutEngine.getInstance().lookupVanillaLayout(text);
+        var context = indi.mopelotus.musichud.client.ui.hud.renderer.HudRenderContext.getCurrent();
+        boolean desktop = context != null && context.isDesktopOrigin();
+        int scale = desktop ? indi.mopelotus.musichud.client.companion.CompanionBridge.scale()
+                : Minecraft.getInstance().getWindow().getGuiScale();
+        TextLayout layout;
+        if (desktop) {
+            if (desktopProcessor == null) desktopProcessor = new TextLayoutProcessor(TextLayoutEngine.getInstance());
+            layout = DESKTOP_LAYOUTS.computeIfAbsent(text, value -> desktopProcessor.createVanillaLayout(
+                    value, net.minecraft.network.chat.Style.EMPTY, scale, 0));
+        } else {
+            layout = TextLayoutEngine.getInstance().lookupVanillaLayout(text);
+        }
         float totalAdvance = Math.max(1f, layout.getTotalAdvance());
         if (totalAdvance <= 1f && layout.getGlyphs().length == 0) {
             return List.of();
@@ -93,7 +108,7 @@ public final class ModernTextGeometry {
         int fontSize = TextLayoutProcessor.computeFontSize(density);
         boolean directMask = preferredMode == TextRenderType.MODE_NORMAL;
         boolean linearSampling = needsLinear(setup.pose(), setup.originX(), setup.originY(), density,
-                Minecraft.getInstance().getWindow().getGuiScale());
+                scale);
 
         // Bake every glyph now, while this element is merely being submitted: a newly baked
         // glyph can grow or rebuild the font atlas, and that rebuild must never happen while

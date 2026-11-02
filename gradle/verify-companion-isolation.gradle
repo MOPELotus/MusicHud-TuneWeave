@@ -1,0 +1,25 @@
+// The desktop application has its own Gradle build and must never enter client mod artifacts.
+subprojects {
+    if (name in ['fabric', 'neoforge']) {
+        plugins.withId('java') {
+            def verify = tasks.register('verifyCompanionIsolation') {
+                group = 'verification'
+                def artifact = tasks.named('jar')
+                dependsOn artifact
+                inputs.file(artifact.flatMap { it.archiveFile })
+                doLast {
+                    new java.util.zip.ZipFile(artifact.get().archiveFile.get().asFile).withCloseable { zip ->
+                        def forbidden = zip.entries().findAll {
+                            it.name.startsWith('indi/mopelotus/musichud/companion/desktop/') ||
+                            it.name.startsWith('org/lwjgl/glfw/') || it.name.startsWith('org/lwjgl/opengl/') ||
+                            it.name.tokenize('/').last() in ['glfw.dll', 'libglfw.so', 'libglfw.dylib'] ||
+                            it.name.contains('lwjgl-glfw-') || it.name.contains('lwjgl-opengl-')
+                        }
+                        if (!forbidden.empty) throw new GradleException("Companion desktop dependencies leaked into ${project.name}: ${forbidden*.name}")
+                    }
+                }
+            }
+            tasks.named('build').configure { dependsOn verify }
+        }
+    }
+}

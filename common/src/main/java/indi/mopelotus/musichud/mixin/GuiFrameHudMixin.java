@@ -22,6 +22,6 @@ public abstract class GuiFrameHudMixin {
         // Preserve the 26.2 resource gate before touching ModernUI shaders during initial loading.
         if (!Minecraft.getInstance().isGameLoadFinished()) return;
         graphics.nextStratum();
-        HudRendererManager.getInstance().renderFrame(graphics, deltaTracker);
+        indi.mopelotus.musichud.client.companion.CompanionBridge.extract(graphics, deltaTracker);
     }
 }
