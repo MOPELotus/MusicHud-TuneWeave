@@ -36,8 +36,15 @@ public class HudRenderContext {
     private static HudRenderContext current;
 
     @Getter
-    @Setter
     private GuiGraphics graphics;
+    @Getter @Setter
+    private boolean desktopOrigin;
+
+    public void setGraphics(GuiGraphics graphics) {
+        this.graphics = graphics;
+        activate();
+    }
+    public void activate() { current = this; }
     private final Map<String, HudShaderProgram.UniformBufferHandle> uboHandles = new HashMap<>();
     private final Map<String, ByteBuffer> uboBuffers = new HashMap<>();
 
@@ -54,6 +61,7 @@ public class HudRenderContext {
     }
 
     public void clearContext() {
+        LegacyTextGeometry.endFrame();
         graphics = null;
     }
 

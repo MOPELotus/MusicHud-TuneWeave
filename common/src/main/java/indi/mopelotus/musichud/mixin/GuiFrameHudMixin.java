@@ -29,6 +29,8 @@ public abstract class GuiFrameHudMixin {
         if (!Minecraft.getInstance().isGameLoadFinished()) return;
         if (frame.get() == null || indi.mopelotus.musichud.client.ui.hud.pipelines.HudShaderManager.isClosed()) return;
         frame.get().flush();
-        HudRendererManager.getInstance().renderFrame(frame.get(), deltaTracker);
+        indi.mopelotus.musichud.client.companion.CompanionBridge.extract(frame.get(), deltaTracker);
+        frame.get().flush();
+        indi.mopelotus.musichud.client.companion.CompanionBridge.render();
     }
 }

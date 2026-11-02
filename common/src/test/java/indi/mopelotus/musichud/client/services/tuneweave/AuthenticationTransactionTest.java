@@ -26,9 +26,9 @@ class AuthenticationTransactionTest {
                         case "getTuneWeaveBaseUrl" -> "http://127.0.0.1:7832";
                         case "getDefaultMusicPlatform" -> "netease";
                         case "getTuneWeaveCredential" -> credential.get();
-                        case "setTuneWeaveCredential" -> { credential.set((String)args[1]); yield null; }
+                        case "setTuneWeaveCredential", "storeLoginCredential", "storeLoginAccount" -> { credential.set((String)args[1]); yield null; }
                         case "clearTuneWeaveCredential" -> { credential.set(""); yield null; }
-                        case "setDefaultMusicPlatform", "save" -> null;
+                        case "setDefaultMusicPlatform", "save", "storeAccountProfile" -> null;
                         default -> throw new AssertionError(method.getName());
                     });
             gateway = new TuneWeaveGateway(config, (base, method, path, query, body, sent) -> {
@@ -96,7 +96,7 @@ class AuthenticationTransactionTest {
             assertThrows(RuntimeException.class, () -> invalid.auth.loadSession(PLATFORM));
             assertNull(invalid.auth.cachedSession(PLATFORM));
             var credential = JsonParser.parseString("{\"format\":\"tuneweave_credential_v1\",\"platform\":\"" + platform + "\",\"value\":\"twc1_bad\"}");
-            assertThrows(RuntimeException.class, () -> invalid.gateway.saveCredential(PLATFORM, credential));
+            assertThrows(RuntimeException.class, () -> invalid.gateway.verifyLogin(PLATFORM, credential, () -> fail("Invalid candidate must not load profile")));
             assertEquals("twc1_initial", invalid.credential.get());
         }
     }

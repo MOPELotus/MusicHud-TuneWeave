@@ -13,7 +13,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +31,9 @@ public class ClientConfigDefinition implements ClientConfig {
     private boolean disableVanillaMusic = getDefaultDisableVanillaMusic();
     private boolean hideHudWhenNotPlaying = getDefaultHideHudWhenNotPlaying();
     private boolean enableHud = getDefaultEnableHud();
+    private volatile boolean companionEnabled;
+    private volatile int companionFps = 60;
+    private volatile int companionScale = 2;
     private boolean enableLyricsSidebar = getDefaultEnableLyricsSidebar();
     private boolean enableMarqueeText = getDefaultEnableMarqueeText();
     private boolean mixWithVanillaSoundVolume = getDefaultMixWithVanillaSoundVolume();
@@ -46,9 +52,11 @@ public class ClientConfigDefinition implements ClientConfig {
     private int hudWidth = getDefaultHudWidth();
     private int hudHeight = getDefaultHudHeight();
     private int hudCornerRadius = getDefaultHudCornerRadius();
-    private String clientAccountConfig = "";
+    private ClientAccountStore privateAccounts;
+    private final Supplier<Path> privateAccountsPath;
+    private Path boundAccountsFile;
+    private boolean privateMigrationPending;
     private volatile String tuneWeaveBaseUrl = "http://127.0.0.1:7832";
-    private String tuneWeaveCredentials = "{}";
     private String defaultMusicPlatform = "netease";
     private boolean enabledInIntegratedServer = getDefaultEnabledInIntegratedServer();
     private boolean enableAutoConnect = getDefaultEnableAutoConnect();
@@ -60,18 +68,42 @@ public class ClientConfigDefinition implements ClientConfig {
     @Getter
     private boolean configured;
 
-    private ClientConfigDefinition() {
+    private ClientConfigDefinition() { this(ClientPrivatePaths::accountsFile); }
+
+    // Test instances never access the active player's private data.
+    ClientConfigDefinition(Path privateAccountsFile) { this(() -> privateAccountsFile); }
+
+    ClientConfigDefinition(Supplier<Path> privateAccountsPath) {
+        this.privateAccountsPath = Objects.requireNonNull(privateAccountsPath);
+    }
+
+    private Path accountsFile() {
+        return Objects.requireNonNull(privateAccountsPath.get()).toAbsolutePath().normalize();
     }
 
     public synchronized void load() {
         Path path = SimpleTomlConfig.path(FILE_NAME);
-        Map<String, String> values = SimpleTomlConfig.read(path);
+        Map<String, String> values;
+        try { values = SimpleTomlConfig.readChecked(path); }
+        catch (java.io.IOException | RuntimeException error) {
+            // Reading failure is never evidence that an old account field was empty.
+            privateMigrationPending = true;
+            privateAccounts = null;
+            configured = true;
+            MusicHud.LOGGER.error("Cannot read client configuration; existing configuration and account files were kept");
+            return;
+        }
         enable = SimpleTomlConfig.getBoolean(values, "enable", enable);
         enableLyricBlur = SimpleTomlConfig.getBoolean(values, "enableLyricBlur", getDefaultEnableLyricBlur());
         showTranslatedCnLyrics = SimpleTomlConfig.getBoolean(values, "showTranslatedCnLyrics", showTranslatedCnLyrics);
         disableVanillaMusic = SimpleTomlConfig.getBoolean(values, "disableVanillaMusic", disableVanillaMusic);
         hideHudWhenNotPlaying = SimpleTomlConfig.getBoolean(values, "hideHudWhenNotPlaying", hideHudWhenNotPlaying);
         enableHud = SimpleTomlConfig.getBoolean(values, "enableHud", enableHud);
+        companionEnabled = SimpleTomlConfig.getBoolean(values, "companionEnabled", false);
+        int savedCompanionFps = SimpleTomlConfig.getInt(values, "companionFps", 60);
+        companionFps = savedCompanionFps == 30 || savedCompanionFps == 60 ? savedCompanionFps : 60;
+        int savedCompanionScale = SimpleTomlConfig.getInt(values, "companionScale", 2);
+        companionScale = savedCompanionScale >= 1 && savedCompanionScale <= 4 ? savedCompanionScale : 2;
         enableLyricsSidebar = SimpleTomlConfig.getBoolean(values, "enableLyricsSidebar", getDefaultEnableLyricsSidebar());
         enableMarqueeText = SimpleTomlConfig.getBoolean(values, "enableMarqueeText", enableMarqueeText);
         mixWithVanillaSoundVolume = SimpleTomlConfig.getBoolean(values, "mixWithVanillaSoundVolume", mixWithVanillaSoundVolume);
@@ -90,10 +122,10 @@ public class ClientConfigDefinition implements ClientConfig {
         hudWidth = SimpleTomlConfig.getInt(values, "hudWidth", hudWidth);
         hudHeight = SimpleTomlConfig.getInt(values, "hudHeight", hudHeight);
         hudCornerRadius = SimpleTomlConfig.getInt(values, "hudCornerRadius", hudCornerRadius);
-        clientAccountConfig = SimpleTomlConfig.getString(values, "clientAccountConfig", clientAccountConfig);
+        String legacyProfile = SimpleTomlConfig.getString(values, "clientAccountConfig", "");
+        String legacyCredentials = SimpleTomlConfig.getString(values, "tuneWeaveCredentials", "{}");
         tuneWeaveBaseUrl = normalizeTuneWeaveBaseUrl(SimpleTomlConfig.getString(
                 values, "tuneWeaveBaseUrl", tuneWeaveBaseUrl));
-        tuneWeaveCredentials = SimpleTomlConfig.getString(values, "tuneWeaveCredentials", tuneWeaveCredentials);
         defaultMusicPlatform = normalizePlatform(SimpleTomlConfig.getString(
                 values, "defaultMusicPlatform", defaultMusicPlatform));
         enabledInIntegratedServer = SimpleTomlConfig.getBoolean(
@@ -108,7 +140,17 @@ public class ClientConfigDefinition implements ClientConfig {
         autoConnectWhiteList = SimpleTomlConfig.getString(values, "autoConnectWhiteList", autoConnectWhiteList);
         migrateEmptyWhiteListDefault(values);
         configured = true;
-        save();
+        privateMigrationPending = true;
+        try {
+            privateAccounts = null;
+            boundAccountsFile = accountsFile();
+            privateAccounts = new ClientAccountStore(boundAccountsFile);
+            privateAccounts.migrate(legacyCredentials, legacyProfile);
+            privateMigrationPending = false;
+            save();
+        } catch (RuntimeException error) {
+            MusicHud.LOGGER.error("Cannot migrate private client accounts; existing configuration and account files were kept");
+        }
     }
 
     @Override
@@ -139,6 +181,13 @@ public class ClientConfigDefinition implements ClientConfig {
 
     @Override
     public void setEnableLyricsSidebar(boolean enabled) { enableLyricsSidebar = enabled; }
+
+    @Override public boolean getCompanionEnabled() { return companionEnabled; }
+    @Override public void setCompanionEnabled(boolean enabled) { companionEnabled = enabled; save(); }
+    @Override public int getCompanionFps() { return companionFps; }
+    @Override public void setCompanionFps(int value) { companionFps = value <= 30 ? 30 : 60; save(); }
+    @Override public int getCompanionScale() { return companionScale; }
+    @Override public void setCompanionScale(int value) { companionScale = Math.clamp(value, 1, 4); save(); }
 
     @Override
     public void setEnableHud(boolean enableHud) {
@@ -227,8 +276,8 @@ public class ClientConfigDefinition implements ClientConfig {
     }
 
     @Override
-    public void setClientAccountConfig(ProfileConfigData clientAccountConfig) {
-        this.clientAccountConfig = clientAccountConfig == null ? "" : JsonUtil.gson.toJson(clientAccountConfig);
+    public synchronized void setClientAccountConfig(ProfileConfigData clientAccountConfig) {
+        accountStore().profileData(JsonUtil.gson.toJsonTree(clientAccountConfig));
     }
 
     @Override
@@ -238,14 +287,7 @@ public class ClientConfigDefinition implements ClientConfig {
 
     @Override
     public synchronized void setTuneWeaveCredential(String platform, String credential) {
-        String key = normalizePlatform(platform);
-        Map<String, String> credentials = parseStringMap(tuneWeaveCredentials);
-        if (credential == null || credential.isBlank()) {
-            credentials.remove(key);
-        } else {
-            credentials.put(key, credential.trim());
-        }
-        tuneWeaveCredentials = JsonUtil.gson.toJson(credentials);
+        accountStore().setCredential(normalizePlatform(platform), credential, false);
     }
 
     @Override
@@ -397,8 +439,8 @@ public class ClientConfigDefinition implements ClientConfig {
     }
 
     @Override
-    public ProfileConfigData getClientAccountConfig() {
-        return parseJson(clientAccountConfig, ProfileConfigData.class);
+    public synchronized ProfileConfigData getClientAccountConfig() {
+        return privateAccounts == null ? null : JsonUtil.gson.fromJson(privateAccounts.profileData(), ProfileConfigData.class);
     }
 
     @Override
@@ -408,7 +450,42 @@ public class ClientConfigDefinition implements ClientConfig {
 
     @Override
     public synchronized String getTuneWeaveCredential(String platform) {
-        return parseStringMap(tuneWeaveCredentials).getOrDefault(normalizePlatform(platform), "");
+        return privateAccounts == null ? "" : privateAccounts.credential(normalizePlatform(platform));
+    }
+
+    private synchronized ClientAccountStore accountStore() {
+        if (privateMigrationPending) throw new IllegalStateException("Private account storage is unavailable");
+        if (privateAccounts == null) throw new IllegalStateException("Private account storage is unavailable");
+        Path current = accountsFile();
+        if (!current.equals(boundAccountsFile)) {
+            // A fresh installation may choose its API folder after config loading, before the first login.
+            // Existing data always requires an explicit move and restart; never merge or overwrite stores.
+            if (!privateAccounts.isPristine()
+                    || !Files.notExists(boundAccountsFile, LinkOption.NOFOLLOW_LINKS)
+                    || !Files.notExists(current, LinkOption.NOFOLLOW_LINKS)) throw accountDirectoryChanged();
+            ClientAccountStore candidate = new ClientAccountStore(current);
+            if (!candidate.isPristine() || !Files.notExists(current, LinkOption.NOFOLLOW_LINKS))
+                throw accountDirectoryChanged();
+            privateAccounts = candidate;
+            boundAccountsFile = current;
+        }
+        return privateAccounts;
+    }
+
+    private static IllegalStateException accountDirectoryChanged() {
+        return new IllegalStateException("API directory changed; move the account file and restart");
+    }
+
+    @Override public synchronized java.util.List<indi.mopelotus.musichud.beans.user.SavedAccount> getSavedAccounts(String platform) {
+        return privateAccounts == null ? java.util.List.of() : privateAccounts.accounts(normalizePlatform(platform));
+    }
+    @Override public synchronized void selectSavedAccount(String platform, String id) { accountStore().select(normalizePlatform(platform), id); }
+    @Override public synchronized void storeLoginCredential(String platform, String credential) { accountStore().setCredential(normalizePlatform(platform), credential, true); }
+    @Override public synchronized void storeLoginAccount(String platform, String credential, String userId, String nickname, String avatarUrl) {
+        accountStore().loginAccount(normalizePlatform(platform), credential, userId, nickname, avatarUrl);
+    }
+    @Override public synchronized void storeAccountProfile(String platform, String userId, String nickname, String avatarUrl) {
+        accountStore().profile(normalizePlatform(platform), userId, nickname, avatarUrl);
     }
 
     @Override
@@ -453,6 +530,8 @@ public class ClientConfigDefinition implements ClientConfig {
 
     @Override
     public synchronized void save() {
+        // Never erase the only copy of an old credential after a failed migration.
+        if (privateMigrationPending) return;
         SimpleTomlConfig.write(SimpleTomlConfig.path(FILE_NAME), List.of(
                 new SimpleTomlConfig.Entry("enable", "Enable MusicHud TuneWeave functions", enable),
                 new SimpleTomlConfig.Entry("enableLyricBlur", "Blur non-highlighted lyric lines", enableLyricBlur),
@@ -460,6 +539,9 @@ public class ClientConfigDefinition implements ClientConfig {
                 new SimpleTomlConfig.Entry("disableVanillaMusic", "Disable vanilla game music", disableVanillaMusic),
                 new SimpleTomlConfig.Entry("hideHudWhenNotPlaying", "Hide HUD when not playing music", hideHudWhenNotPlaying),
                 new SimpleTomlConfig.Entry("enableHud", "Enable HUD", enableHud),
+                new SimpleTomlConfig.Entry("companionEnabled", "Enable desktop HUD and restore it on the next game launch", companionEnabled),
+                new SimpleTomlConfig.Entry("companionFps", "Desktop HUD frame limit (30|60)", companionFps),
+                new SimpleTomlConfig.Entry("companionScale", "Desktop HUD scale (1..4)", companionScale),
                 new SimpleTomlConfig.Entry("enableLyricsSidebar", "Show lyrics alongside other pages", enableLyricsSidebar),
                 new SimpleTomlConfig.Entry("enableMarqueeText", "Enable marquee animation on overflow text", enableMarqueeText),
                 new SimpleTomlConfig.Entry("mixWithVanillaSoundVolume", "Mix MusicHud TuneWeave volume with vanilla music volume", mixWithVanillaSoundVolume),
@@ -478,9 +560,7 @@ public class ClientConfigDefinition implements ClientConfig {
                 new SimpleTomlConfig.Entry("hudWidth", "HUD width", hudWidth),
                 new SimpleTomlConfig.Entry("hudHeight", "HUD height", hudHeight),
                 new SimpleTomlConfig.Entry("hudCornerRadius", "HUD rounded corner radius", hudCornerRadius),
-                new SimpleTomlConfig.Entry("clientAccountConfig", "Client account config json", clientAccountConfig),
                 new SimpleTomlConfig.Entry("tuneWeaveBaseUrl", "TuneWeave API URL used directly by this client", tuneWeaveBaseUrl),
-                new SimpleTomlConfig.Entry("tuneWeaveCredentials", "Client-owned TuneWeave credentials by platform (private)", tuneWeaveCredentials),
                 new SimpleTomlConfig.Entry("defaultMusicPlatform", "Default TuneWeave platform (netease|qq|bilibili)", defaultMusicPlatform),
                 new SimpleTomlConfig.Entry("enabledInIntegratedServer", "Enable embedded server for singleplayer or LAN multiplayer", enabledInIntegratedServer),
                 new SimpleTomlConfig.Entry("enableAutoConnect", "Enable auto connect", enableAutoConnect),
@@ -489,18 +569,6 @@ public class ClientConfigDefinition implements ClientConfig {
                 new SimpleTomlConfig.Entry("autoConnectBlackList", "Auto connecting servers black list JSON", autoConnectBlackList),
                 new SimpleTomlConfig.Entry("autoConnectWhiteList", "Auto connecting servers white list JSON", autoConnectWhiteList)
         ));
-    }
-
-    private static <T> T parseJson(String json, Class<T> type) {
-        if (json == null || json.isBlank()) {
-            return null;
-        }
-        try {
-            return JsonUtil.gson.fromJson(json, type);
-        } catch (RuntimeException e) {
-            MusicHud.LOGGER.warn("Failed to parse client config JSON for {}", type.getSimpleName(), e);
-            return null;
-        }
     }
 
     @SuppressWarnings("unchecked")
@@ -514,20 +582,6 @@ public class ClientConfigDefinition implements ClientConfig {
         } catch (RuntimeException e) {
             MusicHud.LOGGER.warn("Failed to parse client config list", e);
             return List.of();
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, String> parseStringMap(String json) {
-        if (json == null || json.isBlank()) {
-            return new LinkedHashMap<>();
-        }
-        try {
-            Map<String, String> values = JsonUtil.gson.fromJson(json, LinkedHashMap.class);
-            return values == null ? new LinkedHashMap<>() : new LinkedHashMap<>(values);
-        } catch (RuntimeException e) {
-            MusicHud.LOGGER.warn("Failed to parse TuneWeave client credentials");
-            return new LinkedHashMap<>();
         }
     }
 

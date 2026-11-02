@@ -40,6 +40,7 @@ public class HudShaderManager {
     private static void releaseUniformBuffers() {
         var context = indi.mopelotus.musichud.client.ui.hud.renderer.HudRenderContext.getCurrent();
         if (context != null) context.releaseBuffers();
+        indi.mopelotus.musichud.client.ui.hud.HudRendererManager.releaseDesktopBuffers();
     }
 
     private static String cacheKey(ResourceLocation vs, ResourceLocation fs) {

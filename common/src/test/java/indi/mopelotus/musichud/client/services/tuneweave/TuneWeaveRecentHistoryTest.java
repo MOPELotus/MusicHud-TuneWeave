@@ -252,7 +252,7 @@ class TuneWeaveRecentHistoryTest {
                         case "getDefaultMusicPlatform" -> "netease";
                         case "getTuneWeaveCredential" -> credentials.getOrDefault(TuneWeavePlatform.fromApiName((String) args[0]), "");
                         case "clearTuneWeaveCredential" -> { credentials.remove(TuneWeavePlatform.requireApiName((String) args[0])); yield null; }
-                        case "save" -> null;
+                        case "save", "storeAccountProfile" -> null;
                         default -> throw new AssertionError(method.getName());
                     });
             TuneWeaveGateway gateway = new TuneWeaveGateway(config, (base, method, path, query, body, headers) -> {

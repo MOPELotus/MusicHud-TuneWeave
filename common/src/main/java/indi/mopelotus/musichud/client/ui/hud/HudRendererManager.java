@@ -51,7 +51,8 @@ public class HudRendererManager {
     private final NowPlayingInfo nowPlayingInfo = NowPlayingInfo.getInstance();
     private final DateTimeFormatter LONG_DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
     private final DateTimeFormatter SHORT_DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("mm:ss");
-    private final HudRenderContext hudRenderContext = new HudRenderContext();
+    private HudRenderContext hudRenderContext = new HudRenderContext();
+    private HudRenderContext desktopContext;
     private volatile HudRenderData hudBaseData;
     private volatile HudRenderData imageDisplayData;
     @Setter
@@ -142,6 +143,16 @@ public class HudRendererManager {
             manager.lyrics.cancel();
             manager.artwork.cancel();
             manager.LYRICS_LINE_RENDERER.hardClear();
+            if (manager.desktopContext != null) manager.desktopContext.releaseBuffers();
+        }
+    }
+
+    /** Desktop UBOs have their own ownership on the legacy renderer. */
+    public static void releaseDesktopBuffers() {
+        HudRendererManager manager = instance;
+        if (manager == null) return;
+        synchronized (manager) {
+            if (manager.desktopContext != null) manager.desktopContext.releaseBuffers();
         }
     }
 
@@ -413,6 +424,35 @@ public class HudRendererManager {
         renderFrame(graphics, deltaTracker, false);
     }
 
+    /** Same renderer and playback state, with a window-independent desktop origin and buffers. */
+    public synchronized boolean renderDesktopFrame(GuiGraphics graphics, Runnable draw) {
+        HudRenderContext gameContext = hudRenderContext;
+        if (desktopContext == null) {
+            desktopContext = new HudRenderContext();
+            desktopContext.setDesktopOrigin(true);
+        }
+        hudRenderContext = desktopContext;
+        try {
+            desktopContext.clearContext();
+            renderFrame(graphics, null, false);
+            draw.run();
+            return desktopContext.getGraphics() != null;
+        } finally {
+            hudRenderContext = gameContext;
+            gameContext.activate();
+        }
+    }
+
+    /** Shader uniforms place HUD geometry; GUI mesh bounds do not include that translation. */
+    public synchronized @Nullable net.minecraft.client.gui.navigation.ScreenRectangle frameBounds() {
+        if (baseLayout == null || hudRenderContext.getGraphics() == null) return null;
+        var position = baseLayout.calcAbsolutePosition(hudRenderContext);
+        int left = (int) Math.floor(position.x()), top = (int) Math.floor(position.y());
+        return new net.minecraft.client.gui.navigation.ScreenRectangle(left, top,
+                (int) Math.ceil(position.x() + baseLayout.getWidth()) - left,
+                (int) Math.ceil(position.y() + baseLayout.getHeight()) - top);
+    }
+
     /** Renders the live HUD at draft geometry without writing config or issuing resize downloads. */
     public synchronized void renderEditorPreview(GuiGraphics graphics) {
         renderFrame(graphics, null, true);
@@ -442,8 +482,8 @@ public class HudRendererManager {
             }
             baseLayout.setAlpha(preview ? 1f : opacity);
             if (!preview && (visibilityFade.hidden()
-                    || Minecraft.getInstance().screen instanceof indi.mopelotus.musichud.client.ui.screen.MusicHudScreen
-                    || Minecraft.getInstance().screen instanceof indi.mopelotus.musichud.client.ui.screen.HudLayoutEditorScreen)) {
+                    || !hudRenderContext.isDesktopOrigin() && (Minecraft.getInstance().screen instanceof indi.mopelotus.musichud.client.ui.screen.MusicHudScreen
+                    || Minecraft.getInstance().screen instanceof indi.mopelotus.musichud.client.ui.screen.HudLayoutEditorScreen))) {
                 return;
             }
             if (!preview && albumImageThumbnailSize <= 0) {

@@ -58,6 +58,8 @@ import static org.lwjgl.opengl.GL33C.glSamplerParameteri;
  * requests them.
  */
 public final class LegacyTextGeometry {
+    private static TextLayoutProcessor desktopProcessor;
+    private static final java.util.Map<String, TextLayout> DESKTOP_LAYOUTS = new java.util.HashMap<>();
     private static final Random OBFUSCATED_RANDOM = new Random();
     private static final float EPSILON = 1e-5f;
 
@@ -66,6 +68,8 @@ public final class LegacyTextGeometry {
      * yet". Only ever touched on the render thread.
      */
     private static int linearSampler = 0;
+
+    public static void endFrame() { DESKTOP_LAYOUTS.clear(); }
 
     private LegacyTextGeometry() {
     }

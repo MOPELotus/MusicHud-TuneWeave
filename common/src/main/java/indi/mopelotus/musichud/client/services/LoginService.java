@@ -97,6 +97,13 @@ public class LoginService implements IClientLoginService {
         return false;
     }
 
+    public boolean hasAnySavedAccounts() {
+        for (TuneWeavePlatform platform : TuneWeavePlatform.values()) {
+            if (!tuneWeave.savedAccounts(platform).isEmpty()) return true;
+        }
+        return false;
+    }
+
     @Override
     public void restoreSession() {
         restoreTuneWeaveSession();
@@ -142,17 +149,21 @@ public class LoginService implements IClientLoginService {
         refreshAccountView();
     }
 
+    public synchronized void switchSavedAccount(TuneWeavePlatform platform, String id) {
+        tuneWeave.selectAccount(platform, id);
+        switchTuneWeavePlatform(platform);
+    }
+
     public synchronized void switchTuneWeavePlatform(TuneWeavePlatform platform) {
         tuneWeave.cancelLogins();
         int version = platformSessionVersion.incrementAndGet();
         tuneWeave.setDefaultPlatform(platform);
         MusicService.getInstance().invalidateUserCollections();
-        if (!tuneWeave.hasCredential(platform)) {
-            Profile.setCurrent(Profile.ANONYMOUS);
-            notifyLoginStateChanged();
-            refreshAccountView();
-            return;
-        }
+        Profile.setCurrent(Profile.ANONYMOUS);
+        lastLoginErrorMessage = null;
+        notifyLoginStateChanged();
+        refreshAccountView();
+        if (!tuneWeave.hasCredential(platform)) return;
         MusicHud.EXECUTOR.execute(() -> {
             try {
                 TuneWeaveSession profile = tuneWeave.loadSession(platform);
@@ -195,7 +206,11 @@ public class LoginService implements IClientLoginService {
     private static void refreshAccountView() {
         AccountBaseView accountBaseView = AccountBaseView.getInstance();
         if (accountBaseView != null) {
-            MuiModApi.postToUiThread(accountBaseView::refresh);
+            MuiModApi.postToUiThread(() -> {
+                var account = indi.mopelotus.musichud.client.ui.pages.account.AccountView.getInstance();
+                if (account != null) account.finishAccountFlow();
+                accountBaseView.refresh();
+            });
         }
     }
 

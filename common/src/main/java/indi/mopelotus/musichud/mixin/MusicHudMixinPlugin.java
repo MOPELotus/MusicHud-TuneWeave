@@ -27,6 +27,9 @@ public class MusicHudMixinPlugin implements IMixinConfigPlugin {
                 return false;
             }
         }
+        if (mixinClassName.endsWith(".DynamicFpsCompanionMixin")) {
+            return getClass().getClassLoader().getResource("dynamic_fps/impl/DynamicFPSMod.class") != null;
+        }
         if (mixinClassName.contains("ReactiveMusicCompatMixin")) {
             try {
                 Class.forName("circuitlord.reactivemusic.ReactiveMusic", false, getClass().getClassLoader());
