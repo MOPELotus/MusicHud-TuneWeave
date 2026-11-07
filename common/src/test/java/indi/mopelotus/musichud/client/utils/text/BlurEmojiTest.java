@@ -129,7 +129,12 @@ class BlurEmojiTest {
         final Object previousThread;
         final Object previousImages;
         final Object previousGeneration;
+        final Object previousHost;
         Fixture() throws Exception {
+            // This fixture checks the official host's fallback without applying runtime Mixins.
+            var host = indi.mopelotus.musichud.client.compat.ModernUiHost.class;
+            previousHost = field(host, "lumen").get(null);
+            field(host, "lumen").set(null, Boolean.FALSE);
             previousThread = field(Core.class, "sUiThread").get(null);
             previousImages = field(WidgetEmojiResources.class, "images").get(null);
             previousGeneration = field(WidgetEmojiResources.class, "generation").get(null);
@@ -193,6 +198,7 @@ class BlurEmojiTest {
                 field(WidgetEmojiResources.class, "images").set(null, previousImages);
                 field(WidgetEmojiResources.class, "generation").set(null, previousGeneration);
                 field(Core.class, "sUiThread").set(null, previousThread);
+                field(indi.mopelotus.musichud.client.compat.ModernUiHost.class, "lumen").set(null, previousHost);
             }
         }
     }
