@@ -16,6 +16,24 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /** Actual core shaper/canvas and image ownership checks without claiming GPU pixel verification. */
 public final class EmojiCanvasTest {
 
+    @org.junit.jupiter.api.Test void lumenOffscreenCanvasDoesNotAllocateOrDrawFallbackImages() throws Exception {
+        var host = indi.mopelotus.musichud.client.compat.ModernUiHost.class.getDeclaredField("lumen");
+        var images = WidgetEmojiResources.class.getDeclaredField("images");
+        host.setAccessible(true);
+        images.setAccessible(true);
+        Object previousHost = host.get(null), previousImages = images.get(null);
+        try (var nativeCanvas = new Capture()) {
+            host.set(null, Boolean.TRUE);
+            var canvas = EmojiAwareCanvas.create(nativeCanvas);
+            check(canvas.getClass() == icyllis.modernui.graphics.pipeline.ArcCanvas.class,
+                    "Lumen offscreen drawing must use its native glyph pipeline exactly once");
+            check(images.get(null) == previousImages,
+                    "Lumen must not initialize the official host's fallback image cache");
+        } finally {
+            host.set(null, previousHost);
+        }
+    }
+
     @org.junit.jupiter.api.Test void actualShaperAndCanvas() throws Exception { checkDrawing(); }
     @org.junit.jupiter.api.Test void resourceOwnership() throws Exception { checkCache(); }
     @org.junit.jupiter.api.Test void sameFontNewEpoch() { checkSameFontReload(); }
