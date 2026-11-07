@@ -95,3 +95,19 @@ subprojects {
         }
     }
 }
+
+subprojects {
+    repositories {
+        exclusiveContent {
+            forRepository {
+                ivy {
+                    name = 'LotusModernUIReleases'
+                    url = 'https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/download'
+                    patternLayout { artifact 'v3.13.0.10/[artifact]-[revision]-universal.[ext]' }
+                    metadataSources { artifact() }
+                }
+            }
+            filter { includeGroup 'io.github.mopelotus.modernui' }
+        }
+    }
+}

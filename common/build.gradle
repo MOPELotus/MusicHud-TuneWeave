@@ -116,7 +116,7 @@ dependencies {
 
     api "dev.icyllis:modernui-core:$rootProject.modernui_version"
     api "icyllis.modernui:ModernUI-Markflow:$rootProject.modernui_version"
-    compileOnly "maven.modrinth:modern-ui:$rootProject.modernui_neoforge_version"
+    compileOnly "io.github.mopelotus.modernui:ModernUI-Lumen-NeoForge:$rootProject.modernui_fork_version@jar"
 
     implementation project(path: ':metadata', configuration: 'shadowRuntimeElements')
     implementation project(path: ':audio-codecs', configuration: 'shadowRuntimeElements')
