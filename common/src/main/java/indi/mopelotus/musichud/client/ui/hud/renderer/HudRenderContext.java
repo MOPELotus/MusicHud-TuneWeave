@@ -118,6 +118,9 @@ public class HudRenderContext {
         graphics.flush();
         var previous = RenderSystem.getShader();
         float[] color = RenderSystem.getShaderColor().clone();
+        Integer[] textures = state.textures();
+        int[] previousTextures = new int[textures == null ? 0 : textures.length];
+        for (int i = 0; i < previousTextures.length; i++) previousTextures[i] = RenderSystem.getShaderTexture(i);
         try {
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
@@ -129,10 +132,15 @@ public class HudRenderContext {
                         (name, values) -> shader.safeGetUniform(name).set(values));
             }
             if (state.textures() != null) for (int i = 0; i < state.textures().length; i++) {
-                if (state.textures()[i] != null) shader.setSampler("Sampler" + i, state.textures()[i]);
+                if (state.textures()[i] != null) {
+                    // Native shader backends consume Minecraft's texture slots at draw time.
+                    RenderSystem.setShaderTexture(i, state.textures()[i]);
+                    shader.setSampler("Sampler" + i, state.textures()[i]);
+                }
             }
             drawQuad(state.pose(), state.width(), state.height(), true);
         } finally {
+            for (int i = 0; i < previousTextures.length; i++) RenderSystem.setShaderTexture(i, previousTextures[i]);
             RenderSystem.setShader(() -> previous);
             RenderSystem.setShaderColor(color[0], color[1], color[2], color[3]);
             RenderSystem.enableDepthTest();
