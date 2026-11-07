@@ -88,6 +88,7 @@ public final class LineBlurRenderer {
         }
 
         // A retained blurred row must not keep the previous resource pack's image snapshot.
+        WidgetEmojiResources.refreshLumenFont();
         contentStamp = 31 * contentStamp + WidgetEmojiResources.currentEpoch();
         float downscale = chooseDownscale(radius);
         float sigma = radius * SIGMA_FACTOR * downscale;

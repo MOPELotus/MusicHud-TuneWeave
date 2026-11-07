@@ -608,5 +608,9 @@
   "musichud_tuneweave.update.service.manualPairAction": "查看升级说明",
   "musichud_tuneweave.update.service.portUnavailable": "服务端口已被占用，或其状态暂时无法确认。未切换当前服务，请稍后重试，并检查是否有其他程序占用端口。",
   "musichud_tuneweave.text.queueRequestSubmitted": "已发送点歌请求",
-  "musichud_tuneweave.text.queueConnectionNotReady": "音乐连接尚未就绪，请重试。"
+  "musichud_tuneweave.text.queueConnectionNotReady": "音乐连接尚未就绪，请重试。",
+  "musichud_tuneweave.modernUiRecommendation.title": "推荐使用 ModernUI Lumen",
+  "musichud_tuneweave.modernUiRecommendation.body": "当前使用的是官方 Modern UI，可以继续游戏。\n推荐使用 ModernUI Lumen 3.13.0.11，以获得完整适配和相关修复。\n请下载与当前 Minecraft 版本及加载器对应的版本，替换现有的 Modern UI。请勿同时安装多份 Modern UI。",
+  "musichud_tuneweave.modernUiRecommendation.download": "前往下载",
+  "musichud_tuneweave.modernUiRecommendation.continue": "继续游戏"
 }

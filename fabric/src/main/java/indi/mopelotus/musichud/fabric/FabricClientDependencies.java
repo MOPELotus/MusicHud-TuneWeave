@@ -36,13 +36,13 @@ public final class FabricClientDependencies implements net.fabricmc.loader.api.e
         if (installed == null || !required.test(installed)) {
             String problem = installed == null
                     ? "未安装 ModernUI / ModernUI is missing"
-                    : "ModernUI 版本过低 / ModernUI version is too old";
+                    : "Modern UI 版本过低 / Modern UI version is too old";
             throw new IllegalStateException(problem + "\n"
                     + "需要 / Required: ModernUI " + required + "\n"
                     + "当前安装 / Installed: " + (installed == null ? "未安装 / missing" : installed.getFriendlyString()) + "\n"
                     + "请使用适配当前 Minecraft 版本的新版 ModernUI。\n"
                     + "Please use an updated ModernUI build for your Minecraft version.\n"
-                    + "下载 / Downloads: https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10");
+                    + "下载 / Downloads: " + indi.mopelotus.musichud.client.compat.ModernUiHost.DOWNLOAD + "");
         }
     }
 }
