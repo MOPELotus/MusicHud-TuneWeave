@@ -7,7 +7,9 @@ import java.util.regex.Pattern;
 
 /** Validates the UI host without loading a class before Mixin transforms it. */
 public final class ModernUiHost {
-    public static final String DOWNLOAD = "https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10";
+    public static final String DOWNLOAD = "cf".equals(indi.mopelotus.musichud.BuildDistribution.EDITION)
+            ? "https://www.curseforge.com/minecraft/mc-mods/modernui-lumen"
+            : "https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11";
     private static final String OFFICIAL_VERSION = "3.13.0.1";
     private static Boolean lumen;
 
@@ -72,7 +74,7 @@ public final class ModernUiHost {
     /** Returns the selected ABI; all other distributions fail closed with update instructions. */
     public static boolean accepts(String name, String version, String source) {
         if ("ModernUI Lumen".equals(name) || "ModernUI Lumen (MiSans)".equals(name)) {
-            if ("3.13.0.10".equals(version) && "https://github.com/MOPELotus/ModernUI-MC-Lumen".equals(source)) return true;
+            if ("3.13.0.11".equals(version) && "https://github.com/MOPELotus/ModernUI-MC-Lumen".equals(source)) return true;
         }
         if (!OFFICIAL_VERSION.isEmpty() && OFFICIAL_VERSION.equals(version)
                 && "Modern UI".equals(name)
@@ -82,10 +84,11 @@ public final class ModernUiHost {
     }
 
     private static IllegalStateException unsupported(String installed) {
-        return new IllegalStateException("ModernUI 版本过低 / ModernUI version is too old.\n"
-                + "已安装 / Installed: " + installed + "\n"
-                + "请下载适配当前 Minecraft 和加载器的 ModernUI Lumen 3.13.0.10，替换原有 ModernUI。\n"
-                + "Download ModernUI Lumen 3.13.0.10 for your Minecraft version and loader and replace ModernUI.\n"
-                + DOWNLOAD);
+        return new IllegalStateException("Modern UI 版本过低 / Modern UI version is too old.\n"
+                + "当前安装 / Installed: " + installed + "\n"
+                + "此版本无法与 MusicHud TuneWeave 配合使用。请下载与当前 Minecraft 版本及加载器对应的 ModernUI Lumen 3.13.0.11，替换现有的 Modern UI。\n"
+                + "Download ModernUI Lumen 3.13.0.11 for your Minecraft version and loader and replace Modern UI.\n"
+                + "请勿同时安装多份 Modern UI。 / Do not install multiple copies of Modern UI.\n"
+                + "下载地址 / Download: " + DOWNLOAD);
     }
 }

@@ -6,17 +6,21 @@ import static org.junit.jupiter.api.Assertions.*;
 class ModernUiHostTest {
     @Test void lumenBothFontEditionsUseTheSameAbi() {
         for (String name : new String[]{"ModernUI Lumen", "ModernUI Lumen (MiSans)"})
-            assertTrue(ModernUiHost.accepts(name, "3.13.0.10", "https://github.com/MOPELotus/ModernUI-MC-Lumen"));
+            assertTrue(ModernUiHost.accepts(name, "3.13.0.11", "https://github.com/MOPELotus/ModernUI-MC-Lumen"));
     }
     @Test void rejectsOtherForksAndUnverifiedVersionsWithActionableUpdateInstructions() {
         for (String name : new String[]{null, "Modern UI (mVUS)", "Modern UI", "ModernUI Lumen"}) {
-            for (String version : new String[]{null, "", "3.12.0", "3.13.0.9", "3.13.0.999", "3.13.0.10-build.1", "3.13.0.10"}) {
+            for (String version : new String[]{null, "", "3.12.0", "3.13.0.9", "3.13.0.999", "3.13.0.11-build.1", "3.13.0.11"}) {
                 var error = assertThrows(IllegalStateException.class,
                         () -> ModernUiHost.accepts(name, version, "https://example.org/other-fork"));
                 assertTrue(error.getMessage().contains("版本过低"));
                 assertTrue(error.getMessage().contains(ModernUiHost.DOWNLOAD));
             }
         }
+    }
+    @Test void previousLumenWithoutRequiredUpstreamFixesIsRejected() {
+        assertThrows(IllegalStateException.class, () -> ModernUiHost.accepts(
+                "ModernUI Lumen", "3.13.0.10", "https://github.com/MOPELotus/ModernUI-MC-Lumen"));
     }
     @Test void officialAbiIsAllowedOnlyOnSupportedBranches() {
         assertFalse(ModernUiHost.accepts("Modern UI", "3.13.0.1", "https://github.com/BloCamLimb/ModernUI-MC"));
@@ -34,13 +38,13 @@ class ModernUiHostTest {
 
     @Test void parsesBothLoadersWithoutLoadingUiClasses() throws Exception {
         assertTrue(ModernUiHost.inspect(jar("fabric.mod.json", """
-                {"id":"modernui","name":"ModernUI Lumen","version":"3.13.0.10",
+                {"id":"modernui","name":"ModernUI Lumen","version":"3.13.0.11",
                  "contact":{"sources":"https://github.com/MOPELotus/ModernUI-MC-Lumen"}}
                 """)));
         assertTrue(ModernUiHost.inspect(jar("META-INF/neoforge.mods.toml", """
                 [[mods]]
                     modId="modernui"
-                    version="3.13.0.10"
+                    version="3.13.0.11"
                     displayName="ModernUI Lumen (MiSans)"
                     displayURL="https://github.com/MOPELotus/ModernUI-MC-Lumen"
                 """)));
