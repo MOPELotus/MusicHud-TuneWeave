@@ -308,7 +308,7 @@ def multipart(metadata_name, metadata, files):
 
 
 def uses_modernui_fork(row):
-    if row.get('properties', {}).get('modernui_fork_version', '').endswith('-3.13.0.10'):
+    if row.get('properties', {}).get('modernui_fork_version', '').endswith(('-3.13.0.10', '-3.13.0.11')):
         return True
     # Historical 1.21 releases used MVUS; their archived publication metadata
     # must not acquire dependencies introduced by this scoped hotfix.
@@ -321,16 +321,17 @@ def changelog(row, module):
     text = (f"MusicHud TuneWeave {row['version']} for {module}. "
             'Shared playback, music queues, lyrics and HUD improvements.\n\n')
     if module in ('fabric', 'neoforge'):
-        lumen = row.get('properties', {}).get('modernui_fork_version', '').endswith('-3.13.0.10')
+        lumen = row.get('properties', {}).get('modernui_fork_version', '').endswith(('-3.13.0.10', '-3.13.0.11'))
         modern = ('https://github.com/MOPELotus/ModernUI-MC/releases/tag/' + MODERNUI_FORKS[row['branch']]
                   if not lumen and uses_modernui_fork(row) else
                   'https://modrinth.com/mod/modernui-mc-mvus' if row['branch'] in ('1.21.9-1.21.10', '1.21.11')
                   else 'https://modrinth.com/mod/modern-ui')
         if lumen:
-            modern = 'https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10'
+            lumen_version = row['properties']['modernui_fork_version'].rsplit('-', 1)[1]
+            modern = 'https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v' + lumen_version
         text += f"Requires the matching [ModernUI build]({modern}) for this Minecraft version and loader. "
         if lumen:
-            text += ('Recommended: ModernUI Lumen 3.13.0.10, standard or MiSans edition. '
+            text += (f'Recommended: ModernUI Lumen {lumen_version}, standard or MiSans edition. '
                      'Choose the exact Minecraft version and loader; replace the old ModernUI JAR. '
                      'Lumen does not require Forge Config API Port. ')
         if not lumen and row['branch'] == '1.21.9-1.21.10' and uses_modernui_fork(row):

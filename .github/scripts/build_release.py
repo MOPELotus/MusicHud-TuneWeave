@@ -78,7 +78,7 @@ def scoped_release_notes(manifest):
 
 
 def modernui_host(row):
-    if row.get('properties', {}).get('modernui_fork_version', '').endswith('-3.13.0.10'):
+    if row.get('properties', {}).get('modernui_fork_version', '').endswith(('-3.13.0.10', '-3.13.0.11')):
         return None  # Lumen is consumed from its immutable public release.
     if row['branch'] not in {'1.21.9-1.21.10', '1.21.11'}:
         return None
@@ -218,11 +218,11 @@ def plan():
         revision = dict(revisions[row['branch']])
         lumen_revision = revision.pop('lumen_revision')
         row.update(revision)
-        if lumen_revision.endswith('-3.13.0.10'):
+        if lumen_revision.endswith(('-3.13.0.10', '-3.13.0.11')):
             for key in list(row['properties']):
                 if key.startswith('modernui_'):
                     del row['properties'][key]
-            row['properties']['modernui_fork_version'] = (row['id'] + '-3.13.0.10'
+            row['properties']['modernui_fork_version'] = (row['id'] + '-' + lumen_revision.rsplit('-', 1)[1]
                 if row['branch'] == '1.21.9-1.21.10' else lumen_revision)
         row['distribution'] = distribution
         host = modernui_host(row)
