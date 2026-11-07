@@ -7,7 +7,6 @@
   "client": [
     "ClientGraphicsLifecycleMixin",
     "ModernUiGraphicsLifecycleMixin",
-    "LumenGraphicsLifecycleMixin",
     "ModernUiEmojiCanvasMixin",
     "ModernUiEmojiResourcesMixin",
     "ModernUiEmojiTextLineMixin",

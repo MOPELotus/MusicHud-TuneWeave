@@ -34,7 +34,7 @@ public final class FabricClientDependencies implements net.fabricmc.loader.api.e
     static void requireModernUi(boolean client, Version installed, VersionPredicate required) {
         if (!client) return;
         if (installed == null || !required.test(installed)) {
-            throw new IllegalStateException("ModernUI 版本过低 / ModernUI version is too old. Download ModernUI Lumen 3.13.0.10: https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10");
+            throw new IllegalStateException("Modern UI 版本过低 / Modern UI version is too old. Download ModernUI Lumen 3.13.0.11: " + indi.mopelotus.musichud.client.compat.ModernUiHost.DOWNLOAD + "");
         }
     }
 }

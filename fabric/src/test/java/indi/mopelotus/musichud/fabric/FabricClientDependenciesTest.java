@@ -15,7 +15,11 @@ class FabricClientDependenciesTest {
 
     @Test void clientRejectsMissingOldAndMalformedVersionsBeforeUiInitialization() throws Exception {
         var required = VersionPredicate.parse(">=3.13.0.7");
-        assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(true, null, required));
+        var failure = assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(true, null, required));
+        String download = "cf".equals(System.getProperty("musichud.test.distribution"))
+                ? "https://www.curseforge.com/minecraft/mc-mods/modernui-lumen"
+                : "https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11";
+        assertTrue(failure.getMessage().contains(download));
         for (String version : new String[]{"3.12.0", "3.13.0.6", "not-a-version"}) {
             assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(true, Version.parse(version), required));
         }

@@ -37,5 +37,7 @@ public final class CommonInitializer implements ModInitializer {
         MusicHud.init();
         MusicHud.onConfigLoaded();
         if (inClient) indi.mopelotus.musichud.client.update.ClientUpdateService.watchSuccessfulStartup();
+        if (inClient) indi.mopelotus.musichud.client.compat.ModernUiRecommendation.initialize();
+        if (inClient) indi.mopelotus.musichud.client.utils.text.WidgetEmojiResources.initialize();
     }
 }

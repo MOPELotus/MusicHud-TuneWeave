@@ -53,6 +53,8 @@ public final class CommonInitializer {
         }
         MusicHud.onConfigLoaded();
         if (inClient) indi.mopelotus.musichud.client.update.ClientUpdateService.watchSuccessfulStartup();
+        if (inClient) indi.mopelotus.musichud.client.compat.ModernUiRecommendation.initialize();
+        if (inClient) indi.mopelotus.musichud.client.utils.text.WidgetEmojiResources.initialize();
     }
 
     @SubscribeEvent
