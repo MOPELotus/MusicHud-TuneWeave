@@ -99,7 +99,7 @@ subprojects {
                 ivy {
                     name = 'LotusModernUIReleases'
                     url = 'https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/download'
-                    patternLayout { artifact 'v3.13.0.10/[artifact]-[revision]-universal.[ext]' }
+                    patternLayout { artifact 'v3.13.0.11/[artifact]-[revision]-universal.[ext]' }
                     metadataSources { artifact() }
                 }
             }
