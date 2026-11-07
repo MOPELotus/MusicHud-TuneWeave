@@ -65,6 +65,14 @@ public class HudShaderManager {
         String key = cacheKey(vertexShaderLocation, fragmentShaderLocation);
         return programs.get(key, () -> {
             try {
+                if (org.lwjgl.glfw.GLFW.glfwGetCurrentContext() == 0L) {
+                    String path = vertexShaderLocation.getPath();
+                    String name = path.substring("shaders/core/".length(), path.length() - ".vsh".length());
+                    return new HudShaderProgram(icyllis.modernui.mc.MuiModApi.get().makeShaderInstance(
+                            Minecraft.getInstance().getResourceManager(),
+                            ResourceLocation.fromNamespaceAndPath(vertexShaderLocation.getNamespace(), name + "_portable"),
+                            com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR));
+                }
                 HudShaderProgram program = createProgram(vertexShaderLocation, fragmentShaderLocation);
 
                 for (String uboName : UBONames) {

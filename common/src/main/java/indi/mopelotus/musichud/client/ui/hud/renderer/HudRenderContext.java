@@ -67,6 +67,10 @@ public class HudRenderContext {
 
     public void submitHudRenderState(HudRenderState hudRenderState) {
         HudShaderProgram program = hudRenderState.pipeline();
+        if (program.getPortableShader() != null) {
+            renderPortable(hudRenderState, program.getPortableShader());
+            return;
+        }
         if (program.getProgramId() <= 0) {
             renderFallback(hudRenderState);
             return;
@@ -106,6 +110,33 @@ public class HudRenderContext {
             }
 
             drawQuad(hudRenderState.pose(), hudRenderState.width(), hudRenderState.height());
+        }
+    }
+
+    /** Use Minecraft's shader boundary so VulkanMod can compile and bind a native pipeline. */
+    private void renderPortable(HudRenderState state, net.minecraft.client.renderer.ShaderInstance shader) {
+        graphics.flush();
+        var previous = RenderSystem.getShader();
+        float[] color = RenderSystem.getShaderColor().clone();
+        try {
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.disableDepthTest();
+            RenderSystem.setShaderColor(1, 1, 1, 1);
+            RenderSystem.setShader(() -> shader);
+            if (state.uniforms() != null) for (HudUniform uniform : state.uniforms()) {
+                indi.mopelotus.musichud.client.ui.hud.pipelines.HudPortableUniforms.upload(uniform,
+                        (name, values) -> shader.safeGetUniform(name).set(values));
+            }
+            if (state.textures() != null) for (int i = 0; i < state.textures().length; i++) {
+                if (state.textures()[i] != null) shader.setSampler("Sampler" + i, state.textures()[i]);
+            }
+            drawQuad(state.pose(), state.width(), state.height(), true);
+        } finally {
+            RenderSystem.setShader(() -> previous);
+            RenderSystem.setShaderColor(color[0], color[1], color[2], color[3]);
+            RenderSystem.enableDepthTest();
+            RenderSystem.disableBlend();
         }
     }
 
@@ -170,6 +201,10 @@ public class HudRenderContext {
     private static final Matrix4f IDENTITY = new Matrix4f();
 
     private void drawQuad(Matrix3x2f pose, float width, float height) {
+        drawQuad(pose, width, height, false);
+    }
+
+    private void drawQuad(Matrix3x2f pose, float width, float height, boolean portable) {
         float left = -width / 2f;
         float right = width / 2f;
         float top = -height / 2f;
@@ -198,7 +233,8 @@ public class HudRenderContext {
 
         // BufferUploader.draw() uploads + draws without touching the shader —
         // our glUseProgram() sticks.
-        BufferUploader.draw(builder.buildOrThrow());
+        if (portable) BufferUploader.drawWithShader(builder.buildOrThrow());
+        else BufferUploader.draw(builder.buildOrThrow());
     }
 
     /**

@@ -354,6 +354,11 @@ public final class LegacyTextGeometry {
                     .setColor(colorRight).setUv(u2, v1).setLight(packedLight);
         }
         if (!touched.isEmpty()) {
+            // VulkanMod's text RenderTypes own native samplers, with no GL sampler namespace.
+            if (org.lwjgl.glfw.GLFW.glfwGetCurrentContext() == 0L) {
+                for (RenderType renderType : touched) source.endBatch(renderType);
+                return;
+            }
             // The A8 glyph atlas stays NEAREST (that is what keeps pixel-aligned text crisp),
             // so the linear filtering needed for smooth sub-pixel motion comes from a sampler
             // object bound for this flush. It overrides the texture's own parameters exactly

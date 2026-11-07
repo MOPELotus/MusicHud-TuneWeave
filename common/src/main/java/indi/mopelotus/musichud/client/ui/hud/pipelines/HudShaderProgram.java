@@ -15,6 +15,12 @@ import static org.lwjgl.opengl.GL31.glBindBufferRange;
 public class HudShaderProgram implements AutoCloseable {
     @Getter
     private int programId;
+    @Getter
+    private net.minecraft.client.renderer.ShaderInstance portableShader;
+
+    public HudShaderProgram(net.minecraft.client.renderer.ShaderInstance shader) {
+        portableShader = java.util.Objects.requireNonNull(shader);
+    }
     private final Map<String, Integer> uniformLocations = new HashMap<>();
 
     public HudShaderProgram(int programId) {
@@ -26,6 +32,10 @@ public class HudShaderProgram implements AutoCloseable {
     }
 
     @Override public void close() {
+        if (portableShader != null) {
+            portableShader.close();
+            portableShader = null;
+        }
         if (programId != 0) {
             glDeleteProgram(programId);
             programId = 0;

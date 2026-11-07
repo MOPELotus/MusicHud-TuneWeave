@@ -110,6 +110,15 @@ public final class CompanionBridge {
  public static void render(){
   if(stopped)return;
   restorePreferencesOnce();
+  // VulkanMod owns no current GL context. Even polling an empty PBO queue
+  // would enter native OpenGL and abort the JVM before Java can catch it.
+  if(org.lwjgl.glfw.GLFW.glfwGetCurrentContext()==0L){
+   if(enabled()){
+    MusicHud.LOGGER.warn("Companion desktop export requires an OpenGL game renderer; disabling export for this session");
+    setRuntimeEnabled(false);
+   }
+   return;
+  }
   poll();
   if(!connected()){releaseGraphics();return;}
   Minecraft mc=Minecraft.getInstance();
