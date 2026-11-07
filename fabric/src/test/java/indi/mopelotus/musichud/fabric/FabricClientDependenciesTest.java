@@ -26,6 +26,9 @@ class FabricClientDependenciesTest {
         var metadata = JsonParser.parseString(Files.readString(
                 Path.of(System.getProperty("musichud.test.fabricMetadata")))).getAsJsonObject();
         assertFalse(metadata.getAsJsonObject("depends").has("modernui"));
+        var loaderRange = VersionPredicate.parse(metadata.getAsJsonObject("depends").get("fabricloader").getAsString());
+        assertFalse(loaderRange.test(Version.parse("0.19.3")), "Old MixinExtras cannot read Lumen's redirect annotations");
+        assertTrue(loaderRange.test(Version.parse("0.20.1")));
         assertEquals("*", metadata.get("environment").getAsString());
         assertEquals(FabricClientDependencies.class.getName(), metadata.getAsJsonObject("entrypoints").getAsJsonArray("preLaunch").get(0).getAsString());
         String constraint = metadata.getAsJsonObject("custom").get("musichud_tuneweave_client_modernui").getAsString();

@@ -10,7 +10,12 @@ import java.util.Set;
 public class MusicHudMixinPlugin implements IMixinConfigPlugin {
 
     @Override
-    public void onLoad(String mixinPackage) {}
+    public void onLoad(String mixinPackage) {
+        // Dedicated servers have no UI host. Client validation runs before target transformation.
+        if (getClass().getClassLoader().getResource("icyllis/modernui/mc/UIManager.class") != null) {
+            indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen();
+        }
+    }
 
     @Override
     public String getRefMapperConfig() {
@@ -19,6 +24,12 @@ public class MusicHudMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        if (mixinClassName.endsWith(".LumenGraphicsLifecycleMixin")) {
+            return indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen();
+        }
+        if (mixinClassName.endsWith(".ModernUiGraphicsLifecycleMixin")) {
+            return !indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen();
+        }
         if (mixinClassName.endsWith(".DynamicFpsCompanionMixin")) {
             // Inspect availability without loading an optional target before Mixin transforms it.
             return getClass().getClassLoader().getResource("dynamic_fps/impl/DynamicFPSMod.class") != null;
