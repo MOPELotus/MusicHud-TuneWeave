@@ -20,17 +20,17 @@
 
 ## 选择下载文件
 
-当前维护的客户端分支推荐使用 [ModernUI Lumen 3.13.0.10](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10)。历史发行包仍按各自 Release 的依赖说明安装。
+当前维护的客户端分支推荐使用 [ModernUI Lumen 3.13.0.11](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11)。历史发行包仍按各自 Release 的依赖说明安装。
 
 | Minecraft | MusicHud 文件后缀 | Java | 推荐 ModernUI |
 | --- | --- | --- | --- |
-| 1.21.1 | `+1.21.1.jar` | 21 | Lumen `1.21.1-3.13.0.10` |
-| 1.21.6–1.21.8 | `+1.21.6-1.21.8.jar` | 21 | Lumen `1.21.8-3.13.0.10`，支持该整个范围 |
-| 1.21.9–1.21.10 | `+1.21.9-1.21.10.jar` | 21 | Lumen `1.21.9-3.13.0.10` / `1.21.10-3.13.0.10`，按游戏版本分别选包 |
-| 1.21.11 | `+1.21.11.jar` | 21 | Lumen `1.21.11-3.13.0.10` |
-| 26.1–26.1.2 | `+26.1-26.1.2.jar` | 25 | Lumen `26.1.2-3.13.0.10`，支持该整个范围 |
-| 26.2 | `+26.2.jar` | 25 | Lumen `26.2-3.13.0.10` |
-| 26.3 | `+26.3.jar` | 25 | Lumen `26.3-3.13.0.10` |
+| 1.21.1 | `+1.21.1.jar` | 21 | Lumen `1.21.1-3.13.0.11` |
+| 1.21.6–1.21.8 | `+1.21.6-1.21.8.jar` | 21 | Lumen `1.21.8-3.13.0.11`，支持该整个范围 |
+| 1.21.9–1.21.10 | `+1.21.9-1.21.10.jar` | 21 | Lumen `1.21.9-3.13.0.11` / `1.21.10-3.13.0.11`，按游戏版本分别选包 |
+| 1.21.11 | `+1.21.11.jar` | 21 | Lumen `1.21.11-3.13.0.11` |
+| 26.1–26.1.2 | `+26.1-26.1.2.jar` | 25 | Lumen `26.1.2-3.13.0.11`，支持该整个范围 |
+| 26.2 | `+26.2.jar` | 25 | Lumen `26.2-3.13.0.11` |
+| 26.3 | `+26.3.jar` | 25 | Lumen `26.3-3.13.0.11` |
 
 例如，Minecraft 1.21.7 Fabric 使用 `musichud-tuneweave-fabric-<发行版本>+1.21.6-1.21.8.jar`。
 
@@ -40,14 +40,14 @@
 
 **NeoForge：** NeoForge、对应版本的 ModernUI，以及 MusicHud TuneWeave。
 
-所有版本均推荐 [ModernUI Lumen 3.13.0.10](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10)。选择与 Minecraft 版本及 Fabric/NeoForge 加载器对应的文件，再选择字体版本：
+所有版本均推荐 [ModernUI Lumen 3.13.0.11](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11)。选择与 Minecraft 版本及 Fabric/NeoForge 加载器对应的文件，再选择字体版本：
 
 - **普通版**：文件名以 `-universal.jar` 结尾，支持自定义字体，无需安装 MiSans。
 - **MiSans 版**：文件名以 `-universal-misans.jar` 结尾，保留 MiSans 字体安装和字重设置；缺少字体时需主动下载并重启。
 
 两版的模组 ID 都是 `modernui`。升级或切换时替换旧 JAR，不可同时安装。MusicHud TuneWeave 本身无需按字体版本另选 JAR。**所有 Lumen Fabric 文件均不需要 Forge Config API Port**；Fabric API 仍然必需。
 
-代码同时支持以下已适配的[官方 ModernUI](https://modrinth.com/mod/modern-ui/versions)：1.21.1 的 `3.13.0.1`、1.21.6–1.21.8 的 `3.13.0.3`、26.1–26.1.2 的 `3.13.0.5`。这些官方 Fabric 文件仍需要 Forge Config API Port。1.21.9、1.21.10、1.21.11、26.2、26.3 使用 Lumen。其他分支及未适配版本会直接拒绝启动，显示“ModernUI 版本过低”和 Lumen 下载地址。
+代码同时支持以下已适配的[官方 ModernUI](https://modrinth.com/mod/modern-ui/versions)：1.21.1 的 `3.13.0.1`、1.21.6–1.21.8 的 `3.13.0.3`、26.1–26.1.2 的 `3.13.0.5`。这些官方 Fabric 文件仍需要 Forge Config API Port。使用官方 Modern UI 时，每次启动会在游戏内显示一次 ModernUI Lumen 推荐页，可选择“继续游戏”。1.21.9、1.21.10、1.21.11、26.2、26.3 使用 Lumen。其他分支及未适配版本会直接拒绝启动，显示“Modern UI 版本过低”和 Lumen 下载地址。
 
 [Mod Menu](https://modrinth.com/mod/modmenu) 为 Fabric 可选依赖。不要同时安装多份 ModernUI，也不要与原版 MusicHud 同时安装。
 
