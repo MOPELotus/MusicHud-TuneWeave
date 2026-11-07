@@ -81,7 +81,7 @@ dependencies {
 
     modImplementation "maven.modrinth:modmenu:$rootProject.modmenu_version"
 
-    modImplementation "io.github.mopelotus.modernui:ModernUI-Fabric:$rootProject.modernui_fork_version@jar"
+    modImplementation "io.github.mopelotus.modernui:ModernUI-Lumen-Fabric:$rootProject.modernui_fork_version@jar"
     implementation("dev.icyllis:modernui-core:$rootProject.modernui_version") {
         exclude group: "org.slf4j", module: "slf4j-api"
         exclude group: "org.apache.logging.log4j", module: "log4j-core"

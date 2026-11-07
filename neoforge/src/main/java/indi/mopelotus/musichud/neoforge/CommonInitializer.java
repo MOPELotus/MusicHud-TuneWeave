@@ -31,6 +31,7 @@ public final class CommonInitializer {
         modEventBus.register(this);
 
         boolean inClient = FMLEnvironment.getDist().isClient();
+        if (inClient) indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen();
         MusicHud.setCurrentEnvironment(Environment.of(
                 inClient ? Environment.Side.CLIENT : Environment.Side.SERVER,
                 Environment.Platform.NEOFORGE

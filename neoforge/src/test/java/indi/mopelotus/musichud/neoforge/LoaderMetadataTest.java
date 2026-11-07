@@ -84,13 +84,13 @@ class LoaderMetadataTest {
         for (String version : List.of("1.21.9", "1.21.10")) {
             assertTrue(minecraft.containsVersion(new DefaultArtifactVersion(version)));
             assertTrue(dependencyRange("modernui").containsVersion(
-                    new DefaultArtifactVersion("3.13.0.9+mc" + version)));
+                    new DefaultArtifactVersion("3.13.0.10+mc" + version)));
         }
         for (String version : List.of("1.21.8", "1.21.11")) {
             assertFalse(minecraft.containsVersion(new DefaultArtifactVersion(version)));
         }
         assertFalse(dependencyRange("modernui").containsVersion(
-                new DefaultArtifactVersion("3.13.0.8+mc1.21.10")));
+                new DefaultArtifactVersion("3.13.0.9+mc1.21.10")));
     }
 
     @Test
@@ -98,18 +98,17 @@ class LoaderMetadataTest {
         Config modernUi = dependency("modernui");
         assertEquals("CLIENT", modernUi.get("side"), "Dedicated servers must not require a client UI host");
         VersionRange range = dependencyRange("modernui");
-        for (String old : List.of("3.12.0", "3.12.0.5-build.4+mc1.21.10", "3.13.0.8")) {
+        for (String old : List.of("3.12.0", "3.12.0.5-build.4+mc1.21.10", "3.13.0.9")) {
             assertFalse(range.containsVersion(new DefaultArtifactVersion(old)), old);
         }
-        assertTrue(range.containsVersion(new DefaultArtifactVersion("3.13.0.9")));
+        assertTrue(range.containsVersion(new DefaultArtifactVersion("3.13.0.10")));
         assertTrue(range.containsVersion(new DefaultArtifactVersion("3.13.1")));
         String reason = modernUi.get("reason");
         assertNotNull(reason);
-        assertTrue(reason.contains("ModernUI is missing or too old"));
-        assertTrue(reason.contains("未安装 ModernUI 或版本过低"));
-        assertTrue(reason.contains("3.13.0.9 or newer for your Minecraft version"));
-        assertTrue(reason.contains("与当前 Minecraft 版本匹配"));
-        assertEquals("https://github.com/MOPELotus/ModernUI-MC/releases", reason.lines().toList().getLast());
+        assertTrue(reason.contains("ModernUI version is too old"));
+        assertTrue(reason.contains("ModernUI 版本过低"));
+        assertTrue(reason.contains("ModernUI Lumen 3.13.0.10"));
+        assertTrue(reason.contains("https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10"));
     }
 
     @Test

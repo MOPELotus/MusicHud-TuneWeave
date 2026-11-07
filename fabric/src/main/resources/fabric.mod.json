@@ -31,7 +31,7 @@
     "musichud_tuneweave.mixins.json"
   ],
   "depends": {
-    "fabricloader": "*",
+    "fabricloader": ">=0.20.1",
     "minecraft": ">=1.21.9 <1.21.11",
     "java": ">=21",
     "fabric-api": "*"
@@ -40,6 +40,6 @@
     "modmenu": "*"
   },
   "custom": {
-    "musichud_tuneweave_client_modernui": ">=3.13.0.9"
+    "musichud_tuneweave_client_modernui": ">=3.13.0.10"
   }
 }
