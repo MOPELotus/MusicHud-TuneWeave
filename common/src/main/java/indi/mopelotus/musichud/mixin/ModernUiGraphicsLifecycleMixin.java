@@ -50,8 +50,15 @@ public abstract class ModernUiGraphicsLifecycleMixin {
         // quitSafely still dispatches already-due frame messages. Their animation callbacks
         // must be removed first, otherwise AnimationHandler tries to schedule another frame
         // on a queue that has already stopped accepting messages.
-        return UiQueueShutdown.wrap(() -> Choreographer.getInstance().removeCallbacks(
-                Choreographer.CALLBACK_ANIMATION, null, null), quit);
+        return UiQueueShutdown.wrap(() -> {
+            var frames = Choreographer.getInstance();
+            // A queued traversal may invalidate fading scrollbars while quitSafely drains.
+            // Stop every frame phase before quitting, including due traversal callbacks.
+            frames.removeCallbacks(Choreographer.CALLBACK_INPUT, null, null);
+            frames.removeCallbacks(Choreographer.CALLBACK_ANIMATION, null, null);
+            frames.removeCallbacks(Choreographer.CALLBACK_TRAVERSAL, null, null);
+            frames.removeCallbacks(Choreographer.CALLBACK_COMMIT, null, null);
+        }, quit);
     }
 
     private void musichud_tuneweave$awaitUiShutdown() {
