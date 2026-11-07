@@ -19,6 +19,7 @@ public final class ClientGraphicsResources {
     private static final OwnedResources UI = new OwnedResources(
             error -> MusicHud.LOGGER.warn("Failed to release a TuneWeave UI image", error));
 
+    private static boolean uiLifecycleBound;
     private static volatile Runnable uiShutdown = () -> {};
     private static volatile boolean renderContextUsable = true;
 
@@ -31,6 +32,11 @@ public final class ClientGraphicsResources {
     /** Called only on the ModernUI owner thread; resources remain owned until release or shutdown. */
     public static <T extends AutoCloseable> T createUiResource(java.util.function.Supplier<T> factory) {
         Core.checkUiThread();
+        if (!uiLifecycleBound && indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen()) {
+            UiResourceLifecycle.bind(icyllis.modernui.mc.UIManager.getInstance().getLifecycle(),
+                    ClientGraphicsResources::finishUiShutdown);
+            uiLifecycleBound = true;
+        }
         return UI.create(factory);
     }
 
@@ -49,22 +55,22 @@ public final class ClientGraphicsResources {
 
     public static Image createImage(Bitmap bitmap) {
         if (UI.isStopped()) return null;
-        if (Core.isOnUiThread()) return UI.create(() -> Image.createTextureFromBitmap(bitmap));
+        if (Core.isOnUiThread()) return createUiResource(() -> Image.createTextureFromBitmap(bitmap));
         if (Core.isOnRenderThread()) throw new IllegalStateException("UI images cannot be created on the render thread");
         // Volume-key notifications can originate on a worker. Queue before acquiring the resource lock.
         return UI.submit(task -> {
             if (!Core.getUiHandlerAsync().post(task)) {
                 throw new java.util.concurrent.RejectedExecutionException("UI thread has stopped");
             }
-        }, () -> UI.create(() -> Image.createTextureFromBitmap(bitmap))).join();
+        }, () -> createUiResource(() -> Image.createTextureFromBitmap(bitmap))).join();
     }
 
     public static RoundedImageDrawable createRoundedDrawable(Resources resources, Image image) {
-        return UI.create(() -> new OwnedRoundedDrawable(resources, image));
+        return createUiResource(() -> new OwnedRoundedDrawable(resources, image));
     }
 
     public static icyllis.modernui.graphics.drawable.ImageDrawable createPlainDrawable(Resources resources, Image image) {
-        return UI.create(() -> new OwnedImageDrawable(resources, image));
+        return createUiResource(() -> new OwnedImageDrawable(resources, image));
     }
 
     private static final class OwnedImageDrawable extends icyllis.modernui.graphics.drawable.ImageDrawable implements AutoCloseable {
@@ -119,7 +125,7 @@ public final class ClientGraphicsResources {
         }
     }
 
-    /** UIManager.run, after its event loop finishes and before its recording context is released. */
+    /** UI owner destruction, before the host releases its recording context. */
     public static void finishUiShutdown() {
         UI.close();
         ImageUtils.clearIconCache();

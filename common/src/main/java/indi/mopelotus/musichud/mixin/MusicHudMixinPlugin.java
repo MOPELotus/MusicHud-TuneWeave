@@ -24,10 +24,11 @@ public class MusicHudMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        if (mixinClassName.endsWith(".LumenGraphicsLifecycleMixin")) {
-            return indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen();
-        }
-        if (mixinClassName.endsWith(".ModernUiGraphicsLifecycleMixin")) {
+        // Fabric remapping can encode string targets as internal JVM names.
+        targetClassName = targetClassName.replace('/', '.');
+        if (targetClassName.startsWith("icyllis.modernui.")
+                || targetClassName.startsWith("icyllis.arc3d.")) {
+            // Lumen owns its implementation. Compatibility injections are only for official hosts.
             return !indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen();
         }
         if (mixinClassName.endsWith(".DynamicFpsCompanionMixin")) {
