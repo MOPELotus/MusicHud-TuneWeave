@@ -24,7 +24,9 @@ public final class EmojiAwareCanvas extends ArcCanvas {
         this.images = images;
     }
 
-    public static EmojiAwareCanvas create(icyllis.arc3d.sketch.Canvas canvas) {
+    public static ArcCanvas create(icyllis.arc3d.sketch.Canvas canvas) {
+        // Lumen owns native color glyphs, including offscreen blur surfaces.
+        if (indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen()) return new ArcCanvas(canvas);
         return new EmojiAwareCanvas(canvas, WidgetEmojiResources.forCanvas());
     }
 
