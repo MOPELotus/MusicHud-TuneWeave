@@ -8,6 +8,7 @@ public final class FabricClientDependencies implements net.fabricmc.loader.api.e
     @Override
     public void onPreLaunch() {
         if (net.fabricmc.loader.api.FabricLoader.getInstance().getEnvironmentType() == net.fabricmc.api.EnvType.CLIENT) {
+            indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen();
             var loader = net.fabricmc.loader.api.FabricLoader.getInstance();
             var requirement = loader.getModContainer(indi.mopelotus.musichud.MusicHud.MOD_ID).orElseThrow().getMetadata()
                     .getCustomValue("musichud_tuneweave_client_modernui").getAsString();
@@ -41,7 +42,7 @@ public final class FabricClientDependencies implements net.fabricmc.loader.api.e
                     + "当前安装 / Installed: " + (installed == null ? "未安装 / missing" : installed.getFriendlyString()) + "\n"
                     + "请使用适配当前 Minecraft 版本的新版 ModernUI。\n"
                     + "Please use an updated ModernUI build for your Minecraft version.\n"
-                    + "下载 / Downloads: https://github.com/MOPELotus/ModernUI-MC/releases");
+                    + "下载 / Downloads: https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10");
         }
     }
 }
