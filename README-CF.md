@@ -12,6 +12,8 @@ Install the file for your Minecraft version and loader. All current client branc
 
 The adapted official ModernUI versions remain supported: 3.13.0.1 for Minecraft 1.21.1, 3.13.0.3 for 1.21.6–1.21.8, and 3.13.0.5 for 26.1–26.1.2. Their Fabric files still require Forge Config API Port. Other Minecraft versions require Lumen. Unsupported forks or versions fail startup with a “ModernUI version is too old” message and the Lumen download link. Historical MusicHud releases retain the requirements in their own release notes. Never install this mod alongside upstream MusicHud or a second MusicHud TuneWeave edition.
 
+On Minecraft 1.21.1, Companion desktop export requires OpenGL. VulkanMod supports the in-game HUD and music interface; desktop export is disabled for that session while the saved preference is preserved.
+
 Press **M** in a world to open the music interface. Search for music, add tracks to the queue, or use a supported playlist as an idle playback source. Lyrics, account features and available audio quality depend on the music service and the user's access rights.
 
 ### External music service
