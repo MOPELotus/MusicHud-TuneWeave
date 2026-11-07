@@ -78,6 +78,8 @@ def scoped_release_notes(manifest):
 
 
 def modernui_host(row):
+    if row.get('properties', {}).get('modernui_fork_version', '').endswith('-3.13.0.10'):
+        return None  # Lumen is consumed from its immutable public release.
     if row['branch'] not in {'1.21.9-1.21.10', '1.21.11'}:
         return None
     require(row['id'] in MODERNUI_HOSTS, 'Unsupported ModernUI endpoint')
@@ -210,9 +212,18 @@ def plan():
         encoded = api(repo, f'contents/gradle.properties?ref={sha}')['content']
         props = properties(base64.b64decode(encoded).decode())
         revisions[branch] = {'sha': sha, 'version': props['mod_version'],
-                             'range': '' if branch == 'plugin' else props['minecraft_version_range']}
+                             'range': '' if branch == 'plugin' else props['minecraft_version_range'],
+                             'lumen_revision': props.get('modernui_fork_version', '')}
     for row in rows:
-        row.update(revisions[row['branch']])
+        revision = dict(revisions[row['branch']])
+        lumen_revision = revision.pop('lumen_revision')
+        row.update(revision)
+        if lumen_revision.endswith('-3.13.0.10'):
+            for key in list(row['properties']):
+                if key.startswith('modernui_'):
+                    del row['properties'][key]
+            row['properties']['modernui_fork_version'] = (row['id'] + '-3.13.0.10'
+                if row['branch'] == '1.21.9-1.21.10' else lumen_revision)
         row['distribution'] = distribution
         host = modernui_host(row)
         if host:

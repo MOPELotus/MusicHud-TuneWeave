@@ -8,6 +8,7 @@ public final class FabricClientDependencies implements net.fabricmc.loader.api.e
     @Override
     public void onPreLaunch() {
         if (net.fabricmc.loader.api.FabricLoader.getInstance().getEnvironmentType() == net.fabricmc.api.EnvType.CLIENT) {
+            indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen();
             var loader = net.fabricmc.loader.api.FabricLoader.getInstance();
             var requirement = loader.getModContainer(indi.mopelotus.musichud.MusicHud.MOD_ID).orElseThrow().getMetadata()
                     .getCustomValue("musichud_tuneweave_client_modernui").getAsString();
@@ -33,7 +34,7 @@ public final class FabricClientDependencies implements net.fabricmc.loader.api.e
     static void requireModernUi(boolean client, Version installed, VersionPredicate required) {
         if (!client) return;
         if (installed == null || !required.test(installed)) {
-            throw new IllegalStateException("Missing or unsupported ModernUI for MusicHud TuneWeave client; installed: " + (installed == null ? "missing" : installed.getFriendlyString()));
+            throw new IllegalStateException("ModernUI 版本过低 / ModernUI version is too old. Download ModernUI Lumen 3.13.0.10: https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10");
         }
     }
 }

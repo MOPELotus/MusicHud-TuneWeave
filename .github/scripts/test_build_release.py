@@ -762,3 +762,34 @@ class ScopedReleaseContracts(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class LumenPlanContracts(unittest.TestCase):
+    def test_lumen_dependencies_follow_frozen_sources_and_exact_endpoints(self):
+        rows = release.load_json(Path(__file__).parent.parent / 'build-matrix.json')
+        shas = {branch: f'{i:040x}' for i, branch in enumerate(sorted(release.BRANCHES | {'companion'}), 1)}
+        hosts = {'1.21.1': '1.21.1', '1.21.6-1.21.8': '1.21.8',
+                 '1.21.9-1.21.10': '1.21.10', '1.21.11': '1.21.11',
+                 '26.1': '26.1.2', '26.2': '26.2', '26.3': '26.3'}
+        def api(repo, path):
+            if path.startswith('git/ref/heads/'):
+                return {'object': {'sha': shas[path.removeprefix('git/ref/heads/')]}}
+            branch = next(b for b, sha in shas.items() if path.endswith(sha))
+            props = f'mod_version=1.3.1\nversion=0.2.0\nminecraft_version_range={branch if branch != "plugin" else ""}\n'
+            if branch in hosts:
+                props += f'modernui_fork_version={hosts[branch]}-3.13.0.10\n'
+            return {'content': base64.b64encode(props.encode()).decode()}
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {
+                'GITHUB_REPOSITORY': 'test/repository', 'GITHUB_EVENT_NAME': 'push',
+                'GITHUB_REF': 'refs/heads/26.3', 'GITHUB_BASE_REF': '', 'GITHUB_SHA': shas['26.3'],
+                'GITHUB_RUN_ID': '123', 'GITHUB_OUTPUT': str(Path(folder) / 'outputs'),
+                'PUBLISH_REQUESTED': 'false', 'BUILD_DISTRIBUTION': 'standard', 'RELEASE_SCOPE': 'full'}), \
+             patch.object(release, 'api', side_effect=api), patch.object(release, 'run', return_value='c' * 40), \
+             patch.object(release, 'load_json', return_value=copy.deepcopy(rows)), patch.object(release, 'dump') as dump:
+            release.plan()
+            for row in dump.call_args.args[1]['entries']:
+                if row['branch'] == 'plugin':
+                    continue
+                self.assertNotIn('modernui_host', row)
+                endpoint = row['id'] if row['branch'] == '1.21.9-1.21.10' else hosts[row['branch']]
+                self.assertEqual(endpoint + '-3.13.0.10', row['properties']['modernui_fork_version'])
+                self.assertFalse({'modernui_mc_version', 'modernui_fabric_version', 'modernui_neoforge_version'} & row['properties'].keys())

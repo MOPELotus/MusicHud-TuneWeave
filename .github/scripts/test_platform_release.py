@@ -522,3 +522,12 @@ class ScopedPlatformContracts(unittest.TestCase):
         self.assertEqual(5, len(commands))
         self.assertEqual('client-updates-cf.json', Path(commands[-1][4]).name)
         self.assertTrue(all('1.3.1.1-cf.1+' in Path(c[4]).name for c in commands[:-1]))
+
+class LumenChangelogTest(unittest.TestCase):
+    def test_lumen_rows_recommend_the_published_release_without_old_dependencies(self):
+        row = {'branch': '1.21.1', 'version': '1.3.1', 'properties': {'modernui_fork_version': '1.21.1-3.13.0.10'}}
+        for module in ('fabric', 'neoforge'):
+            text = platform.changelog(row, module)
+            self.assertIn('ModernUI-MC-Lumen/releases/tag/v3.13.0.10', text)
+            self.assertNotIn('also requires Forge Config API Port', text)
+            self.assertNotIn('mVUS', text)
