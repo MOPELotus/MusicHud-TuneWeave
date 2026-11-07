@@ -608,5 +608,9 @@
   "musichud_tuneweave.update.service.manualPairAction": "View upgrade instructions",
   "musichud_tuneweave.update.service.portUnavailable": "The service port is occupied or its state could not be confirmed. The selected service has not been changed. Wait a moment and retry, and check for another program using the port.",
   "musichud_tuneweave.text.queueRequestSubmitted": "Queue request sent",
-  "musichud_tuneweave.text.queueConnectionNotReady": "Music connection is not ready. Please try again."
+  "musichud_tuneweave.text.queueConnectionNotReady": "Music connection is not ready. Please try again.",
+  "musichud_tuneweave.modernUiRecommendation.title": "ModernUI Lumen recommended",
+  "musichud_tuneweave.modernUiRecommendation.body": "You are using official Modern UI. You can continue playing.\nWe recommend ModernUI Lumen 3.13.0.11 for full compatibility and fixes.\nChoose the download for your Minecraft version and loader, and replace Modern UI. Do not install multiple copies of Modern UI.",
+  "musichud_tuneweave.modernUiRecommendation.download": "Download",
+  "musichud_tuneweave.modernUiRecommendation.continue": "Continue playing"
 }

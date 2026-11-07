@@ -8,6 +8,13 @@ import indi.mopelotus.musichud.client.utils.image.ClientGraphicsResources;
 public final class WidgetEmojiResources {
     private static volatile EmojiImages.Generation generation = new EmojiImages.Generation(0, null);
     private static volatile EmojiImages images;
+    private static volatile java.util.function.Supplier<EmojiFont> lumenFont;
+
+    public static void initialize() {
+        if (indi.mopelotus.musichud.client.compat.ModernUiHost.isLumen()) {
+            lumenFont = () -> icyllis.modernui.mc.FontResourceManager.getInstance().getEmojiFont();
+        }
+    }
 
     private WidgetEmojiResources() {}
 
@@ -22,8 +29,18 @@ public final class WidgetEmojiResources {
 
     static EmojiImages.Generation currentGeneration() { return generation; }
 
+    public static void refreshLumenFont() {
+        Core.checkUiThread();
+        if (lumenFont == null) return;
+        EmojiFont font = lumenFont.get();
+        synchronized (WidgetEmojiResources.class) {
+            if (generation.font() != font) generation = new EmojiImages.Generation(generation.epoch() + 1, font);
+        }
+    }
+
     static EmojiImages forCanvas() {
         Core.checkUiThread();
+        refreshLumenFont();
         if (images == null) {
             try {
                 images = ClientGraphicsResources.createUiResource(EmojiImages::new);

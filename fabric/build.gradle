@@ -56,6 +56,7 @@ configurations {
     }
     compileClasspath.extendsFrom common, coreLib
     runtimeClasspath.extendsFrom common, coreLib
+    testRuntimeClasspath.extendsFrom common, coreLib
 
     shadowBundle {
         canBeResolved = true
