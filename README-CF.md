@@ -8,7 +8,7 @@ This is an independently maintained fork of [MusicHud by Ephern / Etern](https:/
 
 ### Installation
 
-Install the file for your Minecraft version and loader. All current client branches recommend [ModernUI Lumen 3.13.0.10](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10). Choose the matching Minecraft and Fabric/NeoForge file, then either standard `-universal.jar` or MiSans `-universal-misans.jar`. Replace the old ModernUI JAR; install only one edition. Lumen requires Fabric API on Fabric and does not require Forge Config API Port on any supported version.
+Install the file for your Minecraft version and loader. All current client branches recommend [ModernUI Lumen 3.13.0.10](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10). Choose the matching Minecraft and Fabric/NeoForge file, then either standard `-universal.jar` or MiSans `-universal-misans.jar`. Replace the old ModernUI JAR; install only one edition. Use Fabric Loader 0.20.1 or newer. Lumen requires Fabric API on Fabric and does not require Forge Config API Port on any supported version.
 
 The adapted official ModernUI versions remain supported: 3.13.0.1 for Minecraft 1.21.1, 3.13.0.3 for 1.21.6–1.21.8, and 3.13.0.5 for 26.1–26.1.2. Their Fabric files still require Forge Config API Port. Other Minecraft versions require Lumen. Unsupported forks or versions fail startup with a “ModernUI version is too old” message and the Lumen download link. Historical MusicHud releases retain the requirements in their own release notes. Never install this mod alongside upstream MusicHud or a second MusicHud TuneWeave edition.
 

@@ -52,7 +52,7 @@
 
 ## 客户端依赖
 
-**Fabric：** Fabric Loader、[Fabric API](https://modrinth.com/mod/fabric-api)、对应版本的 ModernUI，以及 MusicHud TuneWeave。26.2 的 Fabric API 最低为 `0.160.0+26.2`，26.3 最低为 `0.160.5+26.3`；其他版本选择与游戏版本匹配的 Fabric API。
+**Fabric：** Fabric Loader **0.20.1 或更新版本**、[Fabric API](https://modrinth.com/mod/fabric-api)、对应版本的 ModernUI，以及 MusicHud TuneWeave。26.2 的 Fabric API 最低为 `0.160.0+26.2`，26.3 最低为 `0.160.5+26.3`；其他版本选择与游戏版本匹配的 Fabric API。
 
 **NeoForge：** NeoForge、对应版本的 ModernUI，以及 MusicHud TuneWeave。
 

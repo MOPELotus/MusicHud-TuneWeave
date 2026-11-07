@@ -67,6 +67,31 @@ class LumenGraphicsLifecycleTest {
         assertEquals("HEAD", value(at, "value"));
     }
 
+    @Test void dueTraversalAndAnimationCannotPostAfterTheQueueQuits() throws Exception {
+        var host = new Host();
+        FrameScheduler.pending.clear();
+        for (int phase = 0; phase < 4; phase++) FrameScheduler.pending.add(phase);
+        var method = host.type.getDeclaredMethod("musichud_tuneweave$stopAnimationsBeforeQueueQuit", Runnable.class);
+        method.setAccessible(true);
+        var quits = new AtomicInteger();
+        Runnable quit = (Runnable) method.invoke(host.fixture, (Runnable) () -> {
+            assertTrue(FrameScheduler.pending.isEmpty(), "a due frame must not invalidate scrollbars after queue shutdown");
+            quits.incrementAndGet();
+        });
+        quit.run();
+        FrameScheduler.pending.add(2);
+        quit.run();
+        assertEquals(1, quits.get());
+        assertEquals(java.util.List.of(2), FrameScheduler.pending, "a repeated stale quit must not touch a new queue");
+    }
+
+    public static class FrameScheduler {
+        static final java.util.List<Integer> pending = new java.util.ArrayList<>();
+        private static final FrameScheduler INSTANCE = new FrameScheduler();
+        public static FrameScheduler getInstance() { return INSTANCE; }
+        public void removeCallbacks(int phase, Runnable action, Object token) { pending.remove(Integer.valueOf(phase)); }
+    }
+
     public interface MuiScreen {}
     public static class Screen implements MuiScreen {}
 
@@ -79,6 +104,7 @@ class LumenGraphicsLifecycleTest {
             ClassNode source = source();
             String target = source.name + "LifecycleFixture";
             var remapper = new SimpleRemapper(Map.of(source.name, target,
+                    "icyllis/modernui/core/Choreographer", Type.getInternalName(FrameScheduler.class),
                     "icyllis/modernui/mc/MuiScreen", Type.getInternalName(MuiScreen.class),
                     "net/minecraft/client/gui/screens/Screen", Type.getInternalName(Screen.class)));
             var writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
@@ -92,7 +118,8 @@ class LumenGraphicsLifecycleTest {
             init.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
             init.visitInsn(Opcodes.RETURN); init.visitMaxs(0, 0); init.visitEnd();
             for (var method : source.methods) {
-                if (method.name.endsWith("$skipStoppedHover") || method.name.endsWith("$skipStoppedDetach")) {
+                if (method.name.endsWith("$skipStoppedHover") || method.name.endsWith("$skipStoppedDetach")
+                        || method.name.endsWith("$stopAnimationsBeforeQueueQuit") || method.name.startsWith("lambda$")) {
                     method.visibleAnnotations = null;
                     method.invisibleAnnotations = null;
                     method.accept(mapped);
