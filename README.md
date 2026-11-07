@@ -36,19 +36,17 @@
 
 ## 选择下载文件
 
-**1.3.1.1 是 1.21.9–1.21.11 客户端热修订，使用配套 ModernUI 3.13.0.9 独立 port。** 其他 Minecraft 客户端和服务端/代理插件继续使用 1.3.1。历史 1.3.1 的 1.21.9–1.21.11 客户端仍使用 mVUS 3.12，请按所选 Release 的说明搭配。
+当前源码的所有客户端版本推荐使用 [ModernUI Lumen 3.13.0.10](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10)。历史发行包仍按各自 Release 的依赖说明安装。
 
-客户端每个版本组提供 Fabric、NeoForge 两个文件，只安装与你的加载器对应的一个。文件名中的版本范围表示同一个 JAR 支持该范围，不需要为范围内每个小版本下载另一份 MusicHud。
-
-| Minecraft | MusicHud 文件后缀 | Java | ModernUI 来源与已核对版本 |
+| Minecraft | MusicHud 文件后缀 | Java | 推荐 ModernUI |
 | --- | --- | --- | --- |
-| 1.21.1 | `+1.21.1.jar` | 21 | 官方 ModernUI `1.21.1-3.13.0.1` |
-| 1.21.6–1.21.8 | `+1.21.6-1.21.8.jar` | 21 | 官方 ModernUI `1.21.8-3.13.0.3`，支持该整个范围 |
-| 1.21.9–1.21.10 | `+1.21.9-1.21.10.jar` | 21 | 独立 port 3.13.0.9：[1.21.9](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.9-3.13.0.9) / [1.21.10](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.10-3.13.0.9)，按游戏版本分别选包 |
-| 1.21.11 | `+1.21.11.jar` | 21 | 独立 port [1.21.11-3.13.0.9](https://github.com/MOPELotus/ModernUI-MC/releases/tag/1.21.11-3.13.0.9) |
-| 26.1–26.1.2 | `+26.1-26.1.2.jar` | 25 | 官方 ModernUI `26.1.2-3.13.0.5`，支持该整个范围 |
-| 26.2 | `+26.2.jar` | 25 | 本项目配套 ModernUI `26.2-3.13.0.9` |
-| 26.3 | `+26.3.jar` | 25 | 本项目配套 ModernUI `26.3-3.13.0.9` |
+| 1.21.1 | `+1.21.1.jar` | 21 | Lumen `1.21.1-3.13.0.10` |
+| 1.21.6–1.21.8 | `+1.21.6-1.21.8.jar` | 21 | Lumen `1.21.8-3.13.0.10`，支持该整个范围 |
+| 1.21.9–1.21.10 | `+1.21.9-1.21.10.jar` | 21 | Lumen `1.21.9-3.13.0.10` / `1.21.10-3.13.0.10`，按游戏版本分别选包 |
+| 1.21.11 | `+1.21.11.jar` | 21 | Lumen `1.21.11-3.13.0.10` |
+| 26.1–26.1.2 | `+26.1-26.1.2.jar` | 25 | Lumen `26.1.2-3.13.0.10`，支持该整个范围 |
+| 26.2 | `+26.2.jar` | 25 | Lumen `26.2-3.13.0.10` |
+| 26.3 | `+26.3.jar` | 25 | Lumen `26.3-3.13.0.10` |
 
 例如，Minecraft 1.21.7 Fabric 使用 `musichud-tuneweave-fabric-<发行版本>+1.21.6-1.21.8.jar`。
 
@@ -58,19 +56,14 @@
 
 **NeoForge：** NeoForge、对应版本的 ModernUI，以及 MusicHud TuneWeave。
 
-ModernUI 有以下两条来源，按上表选择其中一条，再选择对应加载器：
+所有版本均推荐 [ModernUI Lumen 3.13.0.10](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.10)。选择与 Minecraft 版本及 Fabric/NeoForge 加载器对应的文件，再选择字体版本：
 
-1. [官方 ModernUI](https://modrinth.com/mod/modern-ui/versions)：用于 1.21.1、1.21.6–1.21.8、26.1–26.1.2。
-2. [MOPELotus ModernUI 独立 port](https://github.com/MOPELotus/ModernUI-MC/releases)：用于 1.21.9、1.21.10、1.21.11、26.2、26.3，已提供对应游戏版本的 Fabric 和 NeoForge 正式发布文件。1.21.9–1.21.11 的 1.3.1.1 客户端要求 ModernUI **不低于 3.13.0.9**；版本过低时会拒绝启动，并显示中英双语更新说明与下载地址。
+- **普通版**：文件名以 `-universal.jar` 结尾，支持自定义字体，无需安装 MiSans。
+- **MiSans 版**：文件名以 `-universal-misans.jar` 结尾，保留 MiSans 字体安装和字重设置；缺少字体时需主动下载并重启。
 
-1.21.9 / 1.21.10 / 1.21.11 / 26.2 / 26.3 请使用配套 ModernUI **3.13.0.9**，按游戏版本与 Fabric/NeoForge 加载器选择，并在以下字体版本中二选一：
+两版的模组 ID 都是 `modernui`。升级或切换时替换旧 JAR，不可同时安装。MusicHud TuneWeave 本身无需按字体版本另选 JAR。**所有 Lumen Fabric 文件均不需要 Forge Config API Port**；Fabric API 仍然必需。
 
-- **普通版**：文件名以 `-universal.jar` 结尾，使用默认字体并允许自定义首选/回退字体，不要求安装 MiSans。
-- **MiSans 版**：文件名以 `-universal-misans.jar` 结尾，保留固定 MiSans 字体、字重设置与字体安装界面。缺少字体时需主动点击下载，完成后重启；已有有效字体无需重复下载。
-
-两版包含相同的 Canvas/原生 GUI 动态文字、渲染及输入修复（Core TextView 的自动 MARQUEE 仍未实现；MusicHud HUD 走马灯由项目自行绘制），模组 ID 都是 `modernui`，升级或切换时替换原 JAR，不可同时安装。两版分别使用 `client-standard.toml` 和 `client-misans.toml`，首次创建时继承并保留旧 `client.toml`；普通版只重置旧的 MiSans 完整固定字体组合，其他自定义字体组合保留。文本引擎、通用与 bootstrap 配置仍共用。详见[字体版本说明](https://github.com/MOPELotus/ModernUI-MC/blob/26.3-3.13.0.9/docs/font-editions.md)。MusicHud TuneWeave 本身无需按字体版本另选 JAR。
-
-**上述配套 ModernUI 独立 port 不需要 Forge Config API Port。** 上表其余版本使用的官方 ModernUI **Fabric** 文件仍声明了这一依赖，需要额外安装匹配游戏版本的 [Forge Config API Port](https://modrinth.com/mod/forge-config-api-port/versions)。这是 ModernUI 的依赖；MusicHud TuneWeave 自身不依赖它。NeoForge 无需另装 API Port。
+代码同时支持以下已适配的[官方 ModernUI](https://modrinth.com/mod/modern-ui/versions)：1.21.1 的 `3.13.0.1`、1.21.6–1.21.8 的 `3.13.0.3`、26.1–26.1.2 的 `3.13.0.5`。这些官方 Fabric 文件仍需要 Forge Config API Port。1.21.9、1.21.10、1.21.11、26.2、26.3 使用 Lumen。其他分支及未适配版本会直接拒绝启动，显示“ModernUI 版本过低”和 Lumen 下载地址。
 
 [Mod Menu](https://modrinth.com/mod/modmenu) 为 Fabric 可选依赖。不要同时安装多份 ModernUI，也不要与原版 MusicHud 同时安装。
 

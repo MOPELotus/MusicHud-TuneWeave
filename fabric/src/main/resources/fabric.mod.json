@@ -40,6 +40,6 @@
     "modmenu": "*"
   },
   "custom": {
-    "musichud_tuneweave_client_modernui": ">=3.13.0.7"
+    "musichud_tuneweave_client_modernui": ">=3.13.0.10"
   }
 }

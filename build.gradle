@@ -95,9 +95,9 @@ subprojects {
             forRepository {
                 ivy {
                     name = 'LotusModernUIReleases'
-                    url = 'https://github.com/MOPELotus/ModernUI-MC/releases/download'
+                    url = 'https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/download'
                     patternLayout {
-                        artifact '[revision]/[artifact]-[revision]-universal.[ext]'
+                        artifact 'v3.13.0.10/[artifact]-[revision]-universal.[ext]'
                     }
                     metadataSources { artifact() }
                 }
