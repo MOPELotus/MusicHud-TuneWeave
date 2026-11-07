@@ -2,16 +2,16 @@
 
 layout(std140) uniform MHProgressPosition {
     mat4 u_Translation;
-    vec4 u_Style; // (halfWidth, halfHeight, cornerRadius)
+    vec4 u_Style;
 };
 layout(std140) uniform MHProgressStyle {
-    vec3 u_Gradient; // (gradientLength, rightOffset, transitionBorderRate)
+    vec3 u_Gradient;
     vec4 u_PlayedColor;
     vec4 u_CurrentColor;
     vec4 u_BackgroundColor;
 };
 layout(std140) uniform MHDynamicStatus {
-    vec4 u_Dynamic1; // (timestamp, playedProgress, switchProgress)
+    vec4 u_Dynamic1;
 };
 
 in vec2 f_Position;

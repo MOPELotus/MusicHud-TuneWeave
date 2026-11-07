@@ -5,10 +5,10 @@ uniform sampler2D Sampler1;
 
 layout(std140) uniform MHAlbumPosition {
     mat4 u_Translation;
-    vec4 u_Style; // (halfWidth, halfHeight, cornerRadius)
+    vec4 u_Style;
 };
 layout(std140) uniform MHDynamicStatus {
-    vec4 u_Dynamic1; // (timestamp, playedProgress, switchProgress)
+    vec4 u_Dynamic1;
 };
 
 in vec2 f_Position;
