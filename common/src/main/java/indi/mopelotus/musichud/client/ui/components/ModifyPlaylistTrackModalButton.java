@@ -163,7 +163,7 @@ public class ModifyPlaylistTrackModalButton extends ImageButton {
         Modal.ActionButton confirmButton = new Modal.ActionButton(
                 I18n.get(MusicHud.MOD_ID + ".button.confirm"),
                 (actionButton, modal) -> {
-                    for (Playlist playlist : availablePlaylists) {
+                    indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(availablePlaylists, playlist -> {
                         long pid = playlist.getId();
                         Boolean original = originalStates.get(pid);
                         Boolean current = currentStates.get(pid);
@@ -175,7 +175,7 @@ public class ModifyPlaylistTrackModalButton extends ImageButton {
                                 subState.remove();
                             }
                         }
-                    }
+                    });
                     modal.dismiss();
                 }
         );
@@ -209,15 +209,11 @@ public class ModifyPlaylistTrackModalButton extends ImageButton {
                         listLayout.removeAllViews();
                         availablePlaylists.add(userPlaylists.getLikeList());
                         availablePlaylists.addAll(userPlaylists.getCreatedPlaylist());
-                        List<CompletableFuture<?>> futures = new ArrayList<>(availablePlaylists.size());
-                        for (Playlist playlist : availablePlaylists) {
-                            long pid = playlist.getId();
+                        return PlaylistMembershipLoader.load(availablePlaylists.stream().map(Playlist::getId).toList(), pid -> {
                             IMusicTrackState.IPlaylistSubState subState = trackState.playlist(pid);
                             subStates.put(pid, subState);
-                            futures.add(subState.isContained()
-                                    .thenAccept(contained -> containedResults.put(pid, contained)));
-                        }
-                        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+                            return subState.isContained();
+                        }).thenAccept(containedResults::putAll);
                     })
                     .whenComplete((v, throwable) -> {
                         if (generation.get() != gen) return;
