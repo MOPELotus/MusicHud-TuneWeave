@@ -184,5 +184,5 @@ final class TuneWeaveRecentHistoryService {
         return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() && !value.getAsBoolean();
     }
     private static void require(boolean valid) { if (!valid) throw malformed(); }
-    private static TuneWeaveException malformed() { return new TuneWeaveException("Invalid recent history response", false); }
+    private static TuneWeaveException malformed() { return new indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.MalformedDataException("Invalid recent history response"); }
 }
