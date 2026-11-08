@@ -401,6 +401,7 @@
   "musichud_tuneweave.text.login.qrCode": "使用二维码登录",
   "musichud_tuneweave.text.login.qrExpired": "二维码已过期",
   "musichud_tuneweave.text.login.failed": "登录失败",
+  "musichud_tuneweave.text.login.deviceLimitExceeded": "登录设备数超过限制，请在 QQ 音乐中移除不再使用的设备后重试。",
   "musichud_tuneweave.text.loginRequired": "需要登录",
   "musichud_tuneweave.text.lyrics": "歌词",
   "musichud_tuneweave.text.musicPushError": "加载并推送音乐时出错",

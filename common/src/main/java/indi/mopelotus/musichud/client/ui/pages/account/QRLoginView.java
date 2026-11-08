@@ -230,11 +230,11 @@ public class QRLoginView extends LinearLayout implements ILoginView {
             verifying = false;
             if (error instanceof indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.TuneWeaveException failure
                     && LoginContinuationPolicy.canContinue(failure) && activeSession != null && tuneWeave.isLoginCurrent(attempt)) {
-                showError(I18n.get(MusicHud.MOD_ID + ".text.login.failed")); return;
+                showError(I18n.get(LoginErrorMessages.key(error))); return;
             }
             stopPolling();
             if (!(error instanceof java.util.concurrent.CancellationException))
-                showError(I18n.get(MusicHud.MOD_ID + ".text.login.failed"));
+                showError(I18n.get(LoginErrorMessages.key(error)));
             setBusy(false);
         });
     }
