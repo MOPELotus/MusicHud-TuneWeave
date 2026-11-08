@@ -22,6 +22,51 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PublicPlaybackServiceTest {
+    @Test void idleSourceAddedWhileEmptyPusherExitsMustWakePlayback() throws Exception {
+        try (Harness h = new Harness()) {
+            var injected = new java.util.concurrent.atomic.AtomicBoolean();
+            var previous = indi.mopelotus.musichud.utils.PlatformLoggers.bind((name, level, message, failure) -> {
+                if (name.endsWith("/MusicPlayerServerService") && message.equals("Music Pusher stopped")
+                        && injected.compareAndSet(false, true)) {
+                    Playlist source = Playlist.fromTuneWeave(42, "netease:playlist:42", "Source", "", 1, 0,
+                            indi.mopelotus.musichud.beans.user.Profile.ANONYMOUS);
+                    source.getTracks().add(MusicDetail.fromTuneWeave(1, "netease:track:1", "track", "Track", 60_000, Album.NONE, List.of()));
+                    h.service.addIdlePlaySource(source, new PusherInfo(h.owner.uuid(), h.owner.name()));
+                }
+            });
+            try {
+                var wake = MusicPlayerServerService.class.getDeclaredMethod("updateContinuable", boolean.class);
+                wake.setAccessible(true); wake.invoke(h.service, true);
+                Runnable empty = h.tasks.poll(2, TimeUnit.SECONDS); assertNotNull(empty);
+                h.workers.submit(empty).get(2, TimeUnit.SECONDS);
+                assertTrue(injected.get(), "The new source must arrive after the empty selection but before retirement");
+                // The first pending task is the source-list debounce; a replacement pusher must also be queued.
+                assertTrue(h.tasks.size() >= 2, "The retiring empty worker must not swallow the new source's wakeup");
+                Runnable next;
+                while ((next = h.tasks.poll()) != null) h.workers.submit(next);
+                PlaybackSession session = h.sessions.poll(2, TimeUnit.SECONDS);
+                assertNotNull(session, "The new source must actually start playing");
+                assertEquals("netease:track:1", session.musicDetail().getSourceRef());
+            } finally { indi.mopelotus.musichud.utils.PlatformLoggers.bind(previous); }
+        }
+    }
+
+    @Test void idlePlaylistWithMissingDurationStillStartsItsPlayableTracks() throws Exception {
+        try (Harness h = new Harness()) {
+            Playlist playlist = Playlist.fromTuneWeave(42, "qq:playlist", "Source", "", 2, 0,
+                    indi.mopelotus.musichud.beans.user.Profile.ANONYMOUS);
+            playlist.getTracks().add(MusicDetail.fromTuneWeave(2, "qq:unavailable", "track", "Unavailable", 0, Album.NONE, List.of()));
+            playlist.getTracks().add(MusicDetail.fromTuneWeave(1, "qq:playable", "track", "Playable", 60_000, Album.NONE, List.of()));
+            h.service.addIdlePlaySource(playlist, new PusherInfo(h.owner.uuid(), h.owner.name()));
+            Runnable pusher = h.tasks.poll(2, TimeUnit.SECONDS);
+            assertNotNull(pusher);
+            h.workers.submit(pusher);
+            PlaybackSession session = h.sessions.poll(2, TimeUnit.SECONDS);
+            assertNotNull(session);
+            assertEquals("qq:playable", session.musicDetail().getSourceRef());
+        }
+    }
+
     @Test void clientIdleSourceStartsPublicPlaybackWithoutServerProviderLookup() throws Exception {
         try (Harness h = new Harness()) {
             Playlist playlist = Playlist.fromTuneWeave(42, "netease:playlist:42", "Source", "", 1, 0,

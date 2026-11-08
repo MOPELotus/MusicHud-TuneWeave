@@ -8,6 +8,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ObservableSequencedSetTest {
+    @Test void oneFailedObserverCannotSuppressOtherItemsOrChangeNotifications() {
+        var set = new ObservableSequencedSet<Integer>();
+        var added = new ArrayList<Integer>();
+        var changed = new AtomicInteger();
+        set.registerOnAdd(item -> { throw new IllegalStateException("broken observer"); });
+        set.registerOnAdd(added::add);
+        set.registerOnChange(() -> { throw new IllegalStateException("broken change observer"); });
+        set.registerOnChange(changed::incrementAndGet);
+        set.addAll(List.of(1, 2));
+        assertEquals(List.of(1, 2), added);
+        assertEquals(List.of(1, 2), set.snapshot());
+        assertEquals(1, changed.get());
+        set.clear();
+        assertEquals(2, changed.get());
+    }
+
     @Test void batchAddNotifiesOncePerNewItemAndReorderNotifiesOnlyChange() {
         var set = new ObservableSequencedSet<Integer>();
         var added = new ArrayList<Integer>();

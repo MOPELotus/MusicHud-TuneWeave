@@ -100,6 +100,6 @@ public final class MusicHud {
 
     public static void setConnectStatus(ConnectStatus status) {
         MusicHud.connectStatus = status;
-        connectStatusListeners.forEach(l -> l.accept(status));
+        indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(connectStatusListeners, l -> l.accept(status));
     }
 }
