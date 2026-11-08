@@ -126,7 +126,15 @@ public class ApiServerFetcher {
                             || !unique.add(profile.getAsString())) throw new IOException("Invalid TuneWeave compatibility profiles");
                 }
             }
-            TuneWeaveManifest manifest = JsonUtil.gson.fromJson(document, TuneWeaveManifest.class);
+            var envelope = document.deepCopy();
+            var rows = envelope.remove("artifacts");
+            if (rows == null || !rows.isJsonArray()) throw new IOException("Missing TuneWeave artifacts");
+            TuneWeaveManifest manifest = JsonUtil.gson.fromJson(envelope, TuneWeaveManifest.class);
+            if (manifest != null) manifest.artifacts = indi.mopelotus.musichud.utils.collections.ItemMapping.map(
+                    "service release artifacts", rows.getAsJsonArray(), raw -> {
+                        if (!raw.isJsonObject()) throw new IllegalArgumentException("Invalid release artifact");
+                        return JsonUtil.gson.fromJson(raw, TuneWeaveArtifact.class);
+                    });
             if (manifest == null || manifest.schemaVersion != 1 || !"TuneWeave".equals(manifest.project)
                     || manifest.apiVersion == null || !manifest.apiVersion.matches("v[1-9][0-9]*")
                     || manifest.artifacts == null || manifest.artifacts.isEmpty())
@@ -141,21 +149,23 @@ public class ApiServerFetcher {
         }
         String platform = currentPlatformName();
         String architecture = currentArchitecture();
-        TuneWeaveArtifact artifact = manifest.getArtifacts().stream()
-                .filter(candidate -> platform.equalsIgnoreCase(candidate.getPlatform())
-                        && architecture.equalsIgnoreCase(candidate.getArchitecture()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "TuneWeave has no artifact for " + platform + '/' + architecture));
-        if (artifact.getFile() == null || artifact.getFile().isBlank()
-                || artifact.getDownloadUrl() == null || artifact.getDownloadUrl().isBlank()
-                || artifact.getVerification() == null
-                || !"sha256".equalsIgnoreCase(artifact.getVerification().getAlgorithm())
-                || artifact.getVerification().getChecksumUrl() == null
-                || artifact.getVerification().getChecksumUrl().isBlank()) {
-            throw new IllegalStateException("TuneWeave artifact metadata is incomplete for "
-                    + platform + '/' + architecture);
-        }
+        var candidates = indi.mopelotus.musichud.utils.collections.ItemMapping.map(
+                "service artifacts for this platform", manifest.getArtifacts(), artifact -> {
+                    if (artifact == null || !platform.equalsIgnoreCase(artifact.getPlatform())
+                            || !architecture.equalsIgnoreCase(artifact.getArchitecture())) return null;
+                    if (artifact.getFile() == null || artifact.getFile().isBlank()
+                            || artifact.getDownloadUrl() == null || artifact.getDownloadUrl().isBlank()
+                            || artifact.getVerification() == null
+                            || !"sha256".equalsIgnoreCase(artifact.getVerification().getAlgorithm())
+                            || artifact.getVerification().getChecksumUrl() == null
+                            || artifact.getVerification().getChecksumUrl().isBlank()) {
+                        throw new IllegalArgumentException("Incomplete TuneWeave artifact metadata");
+                    }
+                    return artifact;
+                });
+        if (candidates.size() != 1) throw new IllegalStateException(
+                "Expected one usable TuneWeave artifact for " + platform + '/' + architecture);
+        TuneWeaveArtifact artifact = candidates.getFirst();
         return artifact;
     }
 
