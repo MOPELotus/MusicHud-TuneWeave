@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import indi.mopelotus.musichud.MusicHud;
@@ -99,14 +101,13 @@ final class TuneWeaveAccountService {
     private UserCategoryPlaylists mapPlaylists(TuneWeavePlatform platform, Playlist liked, List<JsonElement> data) {
         ObservableSequencedSet<Playlist> created = new ObservableSequencedSet<>();
         ObservableSequencedSet<Playlist> subscribed = new ObservableSequencedSet<>();
-        for (JsonElement item : data) {
+        var mapped = ItemMapping.map("account playlists", data, item -> {
             JsonObject raw = unwrap(item);
             Playlist playlist = entities.toPlaylist(platform, raw);
-            if (playlist == Playlist.EMPTY || liked.getSourceRef().equals(playlist.getSourceRef())) {
-                continue;
-            }
-            (bool(raw, "subscribed", false) ? subscribed : created).add(playlist);
-        }
+            if (playlist == Playlist.EMPTY || liked.getSourceRef().equals(playlist.getSourceRef())) return null;
+            return Map.entry(bool(raw, "subscribed", false), playlist);
+        });
+        for (var entry : mapped) (entry.getKey() ? subscribed : created).add(entry.getValue());
         return new UserCategoryPlaylists(liked, created, subscribed);
     }
 
@@ -124,14 +125,10 @@ final class TuneWeaveAccountService {
     }
 
     private LinkedHashSet<Album> mapAlbums(TuneWeavePlatform platform, List<JsonElement> data) {
-        LinkedHashSet<Album> result = new LinkedHashSet<>();
-        for (JsonElement item : data) {
+        return new LinkedHashSet<>(ItemMapping.map("account albums", data, item -> {
             Album album = entities.toAlbum(platform, unwrap(item));
-            if (album != Album.NONE) {
-                result.add(album);
-            }
-        }
-        return result;
+            return album == Album.NONE ? null : album;
+        }));
     }
 
     LinkedHashSet<Artist> loadArtists() {
@@ -148,14 +145,10 @@ final class TuneWeaveAccountService {
     }
 
     private LinkedHashSet<Artist> mapArtists(TuneWeavePlatform platform, List<JsonElement> data) {
-        LinkedHashSet<Artist> result = new LinkedHashSet<>();
-        for (JsonElement item : data) {
+        return new LinkedHashSet<>(ItemMapping.map("account artists", data, item -> {
             Artist artist = entities.toArtist(platform, unwrap(item));
-            if (!artist.getSourceRef().isBlank()) {
-                result.add(artist);
-            }
-        }
-        return result;
+            return artist.getSourceRef().isBlank() ? null : artist;
+        }));
     }
 
     private List<JsonElement> loadAllAccountPages(TuneWeavePlatform platform, String path) {
@@ -226,16 +219,18 @@ final class TuneWeaveAccountService {
         JsonObject queue = object(gateway.requestForPlatform(
                 platform, "GET", "/v1/account/favorites/tracks/intelligence", query, null).data());
         LinkedHashMap<String, MusicDetail> result = new LinkedHashMap<>();
-        for (JsonElement value : elements(queue.get("items"))) {
-            if (result.size() >= FAVORITE_INTELLIGENCE_MAX_RECOMMENDATIONS) break;
+        var recommendations = ItemMapping.map("favorite intelligence tracks", elements(queue.get("items")), value -> {
             JsonObject item = unwrap(value);
             JsonObject trackData = object(item.get("track"));
             MusicDetail track = entities.toTrack(platform, trackData.isEmpty() ? item : trackData);
-            if (track != MusicDetail.NONE && !track.getSourceRef().isBlank()) {
-                if (!track.getSourceRef().startsWith("netease:") || !"track".equals(track.getSourceKind())
-                        || track.getDurationMillis() <= 0) throw new IllegalArgumentException("Invalid favorite intelligence track");
-                result.putIfAbsent(track.getSourceRef(), track);
-            }
+            if (track == MusicDetail.NONE || track.getSourceRef().isBlank()) return null;
+            if (!track.getSourceRef().startsWith("netease:") || !"track".equals(track.getSourceKind())
+                    || track.getDurationMillis() <= 0) throw new IllegalArgumentException("Invalid favorite intelligence track");
+            return track;
+        });
+        for (MusicDetail track : recommendations) {
+            if (result.size() >= FAVORITE_INTELLIGENCE_MAX_RECOMMENDATIONS) break;
+            result.putIfAbsent(track.getSourceRef(), track);
         }
         return List.copyOf(result.values());
     }
@@ -264,22 +259,22 @@ final class TuneWeaveAccountService {
         ObservableSequencedSet<Playlist> created = new ObservableSequencedSet<>();
         ObservableSequencedSet<Playlist> subscribed = new ObservableSequencedSet<>();
         Playlist defaultFolder = null;
-        for (JsonElement item : data) {
+        var folders = ItemMapping.map("Bilibili folders", data, item -> {
             JsonObject raw = unwrap(item);
             String playlistReference = string(raw, "ref", "");
             if (!playlistReference.startsWith("bilibili:favorite:")
                     && !playlistReference.startsWith("bilibili:season:")
                     && !playlistReference.startsWith("bilibili:series:")) {
-                continue;
+                return null;
             }
             Playlist playlist = entities.toPlaylist(TuneWeavePlatform.BILIBILI, raw);
             JsonObject extensions = raw.has("extensions") && raw.get("extensions").isJsonObject()
                     ? raw.getAsJsonObject("extensions") : new JsonObject();
-            if (playlistReference.startsWith("bilibili:favorite:") && bool(extensions, "default", false) && defaultFolder == null) {
-                defaultFolder = playlist;
-            } else {
-                created.add(playlist);
-            }
+            return Map.entry(playlist, playlistReference.startsWith("bilibili:favorite:") && bool(extensions, "default", false));
+        });
+        for (var folder : folders) {
+            if (folder.getValue() && defaultFolder == null) defaultFolder = folder.getKey();
+            else created.add(folder.getKey());
         }
         if (defaultFolder == null && !created.isEmpty()) {
             for (Playlist candidate : created) {
@@ -297,9 +292,8 @@ final class TuneWeaveAccountService {
             entities.cachePlaylist(defaultFolder);
         }
         favoritePlaylistReferences.put(favoriteKey(TuneWeavePlatform.BILIBILI), defaultFolder.getSourceRef());
-        for (JsonElement item : collected) {
-            subscribed.add(entities.toPlaylist(TuneWeavePlatform.BILIBILI, unwrap(item)));
-        }
+        subscribed.addAll(ItemMapping.map("Bilibili subscriptions", collected,
+                item -> entities.toPlaylist(TuneWeavePlatform.BILIBILI, unwrap(item))));
         return new UserCategoryPlaylists(defaultFolder, created, subscribed);
     }
 }

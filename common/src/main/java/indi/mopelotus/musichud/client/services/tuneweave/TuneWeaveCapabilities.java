@@ -1,6 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
 import com.google.gson.JsonElement;
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
 
 final class TuneWeaveCapabilities {
     private TuneWeaveCapabilities() {}
@@ -17,11 +18,11 @@ final class TuneWeaveCapabilities {
                 var capabilities = value.get("capabilities");
                 if (capabilities == null || !capabilities.isJsonArray()) break;
                 var result = new java.util.HashSet<String>();
-                for (var capability : capabilities.getAsJsonArray()) {
+                ItemMapping.forEach("platform capabilities", capabilities.getAsJsonArray(), capability -> {
                     if (!capability.isJsonPrimitive() || !capability.getAsJsonPrimitive().isString())
-                        throw new IllegalArgumentException("Malformed TuneWeave capabilities");
+                        throw new IllegalArgumentException("Malformed TuneWeave capability");
                     result.add(capability.getAsString());
-                }
+                });
                 return java.util.Set.copyOf(result);
             }
         }
