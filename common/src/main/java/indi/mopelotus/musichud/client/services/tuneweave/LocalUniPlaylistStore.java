@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.utils.JsonUtil;
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -42,10 +43,8 @@ final class LocalUniPlaylistStore {
     private Path loadedPath;
 
     synchronized List<JsonObject> list() {
-        JsonArray playlists = database().getAsJsonArray("playlists");
-        List<JsonObject> result = new ArrayList<>(playlists.size());
-        playlists.forEach(value -> result.add(value.getAsJsonObject().deepCopy()));
-        return result;
+        return ItemMapping.map("local playlist documents", database().getAsJsonArray("playlists"),
+                value -> normalizeDocument(value.getAsJsonObject()));
     }
 
     synchronized JsonObject create(String name, String description) {
@@ -64,7 +63,7 @@ final class LocalUniPlaylistStore {
         document.add("extensions", extensions);
         database().getAsJsonArray("playlists").add(document);
         save();
-        return document.deepCopy();
+        return normalizeDocument(document);
     }
 
     synchronized JsonObject update(String reference, String name, String description) {
@@ -73,38 +72,29 @@ final class LocalUniPlaylistStore {
         if (description != null) document.addProperty("description", normalizedDescription(description));
         document.addProperty("updated_at_ms", System.currentTimeMillis());
         save();
-        return document.deepCopy();
+        return normalizeDocument(document);
     }
 
     synchronized void delete(String reference) {
-        String id = id(reference);
-        JsonArray playlists = database().getAsJsonArray("playlists");
-        for (int index = 0; index < playlists.size(); index++) {
-            if (id.equals(playlists.get(index).getAsJsonObject().get("id").getAsString())) {
-                playlists.remove(index);
-                save();
-                return;
-            }
-        }
-        throw new IllegalArgumentException("Local playlist was not found");
+        JsonObject document = find(reference);
+        database().getAsJsonArray("playlists").remove(document);
+        save();
     }
 
     synchronized List<JsonObject> items(String reference) {
-        JsonArray items = find(reference).getAsJsonArray("items");
-        List<JsonObject> result = new ArrayList<>(items.size());
-        items.forEach(value -> result.add(value.getAsJsonObject().deepCopy()));
-        return result;
+        return ItemMapping.map("local playlist items", normalizeDocument(find(reference)).getAsJsonArray("items"),
+                value -> value.getAsJsonObject().deepCopy());
     }
 
     synchronized JsonObject append(String reference, List<JsonObject> values) {
         JsonObject document = find(reference);
-        if (values == null || values.isEmpty()) return document.deepCopy();
+        if (values == null || values.isEmpty()) return normalizeDocument(document);
         JsonArray items = document.getAsJsonArray("items");
-        if ((long) items.size() + values.size() > MAX_ITEMS) {
+        var valid = ItemMapping.map("appended playlist items", values, raw -> normalizeItem(raw, 0, false));
+        if ((long) items.size() + valid.size() > MAX_ITEMS) {
             throw new IllegalArgumentException("A local playlist cannot contain more than 100000 items");
         }
-        for (JsonObject raw : values) {
-            JsonObject item = normalizeItem(raw, items.size(), false);
+        for (JsonObject item : valid) {
             item.addProperty("id", newId("item_"));
             item.addProperty("position", items.size());
             item.addProperty("added_at_ms", System.currentTimeMillis());
@@ -112,15 +102,15 @@ final class LocalUniPlaylistStore {
         }
         touch(document, items.size());
         save();
-        return document.deepCopy();
+        return normalizeDocument(document);
     }
 
     synchronized void removeItem(String reference, String itemId) {
         JsonObject document = find(reference);
         JsonArray items = document.getAsJsonArray("items");
-        for (int index = 0; index < items.size(); index++) {
-            if (itemId.equals(items.get(index).getAsJsonObject().get("id").getAsString())) {
-                items.remove(index);
+        for (JsonObject item : validStoredItems(items)) {
+            if (itemId.equals(item.get("id").getAsString())) {
+                items.remove(item);
                 resetPositions(items);
                 touch(document, items.size());
                 save();
@@ -133,22 +123,22 @@ final class LocalUniPlaylistStore {
     synchronized void reorder(String reference, List<String> itemIds) {
         JsonObject document = find(reference);
         JsonArray current = document.getAsJsonArray("items");
-        if (itemIds == null || itemIds.size() != current.size() || new HashSet<>(itemIds).size() != current.size()) {
-            throw new IllegalArgumentException("The submitted order must contain every playlist item exactly once");
+        var visible = validStoredItems(current);
+        if (itemIds == null || itemIds.size() != visible.size() || new HashSet<>(itemIds).size() != visible.size()) {
+            throw new IllegalArgumentException("The submitted order must contain every visible playlist item exactly once");
         }
+        var byId = new java.util.HashMap<String, JsonObject>();
+        visible.forEach(item -> byId.put(item.get("id").getAsString(), item));
         JsonArray reordered = new JsonArray();
         for (String itemId : itemIds) {
-            JsonObject match = null;
-            for (JsonElement value : current) {
-                JsonObject item = value.getAsJsonObject();
-                if (itemId.equals(item.get("id").getAsString())) {
-                    match = item;
-                    break;
-                }
-            }
+            JsonObject match = byId.get(itemId);
             if (match == null) throw new IllegalArgumentException("The submitted order contains an unknown item");
             reordered.add(match);
         }
+        // Keep unreadable user records in storage even though they are absent from the view.
+        var identities = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<JsonElement, Boolean>());
+        identities.addAll(visible);
+        for (JsonElement item : current) if (!identities.contains(item)) reordered.add(item);
         resetPositions(reordered);
         document.add("items", reordered);
         touch(document, reordered.size());
@@ -156,21 +146,20 @@ final class LocalUniPlaylistStore {
     }
 
     synchronized JsonObject exportDocument(String reference) {
-        return find(reference).deepCopy();
+        return normalizeDocument(find(reference));
     }
 
     synchronized JsonObject importDocument(JsonObject source) {
         JsonObject document = normalizeDocument(source);
         Set<String> ids = new HashSet<>();
-        database().getAsJsonArray("playlists").forEach(value -> ids.add(
-                value.getAsJsonObject().get("id").getAsString()));
+        list().forEach(value -> ids.add(value.get("id").getAsString()));
         if (ids.contains(document.get("id").getAsString())) {
             document.addProperty("id", newId("pl_"));
         }
         document.addProperty("updated_at_ms", System.currentTimeMillis());
         database().getAsJsonArray("playlists").add(document);
         save();
-        return document.deepCopy();
+        return normalizeDocument(document);
     }
 
     private JsonObject database() {
@@ -187,11 +176,9 @@ final class LocalUniPlaylistStore {
                     || !loaded.has("playlists") || !loaded.get("playlists").isJsonArray()) {
                 throw new IllegalStateException("Unsupported local playlist database format");
             }
-            JsonObject normalized = emptyDatabase();
-            for (JsonElement value : loaded.getAsJsonArray("playlists")) {
-                normalized.getAsJsonArray("playlists").add(normalizeDocument(value.getAsJsonObject()));
-            }
-            database = normalized;
+            // Reads expose validated copies. Keeping the raw backing records prevents
+            // an edit to a healthy playlist from deleting unrelated unreadable user data.
+            database = loaded;
             return database;
         } catch (RuntimeException | IOException error) {
             throw new IllegalStateException("Failed to read the local playlist database", error);
@@ -216,11 +203,23 @@ final class LocalUniPlaylistStore {
 
     private JsonObject find(String reference) {
         String id = id(reference);
-        for (JsonElement value : database().getAsJsonArray("playlists")) {
+        var matches = ItemMapping.map("local playlist lookup", database().getAsJsonArray("playlists"), value -> {
             JsonObject document = value.getAsJsonObject();
-            if (id.equals(document.get("id").getAsString())) return document;
-        }
+            if (!id.equals(requiredString(document, "id"))) return null;
+            normalizeDocument(document);
+            return document;
+        });
+        if (!matches.isEmpty()) return matches.getFirst();
         throw new IllegalArgumentException("Local playlist was not found");
+    }
+
+    private static List<JsonObject> validStoredItems(JsonArray items) {
+        Set<String> ids = new HashSet<>();
+        return ItemMapping.map("stored playlist items", items, value -> {
+            JsonObject raw = value.getAsJsonObject();
+            JsonObject normalized = normalizeItem(raw, 0, true);
+            return ids.add(normalized.get("id").getAsString()) ? raw : null;
+        });
     }
 
     private static JsonObject normalizeDocument(JsonObject source) {
@@ -241,12 +240,7 @@ final class LocalUniPlaylistStore {
         result.addProperty("created_at_ms", created);
         result.addProperty("updated_at_ms", updated);
         JsonArray items = new JsonArray();
-        Set<String> ids = new HashSet<>();
-        for (int index = 0; index < sourceItems.size(); index++) {
-            JsonObject item = normalizeItem(sourceItems.get(index).getAsJsonObject(), index, true);
-            if (!ids.add(item.get("id").getAsString())) throw new IllegalArgumentException("Playlist item ids must be unique");
-            items.add(item);
-        }
+        for (JsonObject raw : validStoredItems(sourceItems)) items.add(normalizeItem(raw, items.size(), true));
         result.addProperty("item_count", items.size());
         result.add("items", items);
         JsonObject extensions = new JsonObject();
@@ -296,9 +290,14 @@ final class LocalUniPlaylistStore {
     }
 
     private static JsonArray copyStringArray(JsonObject source, String key) {
-        JsonArray input = requiredArray(source, key);
+        JsonArray input = "version_tags".equals(key) && (!source.has(key) || source.get(key).isJsonNull())
+                ? new JsonArray() : requiredArray(source, key);
         JsonArray result = new JsonArray();
-        for (JsonElement value : input) result.add(value.getAsString());
+        ItemMapping.forEach("playlist snapshot text", input, value -> {
+            if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString())
+                throw new IllegalArgumentException("Invalid snapshot text");
+            result.add(value.getAsString());
+        });
         return result;
     }
 
@@ -365,9 +364,8 @@ final class LocalUniPlaylistStore {
     }
 
     private static void resetPositions(JsonArray items) {
-        for (int index = 0; index < items.size(); index++) {
-            items.get(index).getAsJsonObject().addProperty("position", index);
-        }
+        int position = 0;
+        for (JsonObject item : validStoredItems(items)) item.addProperty("position", position++);
     }
 
     private static void touch(JsonObject document, int count) {

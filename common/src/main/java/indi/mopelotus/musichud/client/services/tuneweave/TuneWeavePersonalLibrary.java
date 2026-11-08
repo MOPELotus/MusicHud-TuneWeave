@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import indi.mopelotus.musichud.beans.music.MusicDetail;
@@ -31,9 +33,9 @@ public final class TuneWeavePersonalLibrary {
                 "Personal library is unavailable", 422, "capability_not_supported", false, com.google.gson.JsonNull.INSTANCE);
         var raw = OffsetPagination.loadAll(offset -> gateway.requestForPlatform(platform, "GET", kind.path,
                 Map.of("platform", platform.apiName(), "limit", "100", "offset", Integer.toString(offset)), null));
-        var result = new java.util.ArrayList<Entry>();
-        for (JsonElement item : raw) result.add(parse(entities, platform, kind, result.size(), object(item)));
-        return List.copyOf(result);
+        var occurrence = new java.util.concurrent.atomic.AtomicLong();
+        return List.copyOf(ItemMapping.map("personal library entries", raw,
+                item -> parse(entities, platform, kind, occurrence.getAndIncrement(), object(item))));
     }
     static TuneWeaveSubmissionOutcome submit(TuneWeaveGateway gateway, String reference, boolean deletion) {
         if (TuneWeaveReference.platform(reference) != TuneWeavePlatform.KUWO

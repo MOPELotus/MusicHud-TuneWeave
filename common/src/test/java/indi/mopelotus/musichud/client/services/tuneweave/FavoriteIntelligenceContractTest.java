@@ -27,7 +27,7 @@ class FavoriteIntelligenceContractTest {
         List<String> requests = new ArrayList<>(); var fixture = fixture(true, "qq:wrong", requests);
         assertThrows(IllegalArgumentException.class, () -> fixture.service.loadFavoriteIntelligence(fixture.playlist, "qq:wrong"));
         assertTrue(requests.isEmpty());
-        assertThrows(IllegalArgumentException.class, () -> fixture.service.loadFavoriteIntelligence(fixture.playlist, "netease:start"));
+        assertTrue(fixture.service.loadFavoriteIntelligence(fixture.playlist, "netease:start").isEmpty());
     }
 
     private record Fixture(TuneWeaveAccountService service, Playlist playlist) {}

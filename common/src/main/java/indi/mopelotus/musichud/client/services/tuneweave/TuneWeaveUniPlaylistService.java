@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -57,11 +59,7 @@ final class TuneWeaveUniPlaylistService {
     }
 
     List<TuneWeaveUniPlaylist> list() {
-        List<TuneWeaveUniPlaylist> result = new ArrayList<>();
-        for (JsonObject document : store.list()) {
-            result.add(playlist(document));
-        }
-        return result;
+        return ItemMapping.map("Uni Playlist summaries", store.list(), TuneWeaveUniPlaylistService::playlist);
     }
 
     TuneWeaveUniPlaylist create(String name, String description) {
@@ -160,8 +158,12 @@ final class TuneWeaveUniPlaylistService {
     List<JsonObject> materializeRequestedItems(List<String> references, String kind) {
         List<JsonObject> result = new ArrayList<>();
         JsonArray missing = new JsonArray();
-        for (String reference : references) {
-            TuneWeaveReference.require(reference, "Uni Playlist item");
+        var validReferences = ItemMapping.map("requested Uni references", references, value -> {
+            TuneWeaveReference.require(value, "Uni Playlist item");
+            return value;
+        });
+        if (!references.isEmpty() && validReferences.isEmpty()) throw new IllegalArgumentException("No valid Uni Playlist item references");
+        for (String reference : validReferences) {
             TuneWeavePlatform platform = TuneWeaveReference.platformOrDefault(reference, gateway.defaultPlatform());
             MusicDetail cached = entities.track(entities.accountScope(platform), reference);
             if (cached != null && cached.getDurationMillis() > 0 && kind.equals(cached.getSourceKind())
@@ -194,11 +196,9 @@ final class TuneWeaveUniPlaylistService {
     }
 
     TuneWeaveUniPlaylist importPlaylists(String name, List<String> sourceReferences) {
-        List<TuneWeaveUniImportSource> sources = sourceReferences.stream()
-                .filter(value -> value != null && !value.isBlank())
-                .limit(50)
-                .map(TuneWeaveUniPlaylistService::playlistSource)
-                .toList();
+        List<TuneWeaveUniImportSource> sources = ItemMapping.map("Uni import references",
+                sourceReferences.stream().filter(value -> value != null && !value.isBlank()).limit(50).toList(),
+                TuneWeaveUniPlaylistService::playlistSource);
         return importSources(name, null, sources);
     }
 
@@ -237,35 +237,49 @@ final class TuneWeaveUniPlaylistService {
         if (sources == null || sources.isEmpty() || sources.size() > 50) {
             throw new IllegalArgumentException("Import requires between 1 and 50 sources");
         }
-        for (var source : sources) {
-            if (source == null || source.platform() == null || source.type() == null || source.type().isBlank()
-                    || source.id() == null || source.id().isBlank()) throw new IllegalArgumentException("Invalid import source");
-            TuneWeavePlatform.fromApiName(source.platform());
-        }
         List<JsonObject> result = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         String name = "", description = "";
         int sourceIndex = 0;
+        RuntimeException firstFailure = null;
         for (var source : sources) {
-            String sourceReference = source.platform() + ":" + source.id();
-            MusicCollection local = switch (source.type()) {
-                case "playlist" -> knownPlaylist.apply(sourceReference);
-                case "album" -> knownAlbum.apply(sourceReference);
-                default -> null;
-            };
             MaterializedImport materialized;
-            if (local != null) {
-                List<JsonObject> items = new ArrayList<>();
-                for (MusicDetail track : local.getMusicDetails()) items.add(materializeLocalTrack(track, items.size()));
-                materialized = new MaterializedImport(local.getName(), "", items);
-            } else {
-                materialized = materializeRemoteSources(List.of(source));
+            try {
+                if (source == null || source.platform() == null || source.type() == null || source.type().isBlank()
+                        || source.id() == null || source.id().isBlank()) throw new IllegalArgumentException("Invalid import source");
+                TuneWeavePlatform.requireApiName(source.platform());
+                String sourceReference = source.platform() + ":" + source.id();
+                MusicCollection local = switch (source.type()) {
+                    case "playlist" -> knownPlaylist.apply(sourceReference);
+                    case "album" -> knownAlbum.apply(sourceReference);
+                    default -> null;
+                };
+                if (local != null) {
+                    var items = ItemMapping.map("local import tracks", local.getMusicDetails(),
+                            track -> materializeLocalTrack(track, 0));
+                    materialized = new MaterializedImport(local.getName(), "", items);
+                } else {
+                    materialized = materializeRemoteSources(List.of(source));
+                }
+            } catch (java.util.concurrent.CancellationException cancelled) {
+                throw cancelled;
+            } catch (RuntimeException failure) {
+                if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException("Import interrupted");
+                if (firstFailure == null) firstFailure = failure;
+                MusicHud.getLogger(TuneWeaveUniPlaylistService.class).warn("Skipped failed import source at index {}", sourceIndex);
+                sourceIndex++;
+                continue;
             }
             if (name.isBlank()) name = materialized.name();
             if (description.isBlank()) description = materialized.description();
-            for (JsonObject item : materialized.items()) {
+            var usable = ItemMapping.map("materialized import items", materialized.items(), raw -> {
+                JsonObject item = raw.deepCopy();
+                TuneWeaveReference.require(string(item, "source_ref", ""), "materialized import item");
+                string(item, "kind", "track");
+                return item;
+            });
+            for (JsonObject item : usable) {
                 String reference = string(item, "source_ref", "");
-                if (reference.isBlank()) throw new IllegalArgumentException("Materialized item is missing source_ref");
                 if (seen.add(reference)) {
                     if (result.size() >= 100_000) throw new IllegalArgumentException("Too many imported items");
                     item.addProperty("position", result.size());
@@ -280,6 +294,7 @@ final class TuneWeaveUniPlaylistService {
             }
             sourceIndex++;
         }
+        if (result.isEmpty() && firstFailure != null) throw firstFailure;
         return new MaterializedImport(name, description, result);
     }
 
@@ -351,6 +366,7 @@ final class TuneWeaveUniPlaylistService {
         JsonArray artists = new JsonArray();
         track.getArtists().stream().map(Artist::getName).forEach(artists::add);
         snapshot.add("artists", artists);
+        snapshot.add("version_tags", new JsonArray());
         item.add("snapshot", snapshot);
         return item;
     }

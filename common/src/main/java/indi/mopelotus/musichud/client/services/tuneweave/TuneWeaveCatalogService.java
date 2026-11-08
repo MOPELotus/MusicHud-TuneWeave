@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import indi.mopelotus.musichud.beans.api.SearchType;
@@ -192,18 +194,14 @@ final class TuneWeaveCatalogService {
             return List.of();
         }
         TuneWeavePlatform platform = platform(reference);
-        List<MusicDetail> result = new ArrayList<>();
-        for (JsonElement item : elements(gateway.requestForPlatform(
+        return ItemMapping.map("artist tracks", elements(gateway.requestForPlatform(
                 platform, "GET", "/v1/artists/"
                         + TuneWeaveApiClient.encodePathSegment(reference) + "/tracks",
                 Map.of("limit", "50", "offset", Integer.toString(Math.max(0, offset)), "order",
-                        platform == TuneWeavePlatform.KUWO || platform == TuneWeavePlatform.MIGU ? "platform_default" : "hot"), null).data())) {
+                        platform == TuneWeavePlatform.KUWO || platform == TuneWeavePlatform.MIGU ? "platform_default" : "hot"), null).data()), item -> {
             MusicDetail track = entities.toTrack(platform, unwrap(item));
-            if (track != MusicDetail.NONE) {
-                result.add(track);
-            }
-        }
-        return result;
+            return track == MusicDetail.NONE ? null : track;
+        });
     }
 
     MusicDetail loadTrackDetail(MusicDetail musicDetail) {
@@ -348,19 +346,16 @@ final class TuneWeaveCatalogService {
                         + TuneWeaveApiClient.encodePathSegment(string(selected, "ref", "")),
                 query, null).data());
         StringBuilder lrc = new StringBuilder();
-        for (JsonElement element : elements(document.get("cues"))) {
+        for (String line : ItemMapping.map("subtitle cues", elements(document.get("cues")), element -> {
             JsonObject cue = unwrap(element);
             String text = string(cue, "text", "").replace('\r', ' ').replace('\n', ' ').trim();
-            if (text.isBlank()) {
-                continue;
-            }
+            if (text.isBlank()) return null;
             long startMillis = Math.max(0L, longValue(cue, "start_ms", 0L));
             long minutes = startMillis / 60_000L;
             long seconds = (startMillis / 1_000L) % 60L;
             long millis = startMillis % 1_000L;
-            lrc.append(String.format(Locale.ROOT,
-                    "[%02d:%02d.%03d]%s%n", minutes, seconds, millis, text));
-        }
+            return String.format(Locale.ROOT, "[%02d:%02d.%03d]%s%n", minutes, seconds, millis, text);
+        })) lrc.append(line);
         return lrc.isEmpty()
                 ? LyricInfo.NONE
                 : new LyricInfo(new Lyric(lrc.toString()), Lyric.NONE, Lyric.NONE, Lyric.NONE);
@@ -397,27 +392,27 @@ final class TuneWeaveCatalogService {
                 ? gateway.requestWithoutCredential("GET", "/v1/search", query, null)
                 : gateway.requestForPlatform(platform, "GET", "/v1/search", query, null);
         var page = OffsetPagination.readPage(response, offset);
-        for (JsonElement item : page.items()) {
+        rawItems.addAll(ItemMapping.map("search entries", page.items(), item -> {
             JsonObject value = unwrap(item);
-            if (!value.isEmpty()) {
-                rawItems.add(value);
-            }
-        }
+            return value.isEmpty() ? null : value;
+        }));
         List<?> mapped = switch (searchType) {
-            case ALBUM -> page.items().stream().map(item -> {
+            case ALBUM -> ItemMapping.map("album search", page.items(), item -> {
                 JsonObject wrapper = TuneWeaveJson.object(item);
                 JsonObject value = unwrap(item);
                 if ("digital_album".equals(TuneWeaveJson.string(wrapper, "type")))
                     return (Object) TuneWeavePersonalLibrary.parse(entities, platform,
                             TuneWeavePersonalLibrary.Kind.DIGITAL_ALBUMS, 0, value);
                 return (Object) entities.toAlbum(platform, value);
-            }).toList();
-            case ARTIST -> rawItems.stream().map(value -> entities.toArtist(platform, value)).toList();
-            case PLAYLIST -> rawItems.stream().map(value -> entities.toPlaylist(platform, value)).toList();
-            case RADIO -> rawItems.stream().map(value -> entities.toPodcast(platform, value)).toList();
-            default -> rawItems.stream().map(value -> platform == TuneWeavePlatform.BILIBILI
-                    ? entities.toVideoTrack(platform, value) : entities.toTrack(platform, value)).toList();
+            });
+            case ARTIST -> ItemMapping.map("artist search", rawItems, value -> entities.toArtist(platform, value));
+            case PLAYLIST -> ItemMapping.map("playlist search", rawItems, value -> entities.toPlaylist(platform, value));
+            case RADIO -> ItemMapping.map("radio search", rawItems, value -> entities.toPodcast(platform, value));
+            default -> ItemMapping.map("track search", rawItems, value -> platform == TuneWeavePlatform.BILIBILI
+                    ? entities.toVideoTrack(platform, value) : entities.toTrack(platform, value));
         };
+        mapped = mapped.stream().filter(value -> value != MusicDetail.NONE && value != Album.NONE
+                && value != Playlist.EMPTY && (!(value instanceof Artist artist) || !artist.getSourceRef().isBlank())).toList();
         return new TuneWeaveSearchPage(mapped, page.nextOffset(), !page.complete());
     }
 
@@ -467,11 +462,13 @@ final class TuneWeaveCatalogService {
     private JsonObject selectSubtitle(JsonObject catalog) {
         String defaultLanguage = string(catalog, "default_language", "");
         JsonObject selected = null;
-        for (JsonElement element : elements(catalog.get("items"))) {
+        var candidates = ItemMapping.map("subtitle candidates", elements(catalog.get("items")), element -> {
             JsonObject candidate = unwrap(element);
-            if (string(candidate, "ref", "").isBlank()) {
-                continue;
-            }
+            if (string(candidate, "ref", "").isBlank()) return null;
+            string(candidate, "language", "");
+            return candidate;
+        });
+        for (JsonObject candidate : candidates) {
             if (selected == null || (!defaultLanguage.isBlank()
                     && defaultLanguage.equals(string(candidate, "language", "")))) {
                 selected = candidate;
