@@ -11,6 +11,16 @@ class ItemMappingTest {
         assertEquals(List.of(1, 2, 1), ItemMapping.map("numbers", List.of("1", "bad", "2", "", "1"), value ->
                 value.isEmpty() ? null : Integer.valueOf(value)));
     }
+    @Test void explicitlyMarkedMalformedDataIsSkippedButNonRetryableTransportErrorsPropagate() {
+        assertEquals(List.of(1, 3), ItemMapping.map("items", List.of(1, 2, 3), value -> {
+            if (value == 2) throw new indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.MalformedDataException("bad shape");
+            return value;
+        }));
+        var failure = new TuneWeaveException("nonretryable request failure", false);
+        assertSame(failure, assertThrows(TuneWeaveException.class,
+                () -> ItemMapping.map("items", List.of(1), value -> { throw failure; })));
+    }
+
     @Test void cancellationTransportFailuresAndFatalErrorsNeverBecomeSkippedData() {
         var cancelled = new CancellationException("scope replaced");
         assertSame(cancelled, assertThrows(CancellationException.class,
