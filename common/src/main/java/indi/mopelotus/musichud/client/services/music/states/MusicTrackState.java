@@ -82,7 +82,7 @@ public class MusicTrackState implements IMusicTrackState {
                     tracks.removeIf(track -> track.getSourceRef().equals(musicDetail.getSourceRef()));
                     if (selected) tracks.addFirst(musicDetail);
                     var listeners = LISTENERS.get(new Key(expected, playlist.getId(), musicDetail.getSourceRef()));
-                    if (listeners != null) listeners.forEach(listener -> listener.accept(selected));
+                    if (listeners != null) indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(listeners, listener -> listener.accept(selected));
                     CollectionUpdateNotifier.notifyPlaylistUpdated(playlist.getId());
                 });
             }, executor);

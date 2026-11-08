@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.network;
 
+import indi.mopelotus.musichud.utils.collections.ListenerDispatch;
+
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.network.payloads.S2CPayload;
 import indi.mopelotus.musichud.platform.Environment;
@@ -23,9 +25,7 @@ public interface IServerNetworkService {
     <T extends S2CPayload> void sendToPlayer(IPlayerClient player, T payload);
 
     default void sendToPlayers(Collection<IPlayerClient> players, S2CPayload payload) {
-        for (IPlayerClient player : players) {
-            sendToPlayer(player, payload);
-        }
+        ListenerDispatch.notifyEach(players, player -> sendToPlayer(player, payload));
     }
 
 }

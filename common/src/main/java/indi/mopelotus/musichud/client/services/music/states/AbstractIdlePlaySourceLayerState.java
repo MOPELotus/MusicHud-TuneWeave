@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.music.states;
 
+import indi.mopelotus.musichud.utils.collections.ListenerDispatch;
+
 import indi.mopelotus.musichud.beans.music.Album;
 import indi.mopelotus.musichud.beans.music.MusicCollection;
 import indi.mopelotus.musichud.beans.music.Playlist;
@@ -28,15 +30,15 @@ public abstract class AbstractIdlePlaySourceLayerState implements IIdlePlaySourc
     }
 
     protected void notifyAdd(MusicCollection collection) {
-        addListeners.forEach(l -> l.accept(collection));
+        ListenerDispatch.notifyEach(addListeners, l -> l.accept(collection));
     }
 
     protected void notifyRemove(MusicCollection collection) {
-        removeListeners.forEach(l -> l.accept(collection));
+        ListenerDispatch.notifyEach(removeListeners, l -> l.accept(collection));
     }
 
     protected void notifyChange(MusicCollection collection) {
-        changeListeners.forEach(l -> l.accept(collection));
+        ListenerDispatch.notifyEach(changeListeners, l -> l.accept(collection));
     }
 
     @Override
