@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import indi.mopelotus.musichud.MusicHud;
@@ -264,7 +266,7 @@ final class TuneWeaveEntityMapper {
         LinkedHashSet<Artist> albumArtists = new LinkedHashSet<>();
         JsonElement artistData = object.get("artists");
         if (artistData != null && artistData.isJsonArray()) {
-            artistData.getAsJsonArray().forEach(value -> {
+            ItemMapping.forEach("entity artists", artistData.getAsJsonArray(), value -> {
                 if (value.isJsonObject()) albumArtists.add(toArtist(platform, value.getAsJsonObject()));
             });
         }
@@ -316,7 +318,7 @@ final class TuneWeaveEntityMapper {
         List<Artist> trackArtists = new ArrayList<>();
         JsonElement artistData = object.get("artists");
         if (artistData != null && artistData.isJsonArray()) {
-            artistData.getAsJsonArray().forEach(value -> {
+            ItemMapping.forEach("entity artists", artistData.getAsJsonArray(), value -> {
                 if (value.isJsonObject()) {
                     trackArtists.add(toArtist(platform, value.getAsJsonObject()));
                 } else if (value.isJsonPrimitive()) {
@@ -400,13 +402,13 @@ final class TuneWeaveEntityMapper {
 
     List<TuneWeaveRadioOption> toRadioOptions(JsonElement element) {
         List<TuneWeaveRadioOption> result = new ArrayList<>();
-        for (JsonElement value : elements(element)) {
+        ItemMapping.forEach("radio options", elements(element), value -> {
             JsonObject option = unwrap(value);
             String id = string(option, "id", "");
             if (!id.isBlank()) {
                 result.add(new TuneWeaveRadioOption(id, string(option, "name", id)));
             }
-        }
+        });
         return result;
     }
 
@@ -425,8 +427,8 @@ final class TuneWeaveEntityMapper {
         if (reference.isBlank()) return MusicDetail.NONE;
         JsonObject snapshot = object.has("snapshot") && object.get("snapshot").isJsonObject()
                 ? object.getAsJsonObject("snapshot") : new JsonObject();
-        List<Artist> creators = videoCreatorInfos(object, snapshot).stream()
-                .map(creator -> videoCreatorArtist(platform, creator)).toList();
+        List<Artist> creators = ItemMapping.map("video artists", videoCreatorInfos(object, snapshot),
+                creator -> videoCreatorArtist(platform, creator));
         String title = string(object, "title",
                 string(object, "name", string(snapshot, "title", reference)));
         String coverUrl = string(object, "cover_url", string(snapshot, "cover_url", ""));
@@ -456,7 +458,7 @@ final class TuneWeaveEntityMapper {
         LinkedHashMap<String, TuneWeaveVideoCreator> creators = new LinkedHashMap<>();
         JsonElement creatorData = object.get("creators");
         if (creatorData != null && creatorData.isJsonArray()) {
-            creatorData.getAsJsonArray().forEach(value -> {
+            ItemMapping.forEach("video creators", creatorData.getAsJsonArray(), value -> {
                 if (value.isJsonObject()) {
                     JsonObject creator = value.getAsJsonObject();
                     addVideoCreator(creators, string(creator, "ref", ""),
@@ -481,7 +483,7 @@ final class TuneWeaveEntityMapper {
             if (!uploader.isBlank()) addVideoCreator(creators, "", uploader, "");
         }
         if (creators.isEmpty() && snapshot.has("artists") && snapshot.get("artists").isJsonArray()) {
-            snapshot.getAsJsonArray("artists").forEach(value -> {
+            ItemMapping.forEach("video snapshot artists", snapshot.getAsJsonArray("artists"), value -> {
                 if (value.isJsonPrimitive()) addVideoCreator(creators, "", value.getAsString(), "");
             });
         }

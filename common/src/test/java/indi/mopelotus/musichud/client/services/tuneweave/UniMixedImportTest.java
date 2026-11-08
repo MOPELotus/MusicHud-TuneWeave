@@ -11,6 +11,26 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class UniMixedImportTest {
+    @Test void failedSourceDoesNotDiscardALaterHealthySourceOrChangeItsOriginIndex() {
+        var service = service((b, m, p, q, body, c) -> {
+            throw new TuneWeaveApiClient.TuneWeaveException("deleted source", 404, "not_found", false, JsonNull.INSTANCE);
+        }, ref -> ref.equals("netease:local") ? playlist() : null);
+        var result = service.materializeImportSources(List.of(
+                new TuneWeaveUniImportSource("qq", "playlist", "deleted"),
+                new TuneWeaveUniImportSource("netease", "playlist", "local")));
+        assertEquals(1, result.items().size());
+        assertEquals("netease:1", result.items().getFirst().get("source_ref").getAsString());
+        assertEquals(1, result.items().getFirst().getAsJsonObject("extensions").get("import_source_index").getAsInt());
+    }
+
+    @Test void cancelledImportCannotContinueWithAnotherSource() {
+        var service = service((b, m, p, q, body, c) -> { throw new java.util.concurrent.CancellationException("account replaced"); },
+                ref -> ref.equals("netease:local") ? playlist() : null);
+        assertThrows(java.util.concurrent.CancellationException.class, () -> service.materializeImportSources(List.of(
+                new TuneWeaveUniImportSource("qq", "playlist", "cancelled"),
+                new TuneWeaveUniImportSource("netease", "playlist", "local"))));
+    }
+
     @Test void completeLocalAlbumNeverCallsRemoteMaterialization() {
         var tracks = new indi.mopelotus.musichud.utils.collections.ObservableSequencedSet<MusicDetail>();
         tracks.add(track("netease:1"));

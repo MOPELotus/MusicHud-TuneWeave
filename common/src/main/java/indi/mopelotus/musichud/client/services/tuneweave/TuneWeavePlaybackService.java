@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
@@ -157,12 +159,17 @@ final class TuneWeavePlaybackService {
                 platform, "GET", "/v1/radio/stations/"
                         + TuneWeaveApiClient.encodePathSegment(musicDetail.getSourceRef()) + "/tracks",
                 Map.of("limit", musicDetail.getSourcePartRef().isBlank() ? "1" : "100"), null).data());
-        List<JsonElement> items = elements(queue.get("items"));
-        JsonObject item = items.stream().map(TuneWeaveJson::unwrap)
+        var items = ItemMapping.map("radio resource candidates", elements(queue.get("items")), raw -> {
+            JsonObject value = unwrap(raw);
+            String candidateUrl = string(value, "stream_url", "");
+            if (candidateUrl.isBlank()) return null;
+            string(value, "ref", "");
+            integer(value, "duration_ms", musicDetail.getDurationMillis());
+            return value;
+        });
+        JsonObject item = items.stream()
                 .filter(value -> musicDetail.getSourcePartRef().equals(string(value, "ref", "")))
-                .findFirst()
-                .or(() -> items.stream().findFirst().map(TuneWeaveJson::unwrap))
-                .orElseGet(JsonObject::new);
+                .findFirst().or(() -> items.stream().findFirst()).orElseGet(JsonObject::new);
         String url = string(item, "stream_url", "");
         return url.isBlank() ? MusicResourceInfo.NONE : new MusicResourceInfo(
                 musicDetail.getId(), url, 0, 0L, FormatType.AUTO, "", Fee.UNSET,

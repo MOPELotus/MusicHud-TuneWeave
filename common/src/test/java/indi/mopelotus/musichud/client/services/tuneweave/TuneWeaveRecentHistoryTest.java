@@ -128,7 +128,7 @@ class TuneWeaveRecentHistoryTest {
         assertEquals(List.of("/v1/capabilities", "/v1/auth/session"), f.paths);
     }
 
-    @Test void malformedIdentityAndTimestampFailTheWholeResponseBeforeAnyEntityMapping() {
+    @Test void malformedRecordsDoNotDiscardValidNeighborsOrPublishTheirSummaries() {
         List<Consumer<JsonObject>> invalid = List.of(
                 e -> e.add("track", JsonNull.INSTANCE),
                 e -> e.getAsJsonObject("track").addProperty("ref", "qq:123"),
@@ -150,8 +150,14 @@ class TuneWeaveRecentHistoryTest {
             Fixture f = new Fixture();
             JsonObject bad = entry(Kind.TRACKS); edit.accept(bad);
             JsonArray data = array(entry(Kind.TRACKS)); data.add(bad);
-            assertThrows(TuneWeaveException.class, () -> f.service.parse(NETEASE, Kind.TRACKS, response(data)));
-            assertNull(f.mapper.track(f.mapper.accountScope(NETEASE), "netease:123"));
+            JsonObject last = entry(Kind.TRACKS);
+            last.getAsJsonObject("track").addProperty("ref", "netease:456");
+            last.getAsJsonObject("track").addProperty("id", "456");
+            data.add(last);
+            var page = f.service.parse(NETEASE, Kind.TRACKS, response(data));
+            assertEquals(List.of("netease:123", "netease:456"), page.entries().stream()
+                    .map(value -> ((MusicDetail) value.resource()).getSourceRef()).toList());
+            assertNotNull(f.mapper.track(f.mapper.accountScope(NETEASE), "netease:123"));
         }
     }
 

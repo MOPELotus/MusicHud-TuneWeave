@@ -46,6 +46,10 @@ class SearchPaginationTest {
         assertEquals("digital_album", digital.resourceKind()); assertEquals(TuneWeavePlatform.MIGU, digital.platform());
         assertSame(ordinary, entities.album(ordinary.getId()));
         data.get(1).getAsJsonObject().getAsJsonObject("data").addProperty("ref", "kuwo:123");
-        assertThrows(IllegalArgumentException.class, () -> catalog.searchPage("keywords", SearchType.ALBUM, 0, TuneWeavePlatform.MIGU));
+        var filtered = catalog.searchPage("keywords", SearchType.ALBUM, 0, TuneWeavePlatform.MIGU);
+        assertEquals(1, filtered.items().size());
+        assertInstanceOf(indi.mopelotus.musichud.beans.music.Album.class, filtered.items().getFirst());
+        assertEquals(17, filtered.nextOffset());
+        assertTrue(filtered.hasMore());
     }
 }
