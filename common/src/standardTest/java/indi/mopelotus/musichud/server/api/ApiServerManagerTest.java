@@ -32,6 +32,19 @@ class ApiServerManagerTest {
     @TempDir Path directory;
 
     @Test
+    void nativeProcessDestroyDoesNotHoldTheManagerLock() throws Exception {
+        Fixture fixture = new Fixture(directory);
+        fixture.manager.restartApiServer();
+        StubProcess old = fixture.launchHealthy();
+        java.util.concurrent.atomic.AtomicBoolean held = new java.util.concurrent.atomic.AtomicBoolean();
+        old.onDestroy = () -> held.set(Thread.holdsLock(fixture.manager));
+        fixture.manager.restartApiServer();
+        fixture.executor.runAll();
+        assertFalse(held.get(), "Native process termination can block on Windows pipes; never hold the manager lock");
+        assertFalse(old.isAlive());
+    }
+
+    @Test
     void embeddedApiLifecycleIsClientOwned() throws IOException {
         assertTrue(indi.mopelotus.musichud.interfaces.ClientRegister.class.isAssignableFrom(ApiServerManager.class));
         assertFalse(indi.mopelotus.musichud.interfaces.ServerRegister.class.isAssignableFrom(ApiServerManager.class));
@@ -191,8 +204,9 @@ class ApiServerManagerTest {
         fixture.executor.runNext();
         assertEquals(1, fixture.processes.size());
         StubProcess old = fixture.processes.getFirst();
-        assertEquals(1, old.destroyCalls);
+        assertEquals(0, old.destroyCalls, "Native termination is queued outside the manager lock");
         fixture.executor.runNext();
+        assertEquals(1, old.destroyCalls);
         assertFalse(old.isAlive());
         fixture.launchHealthy();
         assertEquals(2, fixture.processes.size());
@@ -694,6 +708,7 @@ class ApiServerManagerTest {
         boolean deferExitNotification;
         boolean interruptFirstWait;
         int destroyCalls;
+        Runnable onDestroy = () -> {};
         int forceCalls;
         int code;
         @Override public OutputStream getOutputStream() { return new ByteArrayOutputStream(); }
@@ -713,7 +728,7 @@ class ApiServerManagerTest {
             if (alive) throw new IllegalThreadStateException();
             return code;
         }
-        @Override public void destroy() { destroyCalls++; }
+        @Override public void destroy() { destroyCalls++; onDestroy.run(); }
         @Override public Process destroyForcibly() {
             forceCalls++;
             if (forcedExit) exit(137);
