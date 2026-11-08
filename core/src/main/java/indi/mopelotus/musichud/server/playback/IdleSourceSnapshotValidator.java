@@ -15,7 +15,7 @@ public final class IdleSourceSnapshotValidator {
         String reference = input instanceof Playlist p ? p.getSourceRef() : ((Album) input).getSourceRef();
         requireReference(reference);
         var tracks = new ObservableSequencedSet<MusicDetail>();
-        for (MusicDetail track : input.getMusicDetails()) {
+        tracks.addAll(indi.mopelotus.musichud.utils.collections.ItemMapping.map("idle source tracks", input.getMusicDetails(), track -> {
             if (track == null) throw new IllegalArgumentException("Missing source track");
             requireReference(track.getSourceRef());
             if (!Set.of("track", "video", "podcast_episode", "radio_station").contains(track.getSourceKind())
@@ -28,8 +28,8 @@ public final class IdleSourceSnapshotValidator {
             copy.setCloudSource(track.isCloudSource());
             copy.setClientHostedUni(track.isClientHostedUni());
             copy.setPusherInfo(owner);
-            tracks.add(copy);
-        }
+            return copy;
+        }));
         MusicCollection copy = input.copyWithPusherInfo(owner);
         if (copy instanceof Playlist playlist) { playlist.setTracks(tracks); playlist.setMusicTrackCount(tracks.size()); }
         else ((Album) copy).setMusicDetails(tracks);
