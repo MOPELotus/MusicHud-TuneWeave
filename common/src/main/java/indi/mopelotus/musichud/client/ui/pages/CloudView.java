@@ -345,10 +345,15 @@ public final class CloudView extends LinearLayout {
         String paths = TinyFileDialogs.tinyfd_openFileDialog(I18n.get(MusicHud.MOD_ID + ".text.cloud.upload"),
                 "", null, "Audio files", true);
         if (paths == null || paths.isBlank() || !tasks.isCurrent(token)) return;
-        try {
-            for (String path : paths.split("\\|")) uploads.enqueue(Path.of(path));
-            rebuildRows();
-        } catch (RuntimeException error) { showStatus(message(error)); }
+        RuntimeException failure = null;
+        for (String path : paths.split("\\|")) {
+            if (!tasks.isCurrent(token)) return;
+            try { uploads.enqueue(Path.of(path)); }
+            catch (java.util.concurrent.CancellationException cancelled) { return; }
+            catch (RuntimeException error) { if (failure == null) failure = error; }
+        }
+        rebuildRows();
+        if (failure != null) showStatus(message(failure));
     }
 
     private void showTrackActions(TuneWeaveCloudTrack track) {

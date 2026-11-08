@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.server;
 
+import indi.mopelotus.musichud.utils.collections.ListenerDispatch;
+
 import indi.mopelotus.musichud.interfaces.ICommonEventService;
 import indi.mopelotus.musichud.interfaces.RegisterMark;
 import indi.mopelotus.musichud.interfaces.ServerRegister;
@@ -96,7 +98,7 @@ public final class ServerPlayerRegistry {
 
     private void notifyListeners() {
         List<IPlayerClient> snapshot = players();
-        listeners.forEach(listener -> listener.accept(snapshot));
+        ListenerDispatch.notifyEach(listeners, listener -> listener.accept(snapshot));
     }
 
     @RegisterMark
