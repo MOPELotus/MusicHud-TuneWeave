@@ -291,11 +291,6 @@ public class ApiServerManager implements ClientRegister {
         }
         if (owner.process == null || owner.terminationScheduled) return;
         owner.terminationScheduled = true;
-        try {
-            owner.process.destroy();
-        } catch (RuntimeException error) {
-            apiLogger.warn("Failed to request TuneWeave termination", error);
-        }
         // The normal executor can reject shutdown work; termination still needs to run.
         try {
             executor.execute(() -> terminate(owner));
@@ -308,6 +303,13 @@ public class ApiServerManager implements ClientRegister {
         Process running = owner.process;
         Throwable failure = null;
         boolean interrupted = false;
+        // Process.destroy can block while Windows closes process pipes. Keep native
+        // termination on this worker, outside the lifecycle manager's monitor.
+        try {
+            running.destroy();
+        } catch (RuntimeException error) {
+            apiLogger.warn("Failed to request TuneWeave termination", error);
+        }
         try {
             if (running.isAlive() && !running.waitFor(TERMINATION_WAIT_MILLIS, TimeUnit.MILLISECONDS)) {
                 running.destroyForcibly();

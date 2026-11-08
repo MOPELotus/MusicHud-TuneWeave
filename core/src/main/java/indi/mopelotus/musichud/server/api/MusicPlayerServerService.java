@@ -69,11 +69,13 @@ public class MusicPlayerServerService {
 
         @Override
         public void run() {
-            if (!continuable || generation != pusherGeneration.get()) return;
             Thread thread = Thread.currentThread();
             thread.setName("MHWorker-Music-Data-Pusher");
-            pusherThread = thread;
-            pusherThreadRunning = true;
+            synchronized (MusicPlayerServerService.this) {
+                if (!continuable || generation != pusherGeneration.get()) return;
+                pusherThread = thread;
+                pusherThreadRunning = true;
+            }
             String message = "";
             while (MusicPlayerServerService.this.continuable && generation == pusherGeneration.get()) {
                 MusicDetail switchedToPlay = null;
@@ -84,7 +86,12 @@ public class MusicPlayerServerService {
                         if (musicQueue.isEmpty()) {
                             switchedToPlay = eligiblePreload() ? preloadMusicDetail
                                     : selectIdleMusic(null, null).orElse(MusicDetail.NONE);
-                            if (switchedToPlay.equals(MusicDetail.NONE)) break;
+                            if (switchedToPlay.equals(MusicDetail.NONE)) {
+                                // Retire atomically with the empty selection. A new source
+                                // added after this point must be able to start its own worker.
+                                finishMusicPusher(generation, thread);
+                                break;
+                            }
                             preloadMusicDetail = selectIdleMusic(null, null).orElse(MusicDetail.NONE);
                         } else {
                             switchedToPlay = musicQueue.remove().musicDetail();
@@ -165,14 +172,8 @@ public class MusicPlayerServerService {
                     }
                 }
             }
+            finishMusicPusher(generation, thread);
             logger.info("Music Pusher stopped");
-            if (pusherThread == thread) {
-                pusherThread = null;
-                pusherThreadRunning = false;
-            }
-            if (generation == pusherGeneration.get()) {
-                MusicPlayerServerService.this.stopSendingMusic();
-            }
         }
 
         };
@@ -269,7 +270,7 @@ public class MusicPlayerServerService {
         return instance;
     }
 
-    private void updateContinuable(boolean continuable) {
+    private synchronized void updateContinuable(boolean continuable) {
         if (continuable) {
             this.continuable = true;
             startMusicPusher();
@@ -282,7 +283,7 @@ public class MusicPlayerServerService {
     }
 
     private void startMusicPusher() {
-        synchronized (MusicPlayerServerService.class) {
+        synchronized (this) {
             if (pusherThreadRunning && runningPusherGeneration == pusherGeneration.get()) {
                 return;
             }
@@ -290,6 +291,14 @@ public class MusicPlayerServerService {
             runningPusherGeneration = generation;
             pusherThreadRunning = true;
             workerExecutor.execute(createMusicPusher(generation));
+        }
+    }
+
+    private synchronized void finishMusicPusher(int generation, Thread thread) {
+        if (generation == pusherGeneration.get()) stopSendingMusic();
+        if (pusherThread == thread && runningPusherGeneration == generation) {
+            pusherThread = null;
+            pusherThreadRunning = false;
         }
     }
 
