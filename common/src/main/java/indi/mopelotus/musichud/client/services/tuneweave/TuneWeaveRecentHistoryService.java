@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
@@ -12,6 +14,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -61,9 +64,8 @@ final class TuneWeaveRecentHistoryService {
         require(isFalse(object(page.get("extensions")).get("continuation_supported")));
         Long total = number(page.get("total"), true);
 
-        // Validate every record before the shared entity mapper publishes any summaries.
-        var raw = new ArrayList<Raw>();
-        for (JsonElement element : data.getAsJsonArray()) {
+        // Validate each record independently before publishing its summary.
+        var raw = ItemMapping.map("recent history records", data.getAsJsonArray(), element -> {
             JsonObject entry = object(element);
             JsonObject resource = canonicalResource(kind, object(entry.get(kind.field())));
             String reference = text(resource.get("ref"), true);
@@ -78,17 +80,16 @@ final class TuneWeaveRecentHistoryService {
                 JsonObject value = object(entry.get("device"));
                 device = new Device(text(value.get("name"), false), text(value.get("operating_system"), false));
             }
-            raw.add(new Raw(resource, time, device));
-        }
-        var entries = new ArrayList<Entry<?>>();
-        for (Raw entry : raw) {
+            return new Raw(resource, time, device);
+        });
+        List<Entry<?>> entries = ItemMapping.map("recent history summaries", raw, entry -> {
             Object resource = switch (kind) {
                 case TRACKS -> entities.toTrack(platform, entry.resource());
                 case ALBUMS -> entities.toAlbum(platform, entry.resource());
                 case PLAYLISTS -> entities.toPlaylist(platform, entry.resource(), false);
             };
-            entries.add(new Entry<>(resource, entry.playedAt(), entry.device()));
-        }
+            return new Entry<>(resource, entry.playedAt(), entry.device());
+        });
         return new TuneWeaveRecentHistory(kind, entries, total);
     }
 
