@@ -325,9 +325,7 @@ final class TuneWeaveUniPlaylistService {
                 materializedDescription = string(data, "description", "");
             }
             List<JsonElement> page = elements(data);
-            for (JsonElement value : page) {
-                materialized.add(unwrap(value).deepCopy());
-            }
+            materialized.addAll(ItemMapping.map("materialized import entries", page, value -> unwrap(object(value)).deepCopy()));
             JsonElement count = data.get("item_count");
             try {
                 if (count == null || !count.isJsonPrimitive() || !count.getAsJsonPrimitive().isNumber()) {
@@ -374,10 +372,7 @@ final class TuneWeaveUniPlaylistService {
     private List<JsonObject> materializeItems(JsonObject body) {
         JsonObject data = object(gateway.requestWithAllCredentials(
                 "POST", "/v1/uni/materialize/items", Map.of(), body).data());
-        List<JsonObject> result = new ArrayList<>();
-        for (JsonElement value : elements(data)) {
-            result.add(unwrap(value).deepCopy());
-        }
+        List<JsonObject> result = ItemMapping.map("materialized playlist entries", elements(data), value -> unwrap(object(value)).deepCopy());
         if (result.isEmpty()) {
             throw new IllegalArgumentException("TuneWeave did not materialize any playlist items");
         }
