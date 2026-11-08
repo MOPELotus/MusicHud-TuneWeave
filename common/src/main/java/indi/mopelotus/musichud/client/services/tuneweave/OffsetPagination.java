@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient;
@@ -41,12 +43,11 @@ final class OffsetPagination {
             itemCount += raw.size();
             boolean hasMore = !parsed.complete();
             int next = parsed.nextOffset();
-            List<JsonElement> unique = new ArrayList<>();
-            for (JsonElement value : raw) {
+            List<JsonElement> unique = ItemMapping.map("pagination entries", raw, value -> {
                 JsonObject entity = TuneWeaveJson.unwrap(value);
                 String ref = TuneWeaveJson.string(entity, "ref", TuneWeaveJson.string(entity, "reference", ""));
-                if (ref.isBlank() || seen.add(ref)) unique.add(value);
-            }
+                return ref.isBlank() || seen.add(ref) ? value : null;
+            });
             requireCurrent(current);
             consumer.accept(new Page(unique, next, !hasMore));
             if (!hasMore) return;

@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonElement;
 import indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient;
 import java.util.*;
@@ -57,10 +59,11 @@ final class ResumableOffsetCollection<K, T> {
         LinkedHashMap<String, T> merged = new LinkedHashMap<>();
         initial.items().forEach(item -> merged.put(identity.apply(item), item));
         OffsetPagination.walk(request, initial.nextOffset(), page -> {
-            for (JsonElement raw : page.items()) {
+            var mapped = ItemMapping.map("collection entries", page.items(), raw -> {
                 T item = mapper.apply(raw);
-                if (item != null) merged.putIfAbsent(identity.apply(item), item);
-            }
+                return item == null ? null : Map.entry(identity.apply(item), item);
+            });
+            for (var item : mapped) merged.putIfAbsent(item.getKey(), item.getValue());
             if (merged.size() > OffsetPagination.MAX_ITEMS) throw new IllegalArgumentException("Too many collection items");
             Snapshot<T> snapshot = new Snapshot<>(new ArrayList<>(merged.values()), page.nextOffset(), page.complete());
             synchronized (this) {
