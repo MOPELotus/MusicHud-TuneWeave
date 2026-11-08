@@ -11,10 +11,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class UpdateCatalogTest {
     private static final String HASH = "a".repeat(64);
-    private static ClientUpdateCatalog.Installed installed(String edition) {
+    static ClientUpdateCatalog.Installed installed(String edition) {
         return new ClientUpdateCatalog.Installed(edition.equals("cf") ? "1.3.0-cf.1+26.3" : "1.3.0+26.3", edition, "fabric", "26.3");
     }
-    private static String catalog(String edition) {
+    static String catalog(String edition) {
         String version = "1.4.0-beta.1" + (edition.equals("cf") ? "-cf.1" : "") + "+26.3";
         return """
                 {"schema":1,"repository":"MOPELotus/MusicHud-TuneWeave","tag":"v1.4.0-beta.1","distribution":"%s",
@@ -32,6 +32,20 @@ class UpdateCatalogTest {
         var neo = new ClientUpdateCatalog.Installed("1.3.0+26.3", "standard", "neoforge", "26.3");
         assertTrue(ClientUpdateCatalog.select(catalog("standard"), "v1.4.0-beta.1", neo, true, "").isEmpty());
     }
+    @Test void malformedArtifactDoesNotDiscardAValidNeighborButAmbiguousValidUpdatesStillFail() {
+        var root = com.google.gson.JsonParser.parseString(catalog("standard")).getAsJsonObject();
+        var rows = root.getAsJsonArray("artifacts");
+        var healthy = rows.get(0).deepCopy();
+        var broken = healthy.deepCopy().getAsJsonObject();
+        broken.addProperty("sha256", "invalid");
+        rows.remove(0); rows.add(com.google.gson.JsonNull.INSTANCE); rows.add(broken); rows.add(healthy);
+        var selected = ClientUpdateCatalog.select(root.toString(), "v1.4.0-beta.1", installed("standard"), true, "").orElseThrow();
+        assertEquals(HASH, selected.sha256());
+        rows.add(healthy.deepCopy());
+        assertThrows(IllegalArgumentException.class,
+                () -> ClientUpdateCatalog.select(root.toString(), "v1.4.0-beta.1", installed("standard"), true, ""));
+    }
+
     @Test void malformedCatalogsFailClosed() {
         String valid = catalog("standard");
         for (String bad : List.of(valid.replace("\"schema\":1", "\"schema\":1.5"), valid.replace("\"size\":123", "\"size\":1.2"),

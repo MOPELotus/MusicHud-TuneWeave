@@ -54,39 +54,52 @@ public final class ClientUpdateCatalog {
             throw new IllegalArgumentException("Catalog identity mismatch");
         JsonArray rows = root.getAsJsonArray("artifacts");
         if (rows.size() > 64) throw new IllegalArgumentException("Too many catalog artifacts");
-        Offer best = null; Set<String> names = new HashSet<>();
-        for (JsonElement element : rows) {
-            JsonObject row = element.getAsJsonObject();
-            String version = string(row, "version"), distribution = string(row, "distribution"), loader = string(row, "loader");
-            ReleaseVersion parsed = ReleaseVersion.parse(version);
-            if (!distribution.equals(installed.distribution()) || !Set.of("fabric", "neoforge").contains(loader)
-                    || distribution.equals("cf") != (parsed.cfRevision() > 0)) throw new IllegalArgumentException("Mixed catalog identity");
-            String base = version.split("\\+", -1)[0].replaceFirst("-cf\\.[0-9]+$", "");
-            if (!("v" + base).equals(tag)) throw new IllegalArgumentException("Version does not match release tag");
-            String file = string(row, "file");
-            if (!file.equals("musichud-tuneweave-" + loader + "-" + version + ".jar") || !names.add(file))
-                throw new IllegalArgumentException("Unexpected or duplicate JAR name");
-            assetUri(tag, file);
-            String hash = string(row, "sha256"); long size = integer(row, "size");
-            if (!hash.matches("[0-9a-f]{64}") || size <= 0 || size > MAX_JAR_BYTES) throw new IllegalArgumentException("Invalid JAR integrity metadata");
-            List<String> minecraft = new ArrayList<>();
-            JsonArray games = row.getAsJsonArray("minecraft");
-            if (games.isEmpty() || games.size() > 32) throw new IllegalArgumentException("Invalid game version list");
-            for (JsonElement game : games) {
-                if (!game.isJsonPrimitive() || !game.getAsJsonPrimitive().isString()) throw new IllegalArgumentException("Invalid game version type");
-                String value = game.getAsString(); if (!value.matches("[0-9]+(?:\\.[0-9]+){1,2}")) throw new IllegalArgumentException("Invalid game version");
-                if (minecraft.contains(value)) throw new IllegalArgumentException("Duplicate game version");
-                minecraft.add(value);
-            }
-            List<String> serviceProfiles = profiles(row);
-            if (!loader.equals(installed.loader()) || !minecraft.contains(installed.minecraft())
+        var rejected = new java.util.concurrent.atomic.AtomicReference<RuntimeException>();
+        var artifacts = indi.mopelotus.musichud.utils.collections.ItemMapping.map("update catalog artifacts", rows, element -> {
+            try { return parseArtifact(element, tag, installed, notes); }
+            catch (RuntimeException invalid) { rejected.compareAndSet(null, invalid); throw invalid; }
+        });
+        Offer best = null;
+        Set<String> names = new HashSet<>();
+        for (Offer offer : artifacts) {
+            if (!names.add(offer.file())) throw new IllegalArgumentException("Duplicate update JAR name");
+            ReleaseVersion parsed = ReleaseVersion.parse(offer.version());
+            if (!offer.loader().equals(installed.loader()) || !offer.minecraft().contains(installed.minecraft())
                     || !allowPrerelease && !parsed.pre().isEmpty() || parsed.compareTo(ReleaseVersion.parse(installed.version())) <= 0) continue;
-            Offer offer = new Offer(tag, version, distribution, loader, minecraft, file, hash, size,
-                    notes == null ? "" : notes.substring(0, Math.min(notes.length(), 12_000)), serviceProfiles);
             if (best != null) throw new IllegalArgumentException("Ambiguous updates for this client");
             best = offer;
         }
+        if (best == null && rejected.get() != null)
+            throw new IllegalArgumentException("No usable update catalog artifacts", rejected.get());
         return Optional.ofNullable(best);
+    }
+
+    private static Offer parseArtifact(JsonElement element, String tag, Installed installed, String notes) {
+        JsonObject row = element.getAsJsonObject();
+        String version = string(row, "version"), distribution = string(row, "distribution"), loader = string(row, "loader");
+        ReleaseVersion parsed = ReleaseVersion.parse(version);
+        if (!distribution.equals(installed.distribution()) || !Set.of("fabric", "neoforge").contains(loader)
+                || distribution.equals("cf") != (parsed.cfRevision() > 0)) throw new IllegalArgumentException("Mixed catalog identity");
+        String base = version.split("\\+", -1)[0].replaceFirst("-cf\\.[0-9]+$", "");
+        if (!("v" + base).equals(tag)) throw new IllegalArgumentException("Version does not match release tag");
+        String file = string(row, "file");
+        if (!file.equals("musichud-tuneweave-" + loader + "-" + version + ".jar"))
+            throw new IllegalArgumentException("Unexpected JAR name");
+        assetUri(tag, file);
+        String hash = string(row, "sha256"); long size = integer(row, "size");
+        if (!hash.matches("[0-9a-f]{64}") || size <= 0 || size > MAX_JAR_BYTES) throw new IllegalArgumentException("Invalid JAR integrity metadata");
+        List<String> minecraft = new ArrayList<>();
+        JsonArray games = row.getAsJsonArray("minecraft");
+        if (games.isEmpty() || games.size() > 32) throw new IllegalArgumentException("Invalid game version list");
+        for (JsonElement game : games) {
+            if (!game.isJsonPrimitive() || !game.getAsJsonPrimitive().isString()) throw new IllegalArgumentException("Invalid game version type");
+            String value = game.getAsString(); if (!value.matches("[0-9]+(?:\\.[0-9]+){1,2}")) throw new IllegalArgumentException("Invalid game version");
+            if (minecraft.contains(value)) throw new IllegalArgumentException("Duplicate game version");
+            minecraft.add(value);
+        }
+        List<String> serviceProfiles = profiles(row);
+        return new Offer(tag, version, distribution, loader, minecraft, file, hash, size,
+                notes == null ? "" : notes.substring(0, Math.min(notes.length(), 12_000)), serviceProfiles);
     }
     private static List<String> profiles(JsonObject row) {
         if (!row.has("service_profiles")) return List.of();
