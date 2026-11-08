@@ -56,6 +56,22 @@ class PublicPlaybackServiceTest {
         }
     }
 
+    @Test void idlePlaylistWithMissingDurationStillStartsItsPlayableTracks() throws Exception {
+        try (Harness h = new Harness()) {
+            Playlist playlist = Playlist.fromTuneWeave(42, "qq:playlist", "Source", "", 2, 0,
+                    indi.mopelotus.musichud.beans.user.Profile.ANONYMOUS);
+            playlist.getTracks().add(MusicDetail.fromTuneWeave(2, "qq:unavailable", "track", "Unavailable", 0, Album.NONE, List.of()));
+            playlist.getTracks().add(MusicDetail.fromTuneWeave(1, "qq:playable", "track", "Playable", 60_000, Album.NONE, List.of()));
+            h.service.addIdlePlaySource(playlist, new PusherInfo(h.owner.uuid(), h.owner.name()));
+            Runnable pusher = h.tasks.poll(2, TimeUnit.SECONDS);
+            assertNotNull(pusher);
+            h.workers.submit(pusher);
+            PlaybackSession session = h.sessions.poll(2, TimeUnit.SECONDS);
+            assertNotNull(session);
+            assertEquals("qq:playable", session.musicDetail().getSourceRef());
+        }
+    }
+
     @Test void clientIdleSourceStartsPublicPlaybackWithoutServerProviderLookup() throws Exception {
         try (Harness h = new Harness()) {
             Playlist playlist = Playlist.fromTuneWeave(42, "netease:playlist:42", "Source", "", 1, 0,

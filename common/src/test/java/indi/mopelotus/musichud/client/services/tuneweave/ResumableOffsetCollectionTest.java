@@ -86,6 +86,39 @@ class ResumableOffsetCollectionTest {
         }
     }
 
+    @Test void anAllInvalidPageStillAdvancesToItsValidSuccessorAndCachesTheResult() {
+        var cache = new ResumableOffsetCollection<String, String>();
+        List<Integer> requested = new ArrayList<>();
+        var result = cache.load("a", false, offset -> {
+            requested.add(offset);
+            return offset == 0 ? page(true, 2, "bad-one", "bad-two") : page(false, 3, "good");
+        }, value -> {
+            String ref = reference(value);
+            if (ref.startsWith("bad")) throw new IllegalArgumentException("malformed item");
+            return ref;
+        }, value -> value, snapshot -> {});
+        assertEquals(List.of(0, 2), requested);
+        assertEquals(List.of("good"), result.items());
+        assertTrue(result.complete());
+        assertEquals(List.of("good"), cache.load("a", false, offset -> {
+            fail("A complete filtered result must be cached"); return null;
+        }, ResumableOffsetCollectionTest::reference, value -> value, snapshot -> {}).items());
+    }
+
+    @Test void invalidIdentityDoesNotDiscardItsValidNeighborsAndStaleMappingStillCancels() {
+        var cache = new ResumableOffsetCollection<String, String>();
+        var result = cache.load("a", false, offset -> page(false, 3, "one", "bad", "two"),
+                ResumableOffsetCollectionTest::reference, value -> {
+                    if (value.equals("bad")) throw new IllegalArgumentException("invalid identity");
+                    return value;
+                }, snapshot -> {});
+        assertEquals(List.of("one", "two"), result.items());
+        assertThrows(CancellationException.class, () -> cache.load("a", true,
+                offset -> page(false, 1, "old"), value -> {
+                    cache.clear(); throw new IllegalArgumentException("stale invalid item");
+                }, value -> value, snapshot -> fail("Stale mapping published")));
+    }
+
     @Test void malformedPageDoesNotAdvanceCheckpoint() {
         var cache = new ResumableOffsetCollection<String, String>();
         assertThrows(RuntimeException.class, () -> cache.load("a", false,
