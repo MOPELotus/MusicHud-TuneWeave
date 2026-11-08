@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.utils;
 
+import indi.mopelotus.musichud.utils.collections.ListenerDispatch;
+
 import indi.mopelotus.musichud.interfaces.Unregister;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,8 +47,6 @@ public final class CollectionUpdateNotifier {
     private static void notifyListeners(ConcurrentHashMap<Long, CopyOnWriteArrayList<Runnable>> listenersMap, long id) {
         var list = listenersMap.get(id);
         if (list == null) return;
-        for (Runnable listener : list) {
-            listener.run();
-        }
+        ListenerDispatch.runEach(list);
     }
 }

@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.audio;
 
+import indi.mopelotus.musichud.utils.collections.ListenerDispatch;
+
 import indi.mopelotus.musichud.MusicHud;
 import indi.mopelotus.musichud.client.audio.StreamAudioPlayer.Status;
 import indi.mopelotus.musichud.beans.music.Fee;
@@ -117,7 +119,7 @@ final class PlaybackEngine implements PlaybackHandoff.Lane {
     private void setStatus(Status status) {
         if (this.status.get() != status) {
             this.status.set(status);
-            statusChangeListener.forEach(c -> c.accept(status));
+            ListenerDispatch.notifyEach(statusChangeListener, c -> c.accept(status));
         }
     }
 

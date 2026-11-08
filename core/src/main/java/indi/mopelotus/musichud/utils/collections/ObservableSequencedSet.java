@@ -40,9 +40,9 @@ public class ObservableSequencedSet<E> extends ForwardingSet<E> implements Seque
 
     // Publish only after releasing the collection lock: observers may consult another collection.
     private void changed(List<E> removed, List<E> added) {
-        removed.forEach(e -> removeListeners.forEach(listener -> listener.accept(e)));
-        added.forEach(e -> addListeners.forEach(listener -> listener.accept(e)));
-        changeListeners.forEach(Runnable::run);
+        removed.forEach(e -> ListenerDispatch.notifyEach(removeListeners, listener -> listener.accept(e)));
+        added.forEach(e -> ListenerDispatch.notifyEach(addListeners, listener -> listener.accept(e)));
+        ListenerDispatch.runEach(changeListeners);
     }
 
     @Override public boolean add(E element) {

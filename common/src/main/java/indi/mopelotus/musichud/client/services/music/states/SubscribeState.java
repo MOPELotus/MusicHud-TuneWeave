@@ -68,7 +68,7 @@ public class SubscribeState<T extends IdentifiedBeans> implements ISubscribeStat
                 if (selected) values.addFirst(entity);
                 else values.removeIf(value -> value.getId() == id);
                 var listeners = LISTENERS.get(new Key(scope, id, type));
-                if (listeners != null) listeners.forEach(listener -> listener.accept(selected));
+                if (listeners != null) indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(listeners, listener -> listener.accept(selected));
             });
         }, executor));
     }
