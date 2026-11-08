@@ -12,6 +12,30 @@ import java.util.concurrent.CompletionException;
 import static org.junit.jupiter.api.Assertions.*;
 
 class UserCollectionCacheTest {
+    @Test void brokenProgressListenerDoesNotRejectTheLoadOrOtherSubscribers() {
+        var cache = new UserCollectionCache<String>();
+        List<Runnable> tasks = new ArrayList<>();
+        var publish = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+        var pending = cache.loadProgress(false, callback -> {
+            publish.set(callback); return () -> "complete";
+        }, page -> { throw new IllegalStateException("broken UI"); }, tasks::add);
+        var shown = new ArrayList<String>();
+        assertSame(pending, cache.loadProgress(false, callback -> { throw new AssertionError(); }, shown::add, tasks::add));
+        publish.get().accept("partial");
+        assertEquals(List.of("partial"), shown);
+        tasks.getFirst().run();
+        assertEquals("complete", pending.join());
+    }
+
+    @Test void aListenerThatInvalidatesTheRequestCannotDeliverOldDataToLaterListeners() {
+        var cache = new UserCollectionCache<String>();
+        List<Runnable> tasks = new ArrayList<>();
+        var publish = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+        cache.loadProgress(false, callback -> { publish.set(callback); return () -> "old"; }, page -> cache.invalidate(), tasks::add);
+        cache.loadProgress(false, callback -> { throw new AssertionError(); }, page -> fail("stale page delivered"), tasks::add);
+        publish.get().accept("old");
+    }
+
     @Test void completedModuleExpiresAndRejectsClockRollback() {
         var clock = new java.util.concurrent.atomic.AtomicLong(1000);
         var cache = new UserCollectionCache<String>(clock::get);

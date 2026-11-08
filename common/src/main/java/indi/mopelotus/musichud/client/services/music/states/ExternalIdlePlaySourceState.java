@@ -29,7 +29,7 @@ public class ExternalIdlePlaySourceState extends AbstractIdlePlaySourceLayerStat
         java.util.UUID self = localPlayer.get();
         var fresh = new java.util.ArrayList<MusicCollection>();
         fresh.addAll(playlistSources); fresh.addAll(albumSources);
-        fresh.removeIf(source -> source.getPusherInfo() == null
+        fresh.removeIf(source -> source == null || source.getPusherInfo() == null
                 || source.getPusherInfo().equals(indi.mopelotus.musichud.beans.music.PusherInfo.EMPTY)
                 || source.getPusherInfo().getPlayerUUID().equals(self));
         Set<MusicCollection> previous = Set.copyOf(sources);

@@ -32,6 +32,38 @@ final class AccountCollectionModules<P, A, R> {
     CompletableFuture<R> artists(boolean refresh, Supplier<R> load, Executor executor) {
         return artists.load(refresh, load, executor);
     }
+    record Snapshot<P, A, R>(P playlists, A albums, R artists) {}
+    private record Read<T>(T value, Throwable failure) {}
+
+    static <P, A, R> CompletableFuture<Snapshot<P, A, R>> merge(
+            CompletableFuture<P> playlists, CompletableFuture<A> albums, CompletableFuture<R> artists,
+            P emptyPlaylists, A emptyAlbums, R emptyArtists) {
+        var p = observe(playlists);
+        var a = observe(albums);
+        var r = observe(artists);
+        return CompletableFuture.allOf(p, a, r).thenApply(ignored -> {
+            var pv = p.join(); var av = a.join(); var rv = r.join();
+            if (pv.failure() != null && av.failure() != null && rv.failure() != null)
+                throw new java.util.concurrent.CompletionException(pv.failure());
+            return new Snapshot<>(pv.failure() == null ? pv.value() : emptyPlaylists,
+                    av.failure() == null ? av.value() : emptyAlbums,
+                    rv.failure() == null ? rv.value() : emptyArtists);
+        });
+    }
+
+    private static <T> CompletableFuture<Read<T>> observe(CompletableFuture<T> future) {
+        return future.handle((value, failure) -> {
+            while (failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null)
+                failure = failure.getCause();
+            if (failure instanceof java.util.concurrent.CancellationException || failure instanceof Error)
+                throw new java.util.concurrent.CompletionException(failure);
+            if (failure == null && value == null) failure = new IllegalStateException("Missing account collection");
+            if (failure != null) indi.mopelotus.musichud.MusicHud.getLogger(AccountCollectionModules.class)
+                    .warn("An account collection section could not be loaded; retaining other sections");
+            return new Read<>(value, failure);
+        });
+    }
+
     void invalidate() {
         playlists.invalidate();
         albums.invalidate();

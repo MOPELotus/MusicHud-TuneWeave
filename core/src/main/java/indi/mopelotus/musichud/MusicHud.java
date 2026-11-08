@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud;
 
+import indi.mopelotus.musichud.utils.collections.ListenerDispatch;
+
 import indi.mopelotus.musichud.platform.Environment;
 import indi.mopelotus.musichud.utils.RegistrationManager;
 import lombok.Getter;
@@ -111,6 +113,6 @@ public final class MusicHud {
 
     public static void setConnectStatus(ConnectStatus status) {
         MusicHud.connectStatus = status;
-        connectStatusListeners.forEach(l -> l.accept(status));
+        ListenerDispatch.notifyEach(connectStatusListeners, l -> l.accept(status));
     }
 }
