@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import indi.mopelotus.musichud.MusicHud;
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
 import indi.mopelotus.musichud.beans.api.SearchType;
 import indi.mopelotus.musichud.beans.music.*;
 import indi.mopelotus.musichud.beans.music.actions.SubscribableType;
@@ -48,19 +49,19 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
     }
 
     public List<MusicDetail> searchMusic(String keywords, int offset, String platform) {
-        return searchItems(keywords, "track", offset, platform).stream().map(this::toTrack).toList();
+        return ItemMapping.map("track search", searchItems(keywords, "track", offset, platform), this::toTrack);
     }
 
     public List<Album> searchAlbums(String keywords, int offset, String platform) {
-        return searchItems(keywords, "album", offset, platform).stream().map(this::toAlbum).toList();
+        return ItemMapping.map("album search", searchItems(keywords, "album", offset, platform), this::toAlbum);
     }
 
     public List<Artist> searchArtists(String keywords, int offset, String platform) {
-        return searchItems(keywords, "artist", offset, platform).stream().map(this::toArtist).toList();
+        return ItemMapping.map("artist search", searchItems(keywords, "artist", offset, platform), this::toArtist);
     }
 
     public List<Playlist> searchPlaylists(String keywords, int offset, String platform) {
-        return searchItems(keywords, "playlist", offset, platform).stream().map(this::toPlaylist).toList();
+        return ItemMapping.map("playlist search", searchItems(keywords, "playlist", offset, platform), this::toPlaylist);
     }
 
     @Override
@@ -101,12 +102,12 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
             data = TuneWeaveApiClient.get("/v1/search", query);
         }
         List<JsonObject> result = new ArrayList<>();
-        for (JsonElement item : elements(data)) {
+        ItemMapping.forEach("music API metadata", elements(data), item -> {
             JsonObject object = unwrap(item);
             if (!object.isEmpty()) {
                 result.add(object);
             }
-        }
+        });
         return result;
     }
 
@@ -126,11 +127,11 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
         Playlist playlist = toPlaylist(TuneWeaveApiClient.get(
                 "/v1/playlists/" + TuneWeaveApiClient.encodePathSegment(reference), Map.of()));
         List<MusicDetail> tracks = new ArrayList<>();
-        for (JsonElement element : elements(TuneWeaveApiClient.get(
+        ItemMapping.forEach("music API metadata", elements(TuneWeaveApiClient.get(
                 "/v1/playlists/" + TuneWeaveApiClient.encodePathSegment(reference) + "/tracks",
-                Map.of("limit", "100", "offset", "0")))) {
+                Map.of("limit", "100", "offset", "0"))), element -> {
             tracks.add(toTrack(unwrap(element)));
-        }
+        });
         playlist.setTracks(observable(tracks));
         playlist.setMusicTrackCount(tracks.size());
         playlistsById.put(id, playlist);
@@ -147,11 +148,11 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
         Album album = toAlbum(TuneWeaveApiClient.get(
                 "/v1/albums/" + TuneWeaveApiClient.encodePathSegment(reference), Map.of()));
         List<MusicDetail> tracks = new ArrayList<>();
-        for (JsonElement item : elements(TuneWeaveApiClient.get(
+        ItemMapping.forEach("music API metadata", elements(TuneWeaveApiClient.get(
                 "/v1/albums/" + TuneWeaveApiClient.encodePathSegment(reference) + "/tracks",
-                pageQuery(playerUUID)))) {
+                pageQuery(playerUUID))), item -> {
             tracks.add(toTrack(unwrap(item)));
-        }
+        });
         album.setMusicDetails(observable(tracks));
         return album;
     }
@@ -175,9 +176,9 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
         Map<String, String> query = providerAccountQuery(playerUUID);
         query.put("limit", "50");
         query.put("offset", Integer.toString(Math.max(0, offset)));
-        return elements(TuneWeaveApiClient.get(
-                "/v1/artists/" + TuneWeaveApiClient.encodePathSegment(reference) + "/tracks", query))
-                .stream().map(this::unwrap).map(this::toTrack).toList();
+        return ItemMapping.map("artist tracks", elements(TuneWeaveApiClient.get(
+                "/v1/artists/" + TuneWeaveApiClient.encodePathSegment(reference) + "/tracks", query)),
+                item -> toTrack(unwrap(item)));
     }
 
     @Override
@@ -248,9 +249,9 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
 
     @Override
     public UserCategoryPlaylists getPlayersUserPlaylists(boolean ignoreCache, UUID playerUUID) {
-        List<Playlist> all = elements(TuneWeaveApiClient.get(
-                "/v1/account/playlists", pageAccountQuery(playerUUID))).stream()
-                .map(this::toPlaylist).filter(playlist -> playlist != Playlist.EMPTY).toList();
+        List<Playlist> all = ItemMapping.map("account playlists", elements(TuneWeaveApiClient.get(
+                "/v1/account/playlists", pageAccountQuery(playerUUID))), this::toPlaylist).stream()
+                .filter(playlist -> playlist != Playlist.EMPTY).toList();
         ObservableSequencedSet<Playlist> created = new ObservableSequencedSet<>();
         ObservableSequencedSet<Playlist> subscribed = new ObservableSequencedSet<>();
         for (Playlist playlist : all) {
@@ -269,26 +270,26 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
     @Override
     public LinkedHashSet<Album> getPlayersUserSubscribedAlbums(boolean ignoreCache, UUID playerUUID) {
         LinkedHashSet<Album> result = new LinkedHashSet<>();
-        for (JsonElement item : elements(TuneWeaveApiClient.get(
-                "/v1/account/library/albums", pageAccountQuery(playerUUID)))) {
+        ItemMapping.forEach("music API metadata", elements(TuneWeaveApiClient.get(
+                "/v1/account/library/albums", pageAccountQuery(playerUUID))), item -> {
             Album album = toAlbum(item);
             if (album != Album.NONE) {
                 result.add(album);
             }
-        }
+        });
         return result;
     }
 
     @Override
     public LinkedHashSet<Artist> getPlayersUserSubscribedArtists(boolean ignoreCache, UUID playerUUID) {
         LinkedHashSet<Artist> result = new LinkedHashSet<>();
-        for (JsonElement item : elements(TuneWeaveApiClient.get(
-                "/v1/account/following/artists", pageAccountQuery(playerUUID)))) {
+        ItemMapping.forEach("music API metadata", elements(TuneWeaveApiClient.get(
+                "/v1/account/following/artists", pageAccountQuery(playerUUID))), item -> {
             Artist artist = toArtist(item);
             if (!artist.getSourceRef().isBlank()) {
                 result.add(artist);
             }
-        }
+        });
         return result;
     }
 
@@ -359,13 +360,13 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
 
     private List<MusicDetail> accountTracks(UUID playerUUID) {
         List<MusicDetail> result = new ArrayList<>();
-        for (JsonElement item : elements(TuneWeaveApiClient.get(
-                "/v1/account/favorites/tracks", pageAccountQuery(playerUUID)))) {
+        ItemMapping.forEach("music API metadata", elements(TuneWeaveApiClient.get(
+                "/v1/account/favorites/tracks", pageAccountQuery(playerUUID))), item -> {
             MusicDetail detail = toTrack(item);
             if (detail != MusicDetail.NONE) {
                 result.add(detail);
             }
-        }
+        });
         return result;
     }
 
@@ -392,11 +393,11 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
         List<Artist> artists = new ArrayList<>();
         JsonElement artistData = object.get("artists");
         if (artistData != null && artistData.isJsonArray()) {
-            for (JsonElement artist : artistData.getAsJsonArray()) {
+            ItemMapping.forEach("music API metadata", artistData.getAsJsonArray(), artist -> {
                 if (artist.isJsonObject()) {
                     artists.add(toArtistSummary(artist.getAsJsonObject(), reference));
                 }
-            }
+            });
         }
         Album album = Album.NONE;
         JsonElement albumData = object.get("album");
@@ -459,11 +460,11 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
         LinkedHashSet<Artist> artists = new LinkedHashSet<>();
         JsonElement artistData = object.get("artists");
         if (artistData != null && artistData.isJsonArray()) {
-            for (JsonElement artist : artistData.getAsJsonArray()) {
+            ItemMapping.forEach("music API metadata", artistData.getAsJsonArray(), artist -> {
                 if (artist.isJsonObject()) {
                     artists.add(toArtistSummary(artist.getAsJsonObject(), reference));
                 }
-            }
+            });
         }
         Album album = new Album(
                 id,
@@ -669,7 +670,7 @@ public final class TuneWeaveMusicApiService implements IMusicApiService {
             return Map.of();
         }
         Map<String, String> result = new LinkedHashMap<>();
-        element.getAsJsonObject().entrySet().forEach(entry -> {
+        ItemMapping.forEach("music resource map entries", element.getAsJsonObject().entrySet(), entry -> {
             if (!entry.getValue().isJsonNull()) {
                 result.put(entry.getKey(), entry.getValue().getAsString());
             }

@@ -1,6 +1,7 @@
 package indi.mopelotus.musichud.server.playback;
 
 import indi.mopelotus.musichud.beans.music.MusicDetail;
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
 import indi.mopelotus.musichud.beans.music.MusicResourceInfo;
 import indi.mopelotus.musichud.beans.music.PlaybackSession;
 
@@ -42,12 +43,16 @@ public final class SharedResourceValidator {
             throw new IllegalArgumentException("Resolver returned no music resource");
         }
         requireSafeHttpUrl(resourceInfo.getUrl());
-        resourceInfo.getBackupUrls().forEach(SharedResourceValidator::requireSafeHttpUrl);
+        var safeBackups = ItemMapping.map("shared resource backup URLs", resourceInfo.getBackupUrls(), url -> {
+            requireSafeHttpUrl(url);
+            return url;
+        });
         if (resourceInfo.getId() != 0L && resourceInfo.getId() != canonical.getId()) {
             throw new IllegalArgumentException("Resolved resource does not match canonical track");
         }
         Map<String, String> safeHeaders = new LinkedHashMap<>();
-        resourceInfo.getHeaders().forEach((name, value) -> {
+        ItemMapping.forEach("shared resource headers", resourceInfo.getHeaders().entrySet(), entry -> {
+            String name = entry.getKey(), value = entry.getValue();
             if (name == null || value == null) return;
             String normalizedName = name.trim().toLowerCase(Locale.ROOT);
             if (!ALLOWED_HEADERS.contains(normalizedName)) return;
@@ -60,7 +65,7 @@ public final class SharedResourceValidator {
                 canonical.getId(), resourceInfo.getUrl(), resourceInfo.getBitrate(),
                 resourceInfo.getSize(), resourceInfo.getType(), resourceInfo.getMd5(),
                 resourceInfo.getFee(), resourceInfo.getTime(), safeHeaders,
-                resourceInfo.getBackupUrls(), resourceInfo.getRequestedQuality(), resourceInfo.getActualQuality());
+                safeBackups, resourceInfo.getRequestedQuality(), resourceInfo.getActualQuality());
         sanitized.setResolvedTrackReference(resourceInfo.getResolvedTrackReference());
         return sanitized;
     }

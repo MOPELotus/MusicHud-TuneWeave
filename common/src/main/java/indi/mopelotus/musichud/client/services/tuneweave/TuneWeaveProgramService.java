@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import indi.mopelotus.musichud.MusicHud;
@@ -43,14 +45,14 @@ final class TuneWeaveProgramService {
                 platform, "GET", "/v1/podcasts/categories",
                 Map.of("platform", platform.apiName(), "kind", "all"), null).data());
         List<TuneWeavePodcastCategory> result = new ArrayList<>();
-        for (JsonElement value : elements(data.get("categories"))) {
+        ItemMapping.forEach("podcast categories", elements(data.get("categories")), value -> {
             JsonObject category = unwrap(value);
             String id = string(category, "id", "");
             if (!id.isBlank()) {
                 result.add(new TuneWeavePodcastCategory(id, string(category, "name", id),
                         string(category, "icon_url", "")));
             }
-        }
+        });
         return result;
     }
 
@@ -189,20 +191,20 @@ final class TuneWeaveProgramService {
                 platform, "GET", "/v1/radio/styles",
                 Map.of("platform", platform.apiName(), "sources", "0,1,2"), null).data());
         LinkedHashMap<String, TuneWeaveRadioStation> result = new LinkedHashMap<>();
-        for (JsonElement sourceValue : elements(data.get("sources"))) {
+        ItemMapping.forEach("radio sources", elements(data.get("sources")), sourceValue -> {
             JsonObject source = unwrap(sourceValue);
-            for (JsonElement styleValue : elements(source.get("styles"))) {
+            ItemMapping.forEach("radio styles", elements(source.get("styles")), styleValue -> {
                 JsonObject style = unwrap(styleValue);
                 String styleName = string(style, "localized_name", string(style, "name", ""));
-                for (JsonElement channelValue : elements(style.get("channels"))) {
+                ItemMapping.forEach("radio channels", elements(style.get("channels")), channelValue -> {
                     TuneWeaveRadioStation station = entities.toRadioStation(
                             platform, unwrap(channelValue), styleName);
                     if (!station.reference().isBlank()) {
                         result.putIfAbsent(station.reference(), station);
                     }
-                }
-            }
-        }
+                });
+            });
+        });
         return List.copyOf(result.values());
     }
 
@@ -212,7 +214,10 @@ final class TuneWeaveProgramService {
     List<TuneWeaveRadioStation> loadAccountRadioStations(TuneWeavePlatform platform, boolean refresh,
             java.util.function.Consumer<List<TuneWeaveRadioStation>> progress) {
         LinkedHashMap<String, TuneWeaveRadioStation> result = new LinkedHashMap<>();
+        RuntimeException firstFailure = null;
+        int completed = 0;
         for (String catalog : List.of("broadcast", "styled")) {
+            try {
             Map<String, String> query = new LinkedHashMap<>();
             query.put("platform", platform.apiName());
             query.put("catalog", catalog);
@@ -229,7 +234,14 @@ final class TuneWeaveProgramService {
                     })) {
                 result.putIfAbsent(station.reference(), station);
             }
+            completed++;
+            } catch (java.util.concurrent.CancellationException cancelled) { throw cancelled; }
+            catch (RuntimeException failure) {
+                if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException("Radio collection interrupted");
+                if (firstFailure == null) firstFailure = failure;
+            }
         }
+        if (completed == 0 && firstFailure != null) throw firstFailure;
         return List.copyOf(result.values());
     }
 
@@ -253,7 +265,7 @@ final class TuneWeaveProgramService {
                         + TuneWeaveApiClient.encodePathSegment(station.reference()) + "/tracks",
                 Map.of("limit", "100"), null).data());
         List<MusicDetail> result = new ArrayList<>();
-        for (JsonElement value : elements(data.get("items"))) {
+        ItemMapping.forEach("radio tracks", elements(data.get("items")), value -> {
             JsonObject item = unwrap(value);
             String itemReference = string(item, "ref", "");
             String title = string(item, "title", station.name());
@@ -273,7 +285,7 @@ final class TuneWeaveProgramService {
             track.setPusherInfo(PusherInfo.EMPTY);
             entities.cacheTrack(track);
             result.add(track);
-        }
+        });
         return result;
     }
 
