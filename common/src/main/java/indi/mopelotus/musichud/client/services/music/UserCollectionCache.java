@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.music;
 
+import indi.mopelotus.musichud.utils.collections.ListenerDispatch;
+
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -36,7 +38,7 @@ final class UserCollectionCache<T> {
         }
         if (!refresh && scope == generation && pending != null && !pending.isDone()) {
             listeners.add(progress);
-            if (partial != null) progress.accept(partial);
+            if (partial != null) ListenerDispatch.notifyEach(List.of(progress), listener -> listener.accept(partial));
             return pending;
         }
         Object requested = new Object();
@@ -51,7 +53,9 @@ final class UserCollectionCache<T> {
                 if (request != requested) throw new CancellationException("Account page was superseded");
                 MusicEntityCache.publish(generation, () -> {
                     partial = page;
-                    List.copyOf(listeners).forEach(listener -> listener.accept(page));
+                    ListenerDispatch.notifyEach(List.copyOf(listeners), listener -> {
+                        if (request == requested && generation == MusicEntityCache.captureGeneration()) listener.accept(page);
+                    });
                 });
             }
         });

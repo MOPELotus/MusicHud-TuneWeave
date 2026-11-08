@@ -39,7 +39,9 @@ public final class ClientUpdateService {
     }
     private synchronized void set(State next) {
         state = next;
-        for (var listener : List.copyOf(listeners)) listener.accept(next);
+        indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(List.copyOf(listeners), listener -> {
+            if (state == next && listeners.contains(listener)) listener.accept(next);
+        });
     }
     public synchronized void check() {
         if (Set.of(Status.CHECKING, Status.DOWNLOADING, Status.READY).contains(state.status())) return;
