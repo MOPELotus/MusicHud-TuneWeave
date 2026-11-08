@@ -40,7 +40,16 @@ class LocalUniItemReuseTest {
         assertThrows(IllegalArgumentException.class, () -> service.materializeRequestedItems(List.of(""), "track"));
     }
 
-    private static TuneWeaveGateway gateway(List<List<String>> requests) {
+    @Test void malformedMaterializationEntryDoesNotDiscardItsValidNeighbors() {
+        var entities = new TuneWeaveEntityMapper(platform -> session(platform, "a"));
+        var service = new TuneWeaveUniPlaylistService(gateway(new ArrayList<>(), true), entities, new LocalUniPlaylistStore());
+        assertEquals(List.of("netease:1", "netease:2"),
+                service.materializeRequestedItems(List.of("netease:1", "netease:2"), "track").stream()
+                        .map(item -> item.get("source_ref").getAsString()).toList());
+    }
+
+    private static TuneWeaveGateway gateway(List<List<String>> requests) { return gateway(requests, false); }
+    private static TuneWeaveGateway gateway(List<List<String>> requests, boolean malformedEntry) {
         ClientConfig config = (ClientConfig) Proxy.newProxyInstance(ClientConfig.class.getClassLoader(), new Class<?>[]{ClientConfig.class},
                 (proxy, method, args) -> switch(method.getName()) {
                     case "getTuneWeaveBaseUrl" -> "http://127.0.0.1:7832";
@@ -52,6 +61,7 @@ class LocalUniItemReuseTest {
             assertEquals("/v1/uni/materialize/items", path);
             List<String> refs = new ArrayList<>();
             JsonArray items = new JsonArray();
+            if (malformedEntry) items.add(JsonNull.INSTANCE);
             for (JsonElement value : body.getAsJsonObject().getAsJsonArray("items")) {
                 String ref = value.getAsJsonObject().get("ref").getAsString();
                 refs.add(ref);

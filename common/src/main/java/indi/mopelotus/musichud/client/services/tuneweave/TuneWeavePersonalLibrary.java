@@ -37,6 +37,20 @@ public final class TuneWeavePersonalLibrary {
         return List.copyOf(ItemMapping.map("personal library entries", raw,
                 item -> parse(entities, platform, kind, occurrence.getAndIncrement(), object(item))));
     }
+    static List<MusicDetail> loadTracks(TuneWeaveGateway gateway, TuneWeaveEntityMapper entities, Entry entry) {
+        TuneWeavePlatform platform = entry.platform();
+        String root = entry.resourceKind().equals("playlist") ? "/v1/playlists/"
+                : platform == TuneWeavePlatform.SODA ? "/v1/albums/" : "/v1/digital-albums/";
+        String path = root + indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.encodePathSegment(entry.reference()) + "/tracks";
+        var items = OffsetPagination.loadAll(offset -> {
+            var query = Map.of("limit", "100", "offset", Integer.toString(offset));
+            return entry.resourceKind().equals("digital_album") && platform == TuneWeavePlatform.MIGU
+                    ? gateway.requestWithoutCredential("GET", path, query, null)
+                    : gateway.requestForPlatform(platform, "GET", path, query, null);
+        });
+        return List.copyOf(ItemMapping.map("personal library tracks", items,
+                item -> entities.toTrack(platform, unwrap(item))));
+    }
     static TuneWeaveSubmissionOutcome submit(TuneWeaveGateway gateway, String reference, boolean deletion) {
         if (TuneWeaveReference.platform(reference) != TuneWeavePlatform.KUWO
                 || reference.substring(reference.indexOf(':') + 1).isBlank())
