@@ -13,7 +13,7 @@ public final class StreamAudioPlayer {
     public enum Status { IDLE, BUFFERING, PLAYING, RETRYING, ERROR }
     private static final StreamAudioPlayer INSTANCE = new StreamAudioPlayer();
     private final Set<Consumer<Status>> listeners = ConcurrentHashMap.newKeySet();
-    private final PlaybackStatusState status = new PlaybackStatusState(next -> listeners.forEach(listener -> listener.accept(next)));
+    private final PlaybackStatusState status = new PlaybackStatusState(next -> indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(listeners, listener -> listener.accept(next)));
     private final PlaybackHandoff<PlaybackEngine> handoff = new PlaybackHandoff<>(MusicHud.EXECUTOR,
             task -> CompletableFuture.delayedExecutor(20, TimeUnit.MILLISECONDS, MusicHud.EXECUTOR).execute(task), System::nanoTime);
 

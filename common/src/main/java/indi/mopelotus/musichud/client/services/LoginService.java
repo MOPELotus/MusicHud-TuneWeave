@@ -78,7 +78,7 @@ public class LoginService implements IClientLoginService {
         LoginState state = getLoginState();
         if (state == loginState) return;
         loginState = state;
-        loginStateListeners.forEach(listener -> listener.accept(state));
+        indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(loginStateListeners, listener -> listener.accept(state));
     }
 
     public void clearLastLoginErrorMessage() {

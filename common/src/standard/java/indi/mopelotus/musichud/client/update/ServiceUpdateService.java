@@ -37,7 +37,9 @@ public final class ServiceUpdateService {
     }
     private synchronized void publish(State next) {
         state = next;
-        for (var listener : List.copyOf(listeners)) listener.accept(next);
+        indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(List.copyOf(listeners), listener -> {
+            if (state == next && listeners.contains(listener)) listener.accept(next);
+        });
     }
     private synchronized void complete(long operation, State next) {
         if (operation == generation) publish(next);

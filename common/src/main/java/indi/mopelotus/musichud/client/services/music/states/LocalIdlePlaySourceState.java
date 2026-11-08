@@ -83,11 +83,11 @@ public class LocalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
 
     private void markError(IdlePlaySource source) {
         loadErrors.put(source, source);
-        errorListeners.forEach(listener -> listener.accept(source));
+        indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(errorListeners, listener -> listener.accept(source));
     }
 
     private void clearError(IdlePlaySource source) {
-        if (loadErrors.remove(source) != null) errorListeners.forEach(listener -> listener.accept(source));
+        if (loadErrors.remove(source) != null) indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(errorListeners, listener -> listener.accept(source));
     }
 
     @Override public synchronized boolean isInLoadError(Class<?> type, long id) {
@@ -280,7 +280,7 @@ public class LocalIdlePlaySourceState extends AbstractIdlePlaySourceLayerState {
         canceled.forEach(future -> future.complete(false));
         var errors = java.util.List.copyOf(loadErrors.keySet());
         loadErrors.clear();
-        errors.forEach(source -> errorListeners.forEach(listener -> listener.accept(source)));
+        errors.forEach(source -> indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(errorListeners, listener -> listener.accept(source)));
         loadGeneration++;
         loaded = false;
     }

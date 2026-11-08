@@ -7,6 +7,19 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AccountCollectionModulesTest {
+    @Test void aggregateRetainsSuccessfulSectionsButNeverTurnsCancellationOrTotalFailureIntoSuccess() {
+        var good = CompletableFuture.completedFuture("good");
+        var bad = CompletableFuture.<String>failedFuture(new IllegalStateException("unavailable section"));
+        var partial = AccountCollectionModules.merge(good, bad, good, "empty playlists", "empty albums", "empty artists").join();
+        assertEquals("good", partial.playlists());
+        assertEquals("empty albums", partial.albums());
+        assertEquals("good", partial.artists());
+        assertThrows(CompletionException.class, () -> AccountCollectionModules.merge(bad, bad, bad, "", "", "").join());
+        var cancelled = CompletableFuture.<String>failedFuture(new CancellationException("account replaced"));
+        assertInstanceOf(CancellationException.class, assertThrows(CompletionException.class,
+                () -> AccountCollectionModules.merge(good, cancelled, good, "", "", "").join()).getCause());
+    }
+
     @AfterEach void clear() { MusicEntityCache.clear(); }
 
     @Test void slowPlaylistsAndFailedAlbumsDoNotBlockArtistsAndRetryOnlyReloadsFailure() {
