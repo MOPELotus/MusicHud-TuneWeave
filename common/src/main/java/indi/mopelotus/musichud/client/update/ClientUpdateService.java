@@ -104,25 +104,12 @@ public final class ClientUpdateService {
         public Optional<ClientUpdateCatalog.Offer> check() throws Exception {
             UpdateInstallation.checkServiceUpdate();
             JsonArray releases = JsonParser.parseString(text(URI.create("https://api.github.com/repos/" + ClientUpdateCatalog.REPOSITORY + "/releases?per_page=20"))).getAsJsonArray();
-            ClientUpdateCatalog.Offer best = null;
-            for (JsonElement element : releases) {
-                var release = element.getAsJsonObject();
-                if (release.get("draft").getAsBoolean()) continue;
-                String tag = ClientUpdateCatalog.string(release, "tag_name");
-                try { ClientUpdateCatalog.assetUri(tag, "catalog.json"); } catch (IllegalArgumentException ignored) { continue; }
-                ReleaseVersion target = ReleaseVersion.parse(tag.substring(1)), current = ReleaseVersion.parse(installed.version());
-                // Equal base versions can still contain a newer CF packaging revision.
-                if (target.compareTo(new ReleaseVersion(current.major(), current.minor(), current.patch(), current.pre(), 0)) < 0) continue;
-                String catalogName = "client-updates-" + installed.distribution() + ".json";
-                boolean published = false;
-                for (JsonElement asset : release.getAsJsonArray("assets")) if (catalogName.equals(ClientUpdateCatalog.string(asset.getAsJsonObject(), "name"))) published = true;
-                if (!published) continue;
-                var offer = ClientUpdateCatalog.select(text(ClientUpdateCatalog.assetUri(tag, catalogName)), tag, installed, true,
-                        release.has("body") && !release.get("body").isJsonNull() ? release.get("body").getAsString() : "");
-                if (offer.isPresent() && (best == null || ReleaseVersion.parse(offer.get().version()).compareTo(ReleaseVersion.parse(best.version())) > 0)) best = offer.get();
-            }
-            return Optional.ofNullable(best);
+            return ClientReleaseCandidates.select(releases, installed, uri -> {
+                try { return text(uri); }
+                catch (IOException failure) { throw new UncheckedIOException(failure); }
+            });
         }
+
         public String compatibility(ClientUpdateCatalog.Offer offer) { return UpdateInstallation.compatibility(offer); }
         public synchronized void stage(ClientUpdateCatalog.Offer offer) throws Exception {
             UpdateInstallation.stage(jar, installed, offer);
