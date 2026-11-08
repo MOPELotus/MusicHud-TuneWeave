@@ -375,6 +375,11 @@ public final class TuneWeaveApiClient {
         @Override public String toString() { return "TuneWeaveResponse[statusCode=" + statusCode + "]"; }
     }
 
+    public static final class MalformedDataException extends TuneWeaveException
+            implements indi.mopelotus.musichud.utils.collections.ItemMapping.MalformedItem {
+        public MalformedDataException(String message) { super(message, false); }
+    }
+
     public static class TuneWeaveException extends RuntimeException {
         @Getter
         private final int statusCode;

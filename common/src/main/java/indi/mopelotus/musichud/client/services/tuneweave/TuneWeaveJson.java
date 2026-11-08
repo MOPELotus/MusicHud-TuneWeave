@@ -19,8 +19,8 @@ final class TuneWeaveJson {
 
     static JsonObject object(JsonElement element) {
         if (element == null || element.isJsonNull() || !element.isJsonObject()) {
-            throw new TuneWeaveApiClient.TuneWeaveException(
-                    "TuneWeave response is missing an object", false);
+            throw new TuneWeaveApiClient.MalformedDataException(
+                    "TuneWeave response is missing an object");
         }
         return element.getAsJsonObject();
     }
@@ -28,8 +28,8 @@ final class TuneWeaveJson {
     static String requiredString(JsonObject object, String key) {
         String value = string(object, key);
         if (value == null || value.isBlank()) {
-            throw new TuneWeaveApiClient.TuneWeaveException(
-                    "TuneWeave response is missing " + key, false);
+            throw new TuneWeaveApiClient.MalformedDataException(
+                    "TuneWeave response is missing " + key);
         }
         return value;
     }
