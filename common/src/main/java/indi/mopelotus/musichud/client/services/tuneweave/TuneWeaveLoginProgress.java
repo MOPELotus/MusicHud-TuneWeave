@@ -24,13 +24,17 @@ public record TuneWeaveLoginProgress(String state, JsonObject verification, List
             if (!data.get("accounts").isJsonArray() || data.getAsJsonArray("accounts").size() > 100)
                 throw new IllegalArgumentException("Invalid login candidates");
             var ids = new java.util.HashSet<String>();
-            for (var item : data.getAsJsonArray("accounts")) {
+            var valid = indi.mopelotus.musichud.utils.collections.ItemMapping.map("login candidates", data.getAsJsonArray("accounts"), item -> {
                 JsonObject value = TuneWeaveJson.object(item);
                 String id = TuneWeaveJson.requiredString(value, "user_id");
                 String nickname = TuneWeaveJson.string(value, "nickname");
-                if (id.isBlank() || id.length() > 512 || nickname.length() > 512 || !ids.add(id))
+                if (id.isBlank() || id.length() > 512 || nickname.length() > 512)
                     throw new IllegalArgumentException("Invalid login candidate");
-                candidates.add(new Account(id, nickname));
+                return new Account(id, nickname);
+            });
+            for (Account candidate : valid) {
+                if (!ids.add(candidate.userId())) throw new IllegalArgumentException("Duplicate login candidate");
+                candidates.add(candidate);
             }
         }
         if (state.equals("account_selection_required") && candidates.isEmpty())
