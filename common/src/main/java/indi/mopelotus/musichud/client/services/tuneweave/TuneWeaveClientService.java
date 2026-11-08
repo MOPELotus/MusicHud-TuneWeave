@@ -154,18 +154,8 @@ public final class TuneWeaveClientService {
         TuneWeavePlatform platform = TuneWeaveReference.platform(entry.reference());
         if (!java.util.Set.of("digital_album", "playlist").contains(entry.resourceKind()))
             throw new IllegalArgumentException("Unsupported personal collection kind");
-        java.util.function.Supplier<java.util.List<MusicDetail>> request = () -> {
-            String root = entry.resourceKind().equals("playlist") ? "/v1/playlists/"
-                    : platform == TuneWeavePlatform.SODA ? "/v1/albums/" : "/v1/digital-albums/";
-            String path = root + indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.encodePathSegment(entry.reference()) + "/tracks";
-            var items = OffsetPagination.loadAll(offset -> {
-                var query = Map.of("limit", "100", "offset", Integer.toString(offset));
-                return entry.resourceKind().equals("digital_album") && platform == TuneWeavePlatform.MIGU
-                        ? gateway.requestWithoutCredential("GET", path, query, null)
-                        : gateway.requestForPlatform(platform, "GET", path, query, null);
-            });
-            return items.stream().map(item -> entities.toTrack(platform, TuneWeaveJson.unwrap(item))).toList();
-        };
+        java.util.function.Supplier<java.util.List<MusicDetail>> request =
+                () -> TuneWeavePersonalLibrary.loadTracks(gateway, entities, entry);
         return entry.resourceKind().equals("digital_album") && platform == TuneWeavePlatform.MIGU
                 ? prepareRequest(request).get() : prepareAccountRequest(platform, request).get();
     }
