@@ -13,7 +13,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.HashSet;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -36,7 +36,7 @@ public final class MusicHud {
     @Getter
     private static ConnectStatus connectStatus = ConnectStatus.NOT_CONNECTED;
     @Getter
-    private static final Set<Consumer<ConnectStatus>> connectStatusListeners = new HashSet<>();
+    private static final Set<Consumer<ConnectStatus>> connectStatusListeners = new CopyOnWriteArraySet<>();
     @Getter
     @Setter
     private static Environment currentEnvironment;

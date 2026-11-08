@@ -5,6 +5,24 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 class TuneWeavePersonalLibraryTest {
     private final TuneWeaveEntityMapper entities = new TuneWeaveEntityMapper(p -> null);
+    @Test void malformedDigitalAlbumTrackDoesNotHideValidNeighbors() {
+        var gateway = new TuneWeaveGateway(ExtendedPaginationTest.config(new java.util.concurrent.atomic.AtomicReference<>("")),
+                (b, m, p, q, body, credentials) -> {
+                    assertEquals("/v1/digital-albums/migu%3A123/tracks", p);
+                    assertTrue(credentials.isEmpty());
+                    var page = JsonParser.parseString("""
+                            {"items":[{"ref":"migu:1","name":"One","duration_ms":60000},
+                              {"ref":"migu:broken","duration_ms":{}},
+                              {"ref":"migu:2","name":"Two","duration_ms":60000}],
+                              "has_more":false,"next_offset":3}
+                            """);
+                    var meta = JsonParser.parseString("{\"pagination\":{\"has_more\":false,\"next_offset\":3}}").getAsJsonObject();
+                    return new indi.mopelotus.musichud.server.api.tuneweave.TuneWeaveApiClient.TuneWeaveResponse(200, page, meta);
+                });
+        var entry = new TuneWeavePersonalLibrary.Entry(0, "migu:123", "digital_album", "Digital", "", "", null);
+        assertEquals(java.util.List.of("migu:1", "migu:2"), TuneWeavePersonalLibrary.loadTracks(gateway, entities, entry)
+                .stream().map(indi.mopelotus.musichud.beans.music.MusicDetail::getSourceRef).toList());
+    }
     @Test void unresolvedPurchasesRemainVisibleWithoutInventedPlayableReferences() {
         var raw = JsonParser.parseString("{\"track\":null,\"name\":\"Purchased song\",\"extensions\":{\"goods_id\":\"123\",\"hash\":\"abc\"}}").getAsJsonObject();
         var entry = TuneWeavePersonalLibrary.parse(entities, TuneWeavePlatform.KUGOU, TuneWeavePersonalLibrary.Kind.PURCHASED_TRACKS, 8, raw);
