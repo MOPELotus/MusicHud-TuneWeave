@@ -115,11 +115,34 @@ class IdleSourceSnapshotTest {
         var playlist = playlist();
         playlist.getTracks().getFirst().setSourceRef("invalid");
         var invalidReference = playlist;
-        assertThrows(IllegalArgumentException.class, () -> IdleSourceSnapshotValidator.copy(invalidReference, PusherInfo.EMPTY));
+        assertTrue(IdleSourceSnapshotValidator.copy(invalidReference, PusherInfo.EMPTY).getMusicDetails().isEmpty());
         playlist = playlist();
         playlist.getTracks().getFirst().setSourceKind("credential");
         var invalid = playlist;
-        assertThrows(IllegalArgumentException.class, () -> IdleSourceSnapshotValidator.copy(invalid, PusherInfo.EMPTY));
+        assertTrue(IdleSourceSnapshotValidator.copy(invalid, PusherInfo.EMPTY).getMusicDetails().isEmpty());
+    }
+
+    @Test void missingDurationDoesNotRejectThePlayableRemainderOrMutateTheCatalog() {
+        var catalog = playlist();
+        catalog.getTracks().add(MusicDetail.fromTuneWeave(2, "qq:unavailable", "track", "Unavailable", 0, Album.NONE, List.of()));
+        var owner = new PusherInfo(UUID.randomUUID(), "Owner");
+        var snapshot = IdleSourceSnapshotValidator.copy(catalog, owner);
+        assertEquals(List.of("netease:1"), snapshot.getMusicDetails().stream().map(MusicDetail::getSourceRef).toList());
+        assertEquals(1, snapshot.getMusicTrackCount());
+        assertEquals(2, catalog.getMusicDetails().size());
+        catalog.getTracks().removeFirst();
+        assertTrue(IdleSourceSnapshotValidator.copy(catalog, owner).getMusicDetails().isEmpty());
+    }
+
+    @Test void skippingMissingDurationDoesNotBypassOtherMetadataValidation() {
+        for (int duration : new int[]{-1, 86_400_001}) {
+            var catalog = playlist();
+            catalog.getTracks().add(MusicDetail.fromTuneWeave(2, "qq:bad", "track", "Bad", duration, Album.NONE, List.of()));
+            assertEquals(1, IdleSourceSnapshotValidator.copy(catalog, PusherInfo.EMPTY).getMusicDetails().size());
+        }
+        var catalog = playlist();
+        catalog.getTracks().add(MusicDetail.fromTuneWeave(2, "qq:bad", "credential", "Bad", 0, Album.NONE, List.of()));
+        assertEquals(1, IdleSourceSnapshotValidator.copy(catalog, PusherInfo.EMPTY).getMusicDetails().size());
     }
 
     @Test void mutableOwnerCannotBreakSourceSetMembership() {
