@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
+
 import com.google.gson.*;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -73,9 +75,9 @@ final class PagedCollectionLoader {
             return new TuneWeaveApiClient.TuneWeaveResponse(response.statusCode(), response.data(), meta);
         }, raw -> { Objects.requireNonNull(mapper.apply(raw)); return raw.deepCopy(); }, PagedCollectionLoader::identity, snapshot -> {
             JsonObject meta = metadata.getIfPresent(key);
-            progress.accept(snapshot.items().stream().map(mapper).toList(), meta == null ? new JsonObject() : meta.deepCopy());
+            progress.accept(ItemMapping.map("paged collection summaries", snapshot.items(), mapper), meta == null ? new JsonObject() : meta.deepCopy());
         });
-        return result.items().stream().map(mapper).toList();
+        return ItemMapping.map("paged collection summaries", result.items(), mapper);
     }
 
     private static String cursorField(JsonObject object, String key) {
