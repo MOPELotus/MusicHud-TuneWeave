@@ -349,6 +349,7 @@
   "musichud_tuneweave.text.login.qrCode": "使用二維碼登入",
   "musichud_tuneweave.text.login.qrExpired": "二維碼已過期",
   "musichud_tuneweave.text.login.failed": "登入失敗",
+  "musichud_tuneweave.text.login.deviceLimitExceeded": "登入裝置數超過限制，請在 QQ 音樂中移除不再使用的裝置後重試。",
   "musichud_tuneweave.text.loginRequired": "需要登入",
   "musichud_tuneweave.text.lyrics": "歌詞",
   "musichud_tuneweave.text.musicPushError": "載入並推送音樂時發生錯誤",
