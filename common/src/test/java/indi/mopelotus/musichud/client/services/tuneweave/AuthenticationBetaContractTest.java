@@ -118,6 +118,14 @@ class AuthenticationBetaContractTest {
         assertFalse(f.bodies.getFirst().has("account"));
         assertThrows(IllegalArgumentException.class, () -> f.auth.importCredential(attempt, "a=b\r\nSecret: x"));
     }
+    @Test void malformedLoginCandidateDoesNotHideValidChoices() {
+        var data = JsonParser.parseString("""
+                {"state":"account_selection_required","accounts":[null,{"user_id":{}},
+                  {"user_id":"42","nickname":"A"},{"user_id":"43","nickname":"B"}]}
+                """).getAsJsonObject();
+        assertEquals(List.of("42", "43"), TuneWeaveLoginProgress.read(data, null).accounts()
+                .stream().map(TuneWeaveLoginProgress.Account::userId).toList());
+    }
     @Test void unknownStatesAndMalformedCandidateListsAreRejectedWithoutSecretsInDiagnostics() {
         for (String input : List.of("{\"state\":\"unknown\"}", "{\"state\":\"account_selection_required\",\"accounts\":[]}",
                 "{\"state\":\"account_selection_required\",\"accounts\":[{\"user_id\":\"42\"},{\"user_id\":\"42\"}]}",
