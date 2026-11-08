@@ -45,6 +45,19 @@ class SharedResourceValidatorTest {
     }
 
     @Test
+    void unsafeBackupAndHeaderEntriesDoNotRejectTheSafePrimaryOrLeakIntoTheSession() {
+        MusicDetail track = track("netease:track:1");
+        var input = new MusicResourceInfo(track.getId(), "https://8.8.8.8/audio", 0, 0,
+                FormatType.AUTO, "", Fee.UNSET, 60_000,
+                Map.of("User-Agent", "safe", "Referer", "bad\r\nInjected: value", "Cookie", "private"),
+                List.of("http://127.0.0.1/private", "file:///etc/passwd", "https://1.1.1.1/backup"));
+        var sanitized = SharedResourceValidator.sanitizeResource(track, input);
+        assertEquals("https://8.8.8.8/audio", sanitized.getUrl());
+        assertEquals(List.of("https://1.1.1.1/backup"), sanitized.getBackupUrls());
+        assertEquals(Map.of("user-agent", "safe"), sanitized.getHeaders());
+    }
+
+    @Test
     void rejectsPrivateLoopbackAndDangerousSchemes() {
         assertThrows(IllegalArgumentException.class,
                 () -> SharedResourceValidator.requireSafeHttpUrl("http://127.0.0.1/audio"));

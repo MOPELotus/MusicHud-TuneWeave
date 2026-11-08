@@ -1,6 +1,7 @@
 package indi.mopelotus.musichud.client.services.tuneweave;
 
 import com.google.gson.JsonArray;
+import indi.mopelotus.musichud.utils.collections.ItemMapping;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
@@ -110,7 +111,7 @@ final class TuneWeaveJson {
     static Map<String, String> stringMap(JsonElement element) {
         if (element == null || !element.isJsonObject()) return Map.of();
         Map<String, String> result = new LinkedHashMap<>();
-        element.getAsJsonObject().entrySet().forEach(entry -> {
+        ItemMapping.forEach("string map entries", element.getAsJsonObject().entrySet(), entry -> {
             if (!entry.getValue().isJsonNull()) {
                 result.put(entry.getKey(), entry.getValue().getAsString());
             }
