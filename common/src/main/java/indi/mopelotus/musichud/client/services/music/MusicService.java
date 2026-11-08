@@ -1,5 +1,7 @@
 package indi.mopelotus.musichud.client.services.music;
 
+import indi.mopelotus.musichud.utils.collections.ListenerDispatch;
+
 import net.minecraft.client.Minecraft;
 
 import indi.mopelotus.musichud.interfaces.IConnectionManager.ConnectionMode;
@@ -337,7 +339,7 @@ public class MusicService implements IClientMusicService {
     }
 
     private void notifyFavoriteIntelligenceState(boolean enabled) {
-        favoriteIntelligenceStateListeners.forEach(listener -> listener.accept(enabled));
+        ListenerDispatch.notifyEach(favoriteIntelligenceStateListeners, listener -> listener.accept(enabled));
     }
 
     public static void resetCurrentMusicStatus() {
@@ -465,14 +467,14 @@ public class MusicService implements IClientMusicService {
             }
             musicQueue.remove(removed);
             int finalIndex = index;
-            musicQueueRemoveListeners.forEach(l -> l.accept(finalIndex, removed));
+            ListenerDispatch.notifyEach(musicQueueRemoveListeners, l -> l.accept(finalIndex, removed));
         }
         for (; j < fresh.size(); j++) {
             QueueItem added = fresh.get(j);
             musicQueue.add(added);
-            musicQueuePushListeners.forEach(l -> l.accept(added));
+            ListenerDispatch.notifyEach(musicQueuePushListeners, l -> l.accept(added));
         }
-        musicQueueRefreshListeners.forEach(l -> l.accept(queue));
+        ListenerDispatch.notifyEach(musicQueueRefreshListeners, l -> l.accept(queue));
     }
 
     private static boolean sameItem(QueueItem a, QueueItem b) {
@@ -811,10 +813,12 @@ public class MusicService implements IClientMusicService {
         var playlists = loadAccountPlaylists(ignoreCache);
         var albums = loadAccountAlbums(ignoreCache);
         var artists = loadAccountArtists(ignoreCache);
-        return CompletableFuture.allOf(playlists, albums, artists).thenApply(ignored -> {
-            requestedCollections.setUserCategoryPlaylists(playlists.join());
-            requestedCollections.setSubscribedAlbums(albums.join());
-            requestedCollections.setSubscribedArtists(artists.join());
+        return AccountCollectionModules.merge(playlists, albums, artists,
+                new UserCategoryPlaylists(Playlist.EMPTY, new ObservableSequencedSet<>(), new ObservableSequencedSet<>()),
+                new ObservableSequencedSet<Album>(), new ObservableSequencedSet<Artist>()).thenApply(snapshot -> {
+            requestedCollections.setUserCategoryPlaylists(snapshot.playlists());
+            requestedCollections.setSubscribedAlbums(snapshot.albums());
+            requestedCollections.setSubscribedArtists(snapshot.artists());
             return requestedCollections;
         });
     }

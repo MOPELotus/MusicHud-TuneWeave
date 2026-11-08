@@ -12,6 +12,25 @@ class ServiceUpdateServiceTest {
     static ApiBinaryUpdateService.UpdateOffer offer() {
         return new ApiBinaryUpdateService.UpdateOffer(Path.of("old"), "1.0.0-beta.1", "1.0.0-beta.2", "v1.0.0-beta.2", MANIFEST);
     }
+    @Test void brokenUpdateObserverCannotPreventInstallationOrOtherCompletionNotifications() throws Exception {
+        var work = new ArrayList<Runnable>();
+        var observed = new ArrayList<ServiceUpdateService.Status>();
+        int[] installs = {0};
+        var service = new ServiceUpdateService(work::add, new ServiceUpdateService.Backend() {
+            public ServiceUpdateService.State check() { return new ServiceUpdateService.State(ServiceUpdateService.Status.AVAILABLE, offer(), ""); }
+            public String install(ApiBinaryUpdateService.UpdateOffer offer, String source, AtomicBoolean cancelled) {
+                installs[0]++; return "";
+            }
+        });
+        service.subscribe(state -> { throw new IllegalStateException("detached view failed"); });
+        service.subscribe(state -> observed.add(state.status()));
+        service.check(); work.removeFirst().run();
+        service.download("AUTO"); work.removeFirst().run();
+        assertEquals(1, installs[0]);
+        assertEquals(ServiceUpdateService.Status.READY, service.state().status());
+        assertTrue(observed.contains(ServiceUpdateService.Status.READY));
+    }
+
     @Test void compatibilityUsesPublisherDeclarationInsteadOfSemverGuessing() {
         assertEquals(ServiceUpdateService.Status.AVAILABLE, ServiceUpdateCompatibility.evaluate(MANIFEST, "9.0.0"));
         String legacy = MANIFEST.replace(",\"compatibility_profiles\":[\"tuneweave-http-v1\"]", "");

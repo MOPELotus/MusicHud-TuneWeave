@@ -211,7 +211,7 @@ public class SearchView extends LinearLayout {
             searchMeta1.pendingFuture = new CompletableFuture<>();
             searchMetas.put(searchType, searchMeta1);
             SearchResultTabPage.clearCachedResults(searchType);
-            List.copyOf(searchRefreshListeners).forEach(listener -> listener.accept(searchMeta1));
+            indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(List.copyOf(searchRefreshListeners), listener -> listener.accept(searchMeta1));
             sendSearchRequest(searchText, searchType, 0);
         }
     }
@@ -226,7 +226,7 @@ public class SearchView extends LinearLayout {
         if (searchMeta != null && searchMeta.pendingFuture == null && searchMeta.mayHasMore) {
             int offset = searchMeta.nextOffset;
             searchMeta.pendingFuture = new CompletableFuture<>();
-            List.copyOf(searchRefreshListeners).forEach(listener -> listener.accept(searchMeta));
+            indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(List.copyOf(searchRefreshListeners), listener -> listener.accept(searchMeta));
             sendSearchRequest(searchMeta.text, searchType, offset);
         }
     }
@@ -286,7 +286,7 @@ public class SearchView extends LinearLayout {
         if (pendingFuture != null) {
             pendingFuture.complete(CompletingType.FAILED);
         }
-        List.copyOf(searchRefreshListeners).forEach(listener -> listener.accept(searchMeta));
+        indi.mopelotus.musichud.utils.collections.ListenerDispatch.notifyEach(List.copyOf(searchRefreshListeners), listener -> listener.accept(searchMeta));
         searchMeta.pendingFuture = null;
     }
 
