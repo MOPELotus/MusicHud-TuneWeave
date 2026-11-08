@@ -401,6 +401,7 @@
   "musichud_tuneweave.text.login.qrCode": "Sign in with a QR code",
   "musichud_tuneweave.text.login.qrExpired": "QR code expired",
   "musichud_tuneweave.text.login.failed": "Login failed",
+  "musichud_tuneweave.text.login.deviceLimitExceeded": "Login device limit exceeded. Remove an unused device in QQ Music, then try again.",
   "musichud_tuneweave.text.loginRequired": "Login required",
   "musichud_tuneweave.text.lyrics": "Lyrics",
   "musichud_tuneweave.text.musicPushError": "Error while loading and pushing music",

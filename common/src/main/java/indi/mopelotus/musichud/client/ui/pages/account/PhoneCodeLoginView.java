@@ -325,7 +325,7 @@ public class PhoneCodeLoginView extends LinearLayout implements ILoginView {
             }
             else reset();
             if (!(error instanceof java.util.concurrent.CancellationException))
-                errorText(I18n.get(MusicHud.MOD_ID + ".text.login.failed"));
+                errorText(I18n.get(LoginErrorMessages.key(error)));
         });
     }
 
