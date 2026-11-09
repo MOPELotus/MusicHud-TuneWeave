@@ -84,7 +84,7 @@ class LoaderMetadataTest {
         for (String version : List.of("1.21.9", "1.21.10")) {
             assertTrue(minecraft.containsVersion(new DefaultArtifactVersion(version)));
             assertTrue(dependencyRange("modernui").containsVersion(
-                    new DefaultArtifactVersion("3.13.0.11+mc" + version)));
+                    new DefaultArtifactVersion("3.13.0.12+mc" + version)));
         }
         for (String version : List.of("1.21.8", "1.21.11")) {
             assertFalse(minecraft.containsVersion(new DefaultArtifactVersion(version)));
@@ -98,19 +98,19 @@ class LoaderMetadataTest {
         Config modernUi = dependency("modernui");
         assertEquals("CLIENT", modernUi.get("side"), "Dedicated servers must not require a client UI host");
         VersionRange range = dependencyRange("modernui");
-        for (String old : List.of("3.12.0", "3.12.0.5-build.4+mc1.21.10", "3.13.0.9")) {
+        for (String old : List.of("3.12.0", "3.12.0.5-build.4+mc1.21.10", "3.13.0.9", "3.13.0.11")) {
             assertFalse(range.containsVersion(new DefaultArtifactVersion(old)), old);
         }
-        assertTrue(range.containsVersion(new DefaultArtifactVersion("3.13.0.11")));
+        assertTrue(range.containsVersion(new DefaultArtifactVersion("3.13.0.12")));
         assertTrue(range.containsVersion(new DefaultArtifactVersion("3.13.1")));
         String reason = modernUi.get("reason");
         assertNotNull(reason);
         assertTrue(reason.contains("Modern UI version is too old"));
         assertTrue(reason.contains("Modern UI 版本过低"));
-        assertTrue(reason.contains("ModernUI Lumen 3.13.0.11"));
+        assertTrue(reason.contains("ModernUI Lumen 3.13.0.12"));
         assertTrue(reason.contains("cf".equals(System.getProperty("musichud.test.distribution"))
                 ? "https://www.curseforge.com/minecraft/mc-mods/modernui-lumen"
-                : "https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11"));
+                : "https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.12"));
     }
 
     @Test
