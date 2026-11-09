@@ -97,7 +97,7 @@ subprojects {
                     name = 'LotusModernUIReleases'
                     url = 'https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/download'
                     patternLayout {
-                        artifact 'v3.13.0.11/[artifact]-[revision]-universal.[ext]'
+                        artifact 'v3.13.0.12/[artifact]-[revision]-universal.[ext]'
                     }
                     metadataSources { artifact() }
                 }

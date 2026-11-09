@@ -29,8 +29,8 @@ side = "BOTH"
 [[dependencies.musichud_tuneweave]]
 modId = "modernui"
 type = "required"
-reason = "Modern UI version is too old / Modern UI 版本过低。Download ModernUI Lumen 3.13.0.11: ${modernUiDownload}"
-versionRange = "[3.13.0.11,)"
+reason = "Modern UI version is too old / Modern UI 版本过低。Download ModernUI Lumen 3.13.0.12: ${modernUiDownload}"
+versionRange = "[3.13.0.12,)"
 ordering = "AFTER"
 side = "CLIENT"
 

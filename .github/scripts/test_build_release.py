@@ -767,8 +767,11 @@ class LumenPlanContracts(unittest.TestCase):
     def test_historical_lumen_dependencies_follow_frozen_endpoints(self):
         self.check_lumen_plan('3.13.0.10')
 
-    def test_current_lumen_dependencies_follow_frozen_endpoints(self):
+    def test_previous_lumen_dependencies_follow_frozen_endpoints(self):
         self.check_lumen_plan('3.13.0.11')
+
+    def test_current_lumen_dependencies_follow_frozen_endpoints(self):
+        self.check_lumen_plan('3.13.0.12')
 
     def check_lumen_plan(self, lumen_version):
         rows = release.load_json(Path(__file__).parent.parent / 'build-matrix.json')

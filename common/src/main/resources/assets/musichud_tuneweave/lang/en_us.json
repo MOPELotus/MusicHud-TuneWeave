@@ -611,7 +611,7 @@
   "musichud_tuneweave.text.queueRequestSubmitted": "Queue request sent",
   "musichud_tuneweave.text.queueConnectionNotReady": "Music connection is not ready. Please try again.",
   "musichud_tuneweave.modernUiRecommendation.title": "ModernUI Lumen recommended",
-  "musichud_tuneweave.modernUiRecommendation.body": "You are using official Modern UI. You can continue playing.\nWe recommend ModernUI Lumen 3.13.0.11 for full compatibility and fixes.\nChoose the download for your Minecraft version and loader, and replace Modern UI. Do not install multiple copies of Modern UI.",
+  "musichud_tuneweave.modernUiRecommendation.body": "You are using official Modern UI. You can continue playing.\nWe recommend ModernUI Lumen 3.13.0.12 for full compatibility and fixes.\nChoose the download for your Minecraft version and loader, and replace Modern UI. Do not install multiple copies of Modern UI.",
   "musichud_tuneweave.modernUiRecommendation.download": "Download",
   "musichud_tuneweave.modernUiRecommendation.continue": "Continue playing"
 }

@@ -525,7 +525,7 @@ class ScopedPlatformContracts(unittest.TestCase):
 
 class LumenChangelogTest(unittest.TestCase):
     def test_lumen_rows_recommend_the_matching_release_without_old_dependencies(self):
-        for version in ('3.13.0.10', '3.13.0.11'):
+        for version in ('3.13.0.10', '3.13.0.11', '3.13.0.12'):
             row = {'branch': '1.21.1', 'version': '1.3.1',
                    'properties': {'modernui_fork_version': '1.21.1-' + version}}
             for module in ('fabric', 'neoforge'):

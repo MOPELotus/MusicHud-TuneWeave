@@ -38,17 +38,17 @@
 
 ## 选择下载文件
 
-当前源码的所有客户端版本推荐使用 [ModernUI Lumen 3.13.0.11](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11)。历史发行包仍按各自 Release 的依赖说明安装。
+当前源码的所有客户端版本推荐使用 [ModernUI Lumen 3.13.0.12](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.12)。历史发行包仍按各自 Release 的依赖说明安装。
 
 | Minecraft | MusicHud 文件后缀 | Java | 推荐 ModernUI |
 | --- | --- | --- | --- |
-| 1.21.1 | `+1.21.1.jar` | 21 | Lumen `1.21.1-3.13.0.11` |
-| 1.21.6–1.21.8 | `+1.21.6-1.21.8.jar` | 21 | Lumen `1.21.8-3.13.0.11`，支持该整个范围 |
-| 1.21.9–1.21.10 | `+1.21.9-1.21.10.jar` | 21 | Lumen `1.21.9-3.13.0.11` / `1.21.10-3.13.0.11`，按游戏版本分别选包 |
-| 1.21.11 | `+1.21.11.jar` | 21 | Lumen `1.21.11-3.13.0.11` |
-| 26.1–26.1.2 | `+26.1-26.1.2.jar` | 25 | Lumen `26.1.2-3.13.0.11`，支持该整个范围 |
-| 26.2 | `+26.2.jar` | 25 | Lumen `26.2-3.13.0.11` |
-| 26.3 | `+26.3.jar` | 25 | Lumen `26.3-3.13.0.11` |
+| 1.21.1 | `+1.21.1.jar` | 21 | Lumen `1.21.1-3.13.0.12` |
+| 1.21.6–1.21.8 | `+1.21.6-1.21.8.jar` | 21 | Lumen `1.21.8-3.13.0.12`，支持该整个范围 |
+| 1.21.9–1.21.10 | `+1.21.9-1.21.10.jar` | 21 | Lumen `1.21.9-3.13.0.12` / `1.21.10-3.13.0.12`，按游戏版本分别选包 |
+| 1.21.11 | `+1.21.11.jar` | 21 | Lumen `1.21.11-3.13.0.12` |
+| 26.1–26.1.2 | `+26.1-26.1.2.jar` | 25 | Lumen `26.1.2-3.13.0.12`，支持该整个范围 |
+| 26.2 | `+26.2.jar` | 25 | Lumen `26.2-3.13.0.12` |
+| 26.3 | `+26.3.jar` | 25 | Lumen `26.3-3.13.0.12` |
 
 例如，Minecraft 1.21.7 Fabric 使用 `musichud-tuneweave-fabric-<发行版本>+1.21.6-1.21.8.jar`。
 
@@ -58,7 +58,7 @@
 
 **NeoForge：** NeoForge、对应版本的 ModernUI，以及 MusicHud TuneWeave。
 
-所有版本均推荐 [ModernUI Lumen 3.13.0.11](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11)。选择与 Minecraft 版本及 Fabric/NeoForge 加载器对应的文件，再选择字体版本：
+所有版本均推荐 [ModernUI Lumen 3.13.0.12](https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.12)。选择与 Minecraft 版本及 Fabric/NeoForge 加载器对应的文件，再选择字体版本：
 
 - **普通版**：文件名以 `-universal.jar` 结尾，支持自定义字体，无需安装 MiSans。
 - **MiSans 版**：文件名以 `-universal-misans.jar` 结尾，保留 MiSans 字体安装和字重设置；缺少字体时需主动下载并重启。
