@@ -10,20 +10,20 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class FabricClientDependenciesTest {
     @Test void dedicatedServerDoesNotRequireTheClientUiHost() throws Exception {
-        FabricClientDependencies.requireModernUi(false, null, VersionPredicate.parse(">=3.13.0.7"));
+        FabricClientDependencies.requireModernUi(false, null, VersionPredicate.parse(">=3.13.0.12"));
     }
 
     @Test void clientRejectsMissingOldAndMalformedVersionsBeforeUiInitialization() throws Exception {
-        var required = VersionPredicate.parse(">=3.13.0.7");
+        var required = VersionPredicate.parse(">=3.13.0.12");
         var failure = assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(true, null, required));
         String download = "cf".equals(System.getProperty("musichud.test.distribution"))
                 ? "https://www.curseforge.com/minecraft/mc-mods/modernui-lumen"
-                : "https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11";
+                : "https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.12";
         assertTrue(failure.getMessage().contains(download));
-        for (String version : new String[]{"3.12.0", "3.13.0.6", "not-a-version"}) {
+        for (String version : new String[]{"3.12.0", "3.13.0.6", "3.13.0.11", "not-a-version"}) {
             assertThrows(IllegalStateException.class, () -> FabricClientDependencies.requireModernUi(true, Version.parse(version), required));
         }
-        FabricClientDependencies.requireModernUi(true, Version.parse("3.13.0.9"), required);
+        FabricClientDependencies.requireModernUi(true, Version.parse("3.13.0.12"), required);
     }
 
     @Test void packagedMetadataKeepsUiRequirementClientOnly() throws Exception {

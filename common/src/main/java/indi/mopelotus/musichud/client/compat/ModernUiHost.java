@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 public final class ModernUiHost {
     public static final String DOWNLOAD = "cf".equals(indi.mopelotus.musichud.BuildDistribution.EDITION)
             ? "https://www.curseforge.com/minecraft/mc-mods/modernui-lumen"
-            : "https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11";
+            : "https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.12";
     private static final String OFFICIAL_VERSION = "3.13.0.3";
     private static Boolean lumen;
 
@@ -74,7 +74,7 @@ public final class ModernUiHost {
     /** Returns the selected ABI; all other distributions fail closed with update instructions. */
     public static boolean accepts(String name, String version, String source) {
         if ("ModernUI Lumen".equals(name) || "ModernUI Lumen (MiSans)".equals(name)) {
-            if (("3.13.0.11".equals(version) || "3.13.0.12".equals(version)) && "https://github.com/MOPELotus/ModernUI-MC-Lumen".equals(source)) return true;
+            if ("3.13.0.12".equals(version) && "https://github.com/MOPELotus/ModernUI-MC-Lumen".equals(source)) return true;
         }
         if (!OFFICIAL_VERSION.isEmpty() && OFFICIAL_VERSION.equals(version)
                 && "Modern UI".equals(name)
@@ -86,8 +86,8 @@ public final class ModernUiHost {
     private static IllegalStateException unsupported(String installed) {
         return new IllegalStateException("Modern UI 版本过低 / Modern UI version is too old.\n"
                 + "当前安装 / Installed: " + installed + "\n"
-                + "此版本无法与 MusicHud TuneWeave 配合使用。请下载与当前 Minecraft 版本及加载器对应的 ModernUI Lumen 3.13.0.11，替换现有的 Modern UI。\n"
-                + "Download ModernUI Lumen 3.13.0.11 for your Minecraft version and loader and replace Modern UI.\n"
+                + "此版本无法与 MusicHud TuneWeave 配合使用。请下载与当前 Minecraft 版本及加载器对应的 ModernUI Lumen 3.13.0.12，替换现有的 Modern UI。\n"
+                + "Download ModernUI Lumen 3.13.0.12 for your Minecraft version and loader and replace Modern UI.\n"
                 + "请勿同时安装多份 Modern UI。 / Do not install multiple copies of Modern UI.\n"
                 + "下载地址 / Download: " + DOWNLOAD);
     }
