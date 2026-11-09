@@ -6,8 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ModernUiHostTest {
     @Test void lumenBothFontEditionsUseTheSameAbi() {
         for (String name : new String[]{"ModernUI Lumen", "ModernUI Lumen (MiSans)"})
-            for (String version : new String[]{"3.13.0.11", "3.13.0.12"})
-                assertTrue(ModernUiHost.accepts(name, version, "https://github.com/MOPELotus/ModernUI-MC-Lumen"));
+            assertTrue(ModernUiHost.accepts(name, "3.13.0.12", "https://github.com/MOPELotus/ModernUI-MC-Lumen"));
     }
     @Test void rejectsOtherForksAndUnverifiedVersionsWithActionableUpdateInstructions() {
         for (String name : new String[]{null, "Modern UI (mVUS)", "Modern UI", "ModernUI Lumen"}) {
@@ -25,8 +24,12 @@ class ModernUiHostTest {
                     "ModernUI Lumen", version, "https://github.com/MOPELotus/ModernUI-MC-Lumen"));
     }
     @Test void previousLumenWithoutRequiredUpstreamFixesIsRejected() {
-        assertThrows(IllegalStateException.class, () -> ModernUiHost.accepts(
-                "ModernUI Lumen", "3.13.0.10", "https://github.com/MOPELotus/ModernUI-MC-Lumen"));
+        for (String name : new String[]{"ModernUI Lumen", "ModernUI Lumen (MiSans)"})
+            for (String version : new String[]{"3.13.0.10", "3.13.0.11"}) {
+                var error = assertThrows(IllegalStateException.class, () -> ModernUiHost.accepts(
+                        name, version, "https://github.com/MOPELotus/ModernUI-MC-Lumen"));
+                assertTrue(error.getMessage().contains("ModernUI Lumen 3.13.0.12"));
+            }
     }
     @Test void officialAbiIsAllowedOnlyOnSupportedBranches() {
         assertFalse(ModernUiHost.accepts("Modern UI", "3.13.0.5", "https://github.com/BloCamLimb/ModernUI-MC"));
