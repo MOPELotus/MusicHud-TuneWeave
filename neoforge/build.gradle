@@ -181,7 +181,7 @@ processResources {
     inputs.property 'version', project.version
     inputs.property 'modernUiDownload', rootProject.distribution == 'cf'
             ? 'https://www.curseforge.com/minecraft/mc-mods/modernui-lumen'
-            : 'https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.11'
+            : 'https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/tag/v3.13.0.12'
 
     filesMatching('META-INF/neoforge.mods.toml') {
         expand version: inputs.properties.version, modernUiDownload: inputs.properties.modernUiDownload
