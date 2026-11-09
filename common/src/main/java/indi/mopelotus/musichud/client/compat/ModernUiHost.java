@@ -74,7 +74,7 @@ public final class ModernUiHost {
     /** Returns the selected ABI; all other distributions fail closed with update instructions. */
     public static boolean accepts(String name, String version, String source) {
         if ("ModernUI Lumen".equals(name) || "ModernUI Lumen (MiSans)".equals(name)) {
-            if ("3.13.0.11".equals(version) && "https://github.com/MOPELotus/ModernUI-MC-Lumen".equals(source)) return true;
+            if (("3.13.0.11".equals(version) || "3.13.0.12".equals(version)) && "https://github.com/MOPELotus/ModernUI-MC-Lumen".equals(source)) return true;
         }
         if (!OFFICIAL_VERSION.isEmpty() && OFFICIAL_VERSION.equals(version)
                 && "Modern UI".equals(name)
