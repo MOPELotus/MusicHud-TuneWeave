@@ -106,7 +106,7 @@ subprojects {
                     def localFork = providers.gradleProperty('modernuiForkDirectory').orNull
                     url = localFork ? rootProject.file(localFork).toURI() : 'https://github.com/MOPELotus/ModernUI-MC-Lumen/releases/download'
                     patternLayout {
-                        artifact (localFork ? '[artifact]-[revision]-universal.[ext]' : 'v3.13.0.11/[artifact]-[revision]-universal.[ext]')
+                        artifact (localFork ? '[artifact]-[revision]-universal.[ext]' : 'v3.13.0.12/[artifact]-[revision]-universal.[ext]')
                     }
                     metadataSources { artifact() }
                 }
