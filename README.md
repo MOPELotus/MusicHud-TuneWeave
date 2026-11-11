@@ -54,7 +54,7 @@
 
 ## 客户端依赖
 
-**Fabric：** Fabric Loader **0.19.5 或更新版本**、[Fabric API](https://modrinth.com/mod/fabric-api)、对应版本的 ModernUI，以及 MusicHud TuneWeave。26.2 的 Fabric API 最低为 `0.160.0+26.2`，26.3 最低为 `0.160.5+26.3`；其他版本选择与游戏版本匹配的 Fabric API。
+**Fabric：** Fabric Loader（26.3 为 **0.19.5+**；其他版本按 Lumen 声明为 **0.15.0+**，Fabric API 等依赖可能要求更高版本）、[Fabric API](https://modrinth.com/mod/fabric-api)、对应版本的 ModernUI，以及 MusicHud TuneWeave。26.2 的 Fabric API 最低为 `0.160.0+26.2`，26.3 最低为 `0.160.5+26.3`；其他版本选择与游戏版本匹配的 Fabric API。
 
 **NeoForge：** NeoForge、对应版本的 ModernUI，以及 MusicHud TuneWeave。加载器最低版本与 Lumen 对齐：1.21.6–1.21.8 为 `21.6.20-beta`，1.21.9 为 `21.9.16-beta`，1.21.10 为 `21.10.64`，1.21.11 为 `21.11.48`，26.1–26.1.2 为 `26.1.0.1-beta`，26.2 为 `26.2.0.0-beta`，26.3 为 `26.3.0.101`；1.21.1 使用对应的 NeoForge 21.1。
 
