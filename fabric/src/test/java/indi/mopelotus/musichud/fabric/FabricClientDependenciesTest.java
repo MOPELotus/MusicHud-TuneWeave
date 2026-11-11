@@ -31,8 +31,8 @@ class FabricClientDependenciesTest {
                 Path.of(System.getProperty("musichud.test.fabricMetadata")))).getAsJsonObject();
         assertFalse(metadata.getAsJsonObject("depends").has("modernui"));
         var loaderRange = VersionPredicate.parse(metadata.getAsJsonObject("depends").get("fabricloader").getAsString());
-        assertFalse(loaderRange.test(Version.parse("0.14.25")), "Loader requirement must match the corresponding Lumen artifact");
-        assertTrue(loaderRange.test(Version.parse("0.15.0")));
+        assertFalse(loaderRange.test(Version.parse("0.18.3")), "Java 25 hosts need the verified loader baseline");
+        assertTrue(loaderRange.test(Version.parse("0.18.4")));
         assertEquals("*", metadata.get("environment").getAsString());
         assertEquals(FabricClientDependencies.class.getName(), metadata.getAsJsonObject("entrypoints").getAsJsonArray("preLaunch").get(0).getAsString());
         String constraint = metadata.getAsJsonObject("custom").get("musichud_tuneweave_client_modernui").getAsString();
