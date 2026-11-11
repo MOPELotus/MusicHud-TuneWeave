@@ -15,7 +15,7 @@ logoFile = "assets/musichud_tuneweave/icon.png"
 [[dependencies.musichud_tuneweave]]
 modId = "neoforge"
 type = "required"
-versionRange = "[21.9.16-beta,21.11)"
+versionRange = "[21.9.16-beta,21.10),[21.10.64,21.11)"
 ordering = "NONE"
 side = "BOTH"
 

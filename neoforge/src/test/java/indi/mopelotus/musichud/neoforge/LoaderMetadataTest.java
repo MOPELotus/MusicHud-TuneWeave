@@ -74,6 +74,7 @@ class LoaderMetadataTest {
         VersionRange range = dependencyRange("neoforge");
         assertTrue(range.containsVersion(new DefaultArtifactVersion("21.9.16-beta")));
         assertTrue(range.containsVersion(new DefaultArtifactVersion("21.10.64")));
+        assertFalse(range.containsVersion(new DefaultArtifactVersion("21.10.63")));
         assertFalse(range.containsVersion(new DefaultArtifactVersion("21.9.16-alpha")));
         assertFalse(range.containsVersion(new DefaultArtifactVersion("21.8.99")));
         assertFalse(range.containsVersion(new DefaultArtifactVersion("21.11.0")));
