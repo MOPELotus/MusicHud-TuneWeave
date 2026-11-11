@@ -31,7 +31,7 @@ class FabricClientDependenciesTest {
                 Path.of(System.getProperty("musichud.test.fabricMetadata")))).getAsJsonObject();
         assertFalse(metadata.getAsJsonObject("depends").has("modernui"));
         var loaderRange = VersionPredicate.parse(metadata.getAsJsonObject("depends").get("fabricloader").getAsString());
-        assertFalse(loaderRange.test(Version.parse("0.19.4")), "Older loaders do not meet the verified Lumen baseline");
+        assertFalse(loaderRange.test(Version.parse("0.19.4")), "Loader requirement must match the corresponding Lumen artifact");
         assertTrue(loaderRange.test(Version.parse("0.19.5")));
         assertEquals("*", metadata.get("environment").getAsString());
         assertEquals(FabricClientDependencies.class.getName(), metadata.getAsJsonObject("entrypoints").getAsJsonArray("preLaunch").get(0).getAsString());
