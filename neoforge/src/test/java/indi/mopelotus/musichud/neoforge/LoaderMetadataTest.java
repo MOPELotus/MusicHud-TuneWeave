@@ -72,9 +72,9 @@ class LoaderMetadataTest {
     @Test
     void neoforgeRangeAcceptsTheSupportedVersionAndRejectsOtherMinecraftLines() throws Exception {
         VersionRange range = dependencyRange("neoforge");
-        assertTrue(range.containsVersion(new DefaultArtifactVersion("21.11.45")));
-        assertTrue(range.containsVersion(new DefaultArtifactVersion("21.11.46")));
-        assertFalse(range.containsVersion(new DefaultArtifactVersion("21.11.44")));
+        assertTrue(range.containsVersion(new DefaultArtifactVersion("21.11.48")));
+        assertTrue(range.containsVersion(new DefaultArtifactVersion("21.11.49")));
+        assertFalse(range.containsVersion(new DefaultArtifactVersion("21.11.47")));
         assertFalse(range.containsVersion(new DefaultArtifactVersion("21.12.1")));
     }
     @Test
