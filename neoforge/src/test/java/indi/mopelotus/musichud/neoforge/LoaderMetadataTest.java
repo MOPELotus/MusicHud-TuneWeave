@@ -77,9 +77,9 @@ class LoaderMetadataTest {
     @Test
     void neoforgeMinimumAcceptsTheSupportedBetaAndRejectsOlderVersions() throws Exception {
         VersionRange range = dependencyRange("neoforge");
-        assertTrue(range.containsVersion(new DefaultArtifactVersion("26.3.0.1-beta")));
-        assertTrue(range.containsVersion(new DefaultArtifactVersion("26.3.0.1")));
-        assertFalse(range.containsVersion(new DefaultArtifactVersion("26.3.0.1-alpha")));
+        assertTrue(range.containsVersion(new DefaultArtifactVersion("26.3.0.101")));
+        assertTrue(range.containsVersion(new DefaultArtifactVersion("26.3.0.102")));
+        assertFalse(range.containsVersion(new DefaultArtifactVersion("26.3.0.100")));
         assertFalse(range.containsVersion(new DefaultArtifactVersion("26.3.0.0-beta")));
     }
 }
