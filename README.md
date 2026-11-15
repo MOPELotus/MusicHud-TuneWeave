@@ -74,3 +74,7 @@ Windows ZIP 为 `Companion-0.2.1-windows-x64.zip`，根目录包含完整 `Compa
 
 托管启动还可传 `--stop-file absolutePath`。启动前该路径应不存在；文件出现后程序正常退出，避免 Windows 强制终止进程跳过清理。
 Companion 只检查信号文件，不创建、修改或删除它。管理方使用每次启动独有的临时目录，并在退出后清理自己创建的目录。
+
+## 问题反馈
+
+问题反馈和功能建议请提交到 [GitHub Issues](https://github.com/MOPELotus/MusicHud-TuneWeave/issues)。请提供 Minecraft、加载器、模组、Companion 和操作系统版本、复现步骤及相关日志；分享前移除账号凭证。
