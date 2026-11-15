@@ -28,9 +28,11 @@ Players need the client mod and its dependencies. A standalone Paper server uses
 
 ### Support and development
 
-Please report reproducible problems with Minecraft, loader, mod and TuneWeave versions at the linked issue tracker. Remove credentials from logs before sharing them. The project is maintained by MOPELotus.
+Please report reproducible problems with Minecraft, loader, mod and TuneWeave versions on [GitHub Issues](https://github.com/MOPELotus/MusicHud-TuneWeave/issues). Remove credentials from logs before sharing them. The project is maintained by MOPELotus.
 
 ## 中文说明
+
+问题反馈和功能建议请提交到 [GitHub Issues](https://github.com/MOPELotus/MusicHud-TuneWeave/issues)。请附 Minecraft、加载器、模组和 TuneWeave 版本、复现步骤及相关日志；分享前移除账号凭证。
 
 这是 CurseForge 精简版，仅连接已有 TuneWeave 服务，不负责外部程序的安装、更新、启动或管理。请自行在模组外安装并启动 TuneWeave，然后在设置中填写服务地址。音乐播放、歌词、HUD 和共享队列仍可使用。普通版与 CF 版使用同一模组标识和协议，请只安装其中一种。
 
