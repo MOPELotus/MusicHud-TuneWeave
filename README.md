@@ -4,7 +4,7 @@
 
 本项目基于 [MusicHud](https://github.com/Ephern/MusicHud)，使用 [TuneWeave](https://github.com/MOPELotus/TuneWeave) 接入音乐平台。支持 Fabric、NeoForge 客户端，以及 Paper、Velocity、BungeeCord 服务端/代理插件。
 
-[下载发布版本](https://github.com/MOPELotus/MusicHud-TuneWeave/releases) · [开发构建](https://github.com/MOPELotus/MusicHud-TuneWeave/actions) · [交流与反馈](#获取更新与反馈) · [部署说明](docs/deployment.md)
+[下载发布版本](https://github.com/MOPELotus/MusicHud-TuneWeave/releases) · [开发构建](https://github.com/MOPELotus/MusicHud-TuneWeave/actions) · [问题反馈](https://github.com/MOPELotus/MusicHud-TuneWeave/issues) · [部署说明](docs/deployment.md)
 
 ## 可以做什么
 
@@ -119,7 +119,9 @@
 
 ## 获取更新与反馈
 
-交流与问题反馈请加入荷花的小群：QQ 群 `702211431`。
+问题反馈和功能建议请提交到 [GitHub Issues](https://github.com/MOPELotus/MusicHud-TuneWeave/issues)，方便跟踪处理进度。提交前请先搜索已有问题。
+
+日常交流可加入荷花的小群：QQ 群 `702211431`。
 
 全量 CI 和发布流程由默认分支 `26.3` 管理。当前矩阵覆盖七个客户端版本组的双加载器 JAR，以及 `plugin` 分支的三个跨版本插件，每种发行版各有 17 个部署文件，普通版与 CF 版合计 34 个，并附带 `SHA256SUMS` 与构建来源清单。
 
